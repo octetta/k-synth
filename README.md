@@ -1,4 +1,5 @@
 # k/synth
+<image src="ksynth.png" width="200">
 
 > "A pocket-calculator version of a synthesizer."
 
