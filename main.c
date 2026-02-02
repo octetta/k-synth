@@ -19,6 +19,8 @@ void cb(ma_device* d, void* o, const void* i, ma_uint32 n) {
     play_idx = idx;
 }
 
+void p_view(K x);
+
 void handle_line(char* line) {
     while (*line == ' ') line++;
     if (line[0] == '\0' || line[0] == '/') return;
@@ -52,8 +54,40 @@ void handle_line(char* line) {
     } else {
         char *ptr = line;
         K r = e(&ptr);
-        if (r) { p(r); k_free(r); }
+        if (r) {
+          p_view(r);
+          p(r);
+          k_free(r);
+        }
     }
+}
+
+// Add this above handle_line in main.c
+void p_view(K x) {
+    if (!x || x->n <= 0) return;
+
+    // 1. Sparkline (Braille)
+    int width = 64; 
+    printf("   ");
+    for (int i = 0; i < width; i++) {
+        int idx = (i * x->n) / width;
+        double v = x->f[idx];
+        // Map -1.0..1.0 to 0..7 for Braille dots
+        int level = (int)((v + 1.0) * 3.5);
+        if (level < 0) level = 0;
+        if (level > 7) level = 7;
+        static const char* dots[] = {" ","⠂","⠒","⠖","⠶","⠷","⠿","⣿"};
+        printf("%s", dots[level]);
+    }
+    
+    // 2. Element Preview (First 10 or fewer)
+    printf("\n   (");
+    int limit = (x->n < 10) ? x->n : 10;
+    for (int i = 0; i < limit; i++) {
+        printf("%.4f%s", x->f[i], (i == limit - 1) ? "" : " ");
+    }
+    if (x->n > 10) printf(" ...");
+    printf(")\n");
 }
 
 int main() {
@@ -71,13 +105,19 @@ int main() {
 
     char* line;
     while ((line = bestline("ksynth> ")) != NULL) {
-        if (!strcmp(line, "exit")) { free(line); break; }
-        if (line[0] != '\0') {
-            bestlineHistoryAdd(line);
-            handle_line(line);
+        char *saveptr;
+        char *token = strtok_r(line, "\n", &saveptr);
+        while (token) {
+          if (!strcmp(token, "exit")) { free(line); goto done; }
+          if (token[0] != '\0') {
+              bestlineHistoryAdd(token);
+              handle_line(token);
+              token = strtok_r(NULL, "\n", &saveptr);
+          }
         }
         free(line);
     }
+    done:
     bestlineHistorySave("history.txt");
     ma_device_uninit(&dev);
     return 0;
