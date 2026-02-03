@@ -48,6 +48,20 @@ K mo(char c, K b) {
         for(int j=0; j<n; j++) x->f[j] = (double)j;
         return x;
     }
+
+    if (c == '+') {
+        double t = 0;
+        for (int i = 0; i < b->n; i++) t += b->f[i];
+        x = k_new(1); x->f[0] = t;
+        k_free(b); return x;
+    }
+    if (c == '>') {
+        double m = 0;
+        for (int i = 0; i < b->n; i++) if(fabs(b->f[i]) > m) m = fabs(b->f[i]);
+        x = k_new(1); x->f[0] = m;
+        k_free(b); return x;
+    }
+
     x = k_new(b->n);
     for (int i = 0; i < b->n; i++) {
         double v = b->f[i];
@@ -63,6 +77,41 @@ K mo(char c, K b) {
             case 'r': x->f[i] = ((double)rand() / (double)RAND_MAX) * 2.0 - 1.0; break;
             case 'p': x->f[i] = 3.14159265358979323846 * v; break;
             case '~': x->f[i] = b->f[b->n - 1 - i]; break;
+            case 'x': x->f[i] = exp(-5.0 * v); break;  // e^(-5t)
+            case 'd': x->f[i] = tanh(v * 3.0); break;  // soft clipping
+            //
+            case 'v': x->f[i] = floor(v * 4.0) / 4.0 ; break;  // 2-bit quantizer
+            //
+case 'm': {
+    for (int i = 0; i < x->n; i++) {
+        // Deterministic metallic bit-shredding
+        unsigned int clock = i;
+        unsigned int h = (clock * 13) ^ (clock >> 5) ^ (clock * 193);
+        x->f[i] = (h & 128) ? 0.7 : -0.7; // Hard square-pulse output
+    }
+    break;
+}
+case 'b': {
+    // Exact 909 metallic frequencies (scaled for typical sample rates)
+    double f[] = {2.43, 3.01, 3.52, 4.11, 5.23, 6.78}; 
+    for (int i = 0; i < x->n; i++) {
+        double s = 0;
+        for (int j = 0; j < 6; j++) {
+            // Fast square wave summation
+            s += (sin(i * 0.1 * f[j]) > 0) ? 1.0 : -1.0;
+        }
+        x->f[i] = s / 6.0;
+    }
+    break;
+}
+case 'u': {
+    for (int i = 0; i < x->n; i++) {
+        // Linear attack over the first 100 samples
+        x->f[i] = (i < 10) ? (double)i / 10.0 : 1.0;
+    }
+    break;
+}
+            //
             default:  x->f[i] = v; break;
         }
     }
@@ -103,6 +152,8 @@ K dy(char c, K a, K b) {
                 case '-': x->f[i] = va - vb; break;
                 case '%': x->f[i] = (vb == 0) ? 0 : va / vb; break;
                 case '^': x->f[i] = pow(fabs(va), vb); break;
+                case '&': x->f[i] = va < vb ? va : vb; break;
+                case '|': x->f[i] = va > vb ? va : vb; break;
                 default:  x->f[i] = 0; break;
             }
         }
