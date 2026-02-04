@@ -1,7 +1,6 @@
 / 909 set version 001
 A: !8000
 E: 1 - 0.000125 * A
-P: E * E * E * E * E
 
 / Kick
 K: 0.5 & -0.5 | 5 * (s 0.007 * A) * E * E
@@ -13,9 +12,8 @@ T: (s 0.2 * P * A) * P
 S: 0.7 & -0.7 | (2 * T) + N * E * E
 
 / closed Hi-hat
+P: E * E * E * E * E
 H: (0.95 f r A) * P
-
-M: 1 - P
 
 / Open hi-hat 
 O: (0.95 f r A) * (0.8 * E) + (0.5 * P)

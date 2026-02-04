@@ -20,10 +20,10 @@ It uses:
 To hear the engine in action, pass a single variable to the playback command:
 
 ```
-N:44100   / number samples 1 second @ 44100Hz
-L:!N      / ramp 0 .. 44099
-F:440     / frequency
-T:2 * p 0 / 2*Pi = Tau
+N:44100 / number samples 1 second @ 44100Hz
+L:!N    / ramp 0 .. 44099
+F:440   / frequency
+T:p 2   / 2*Pi = Tau
 
 / make a sine wave 1 second @ 440Hz
 S:s L * T * F % N
