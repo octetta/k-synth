@@ -49,6 +49,8 @@ Z: K,K,S,K,K,S,K,K,S,C,C,C,O,S,S
 \s Z
 ```
 
+**hear Z**
+https://github.com/user-attachments/assets/49376dbd-db15-4292-b93a-3fb42f8d78d6
 
 **Built** by Joseph Stewart [octetta](https://octetta.com) 🐙♊ in collaboration with AI-🧠
 pair programming.
