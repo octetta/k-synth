@@ -6,13 +6,13 @@ E: 1 - 0.000125 * A
 K: 0.5 & -0.5 | 5 * (s 0.007 * A) * E * E
 
 N: 0.5 f r A
+P: E * E * E * E * E
 T: (s 0.2 * P * A) * P
 
 / Snare
 S: 0.7 & -0.7 | (2 * T) + N * E * E
 
 / closed Hi-hat
-P: E * E * E * E * E
 H: (0.95 f r A) * P
 
 / Open hi-hat 
