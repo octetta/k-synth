@@ -49,13 +49,6 @@ Z: K,K,S,K,K,S,K,K,S,C,C,C,O,S,S
 \s Z
 ```
 
-*hear Z*
-
-<audio controls>
-  <source src="https://raw.githubusercontent.com/octetta/k-synth/main/Z.wav" type="audio/wav">
-  Your browser does not support the audio element.
-</audio>
-
 
 **Built** by Joseph Stewart [octetta](https://octetta.com) 🐙♊ in collaboration with AI-🧠
 pair programming.
