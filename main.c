@@ -21,7 +21,7 @@ void cb(ma_device* d, void* o, const void* i, ma_uint32 n) {
 }
 
 int write_wav_from_k(char* name, double* ptr, ma_uint64 frames, ma_uint32 chans, ma_uint32 sample_rate);
-void p_view(K x);
+void p_view(K x, int opts);
 
 void handle_play(char *ptr) {
 }
@@ -33,6 +33,9 @@ char get_var(char *ptr) {
   return '\0';
 }
 
+int show = 0;
+int opts = 0;
+
 void handle_line(char* line) {
   while (*line == ' ') line++;
 
@@ -40,7 +43,9 @@ void handle_line(char* line) {
 
   if (line[0] == '\\') {
     
-    if (line[1] == 'p') { 
+    if (line[1] == 't') { 
+      show = (show == 0) ? 1 : 0;
+    } else if (line[1] == 'p') { 
       char v_name = get_var(line + 2);
       if (v_name) {
         K v = vars[v_name - 'A'];
@@ -89,7 +94,7 @@ void handle_line(char* line) {
           K v = vars[v_name - 'A'];
           if (v) {
             printf("%c ", v_name);
-            p_view(v);
+            p_view(v, opts);
           }
         }
       } else {
@@ -98,7 +103,7 @@ void handle_line(char* line) {
           K v = vars[v_name - 'A'];
           if (v) {
             printf("%c ", v_name);
-            p_view(v);
+            p_view(v, opts);
           }
         }
       }
@@ -106,8 +111,8 @@ void handle_line(char* line) {
   } else {
     char *ptr = line;
     K r = e(&ptr);
-    if (r) {
-      //p_view(r);
+    if (show && r) {
+      p_view(r, 1);
       // p(r);
       // k_free(r); do something else... maybe sweep for ref == 0?
     }
@@ -115,14 +120,25 @@ void handle_line(char* line) {
 }
 
 // Add this above handle_line in main.c
-void p_view(K x) {
+void p_view(K x, int opts) {
   if (!x || x->n <= 0) {
     printf("[0]\n");
     return;
   }
 
-  printf("[%d]\n", x->n);
-  // 1. Sparkline (Braille)
+  printf("[%d]", x->n);
+  // 1. Element Preview (First 10 or fewer)
+  printf(" (");
+  int limit = (x->n < 10) ? x->n : 10;
+  for (int i = 0; i < limit; i++) {
+    printf("%.4f%s", x->f[i], (i == limit - 1) ? "" : " ");
+  }
+  if (x->n > 10) printf(" ...");
+  printf(")\n");
+
+  if (opts) return;
+
+  // 2. Sparkline (Braille)
   int width = 64; 
   printf("   ");
   for (int i = 0; i < width; i++) {
@@ -135,15 +151,6 @@ void p_view(K x) {
     static const char* dots[] = {" ","⠂","⠒","⠖","⠶","⠷","⠿","⣿"};
     printf("%s", dots[level]);
   }
-  
-  // 2. Element Preview (First 10 or fewer)
-  printf("\n   (");
-  int limit = (x->n < 10) ? x->n : 10;
-  for (int i = 0; i < limit; i++) {
-    printf("%.4f%s", x->f[i], (i == limit - 1) ? "" : " ");
-  }
-  if (x->n > 10) printf(" ...");
-  printf(")\n");
 }
 
 #define CHUNK_FRAME_COUNT 4096
