@@ -14,8 +14,37 @@ void cb(ma_device* d, void* o, const void* i, ma_uint32 n) {
   float* out = (float*)o;
   K cur = (K)play_ptr;
   int idx = play_idx;
-  for (ma_uint32 j = 0; j < n; j++) {
-    out[j] = (cur && idx < cur->n) ? (float)cur->f[idx++] : 0.0f;
+
+  if (cur && cur->type == K_TYPE_K_ARRAY && cur->n == 2) {
+    // Stereo output from a nested array of two double arrays
+    K left_channel = cur->data.k[0];
+    K right_channel = cur->data.k[1];
+
+    if (left_channel && right_channel &&
+        left_channel->type == K_TYPE_DOUBLE_ARRAY &&
+        right_channel->type == K_TYPE_DOUBLE_ARRAY) {
+
+      for (ma_uint32 j = 0; j < n; j++) {
+        // Left channel
+        out[j * 2] = (idx < left_channel->n) ? (float)left_channel->data.d[idx] : 0.0f;
+        // Right channel
+        out[j * 2 + 1] = (idx < right_channel->n) ? (float)right_channel->data.d[idx] : 0.0f;
+        idx++;
+      }
+    } else {
+      // If channels are not double arrays or null, output silence
+      for (ma_uint32 j = 0; j < n * 2; j++) out[j] = 0.0f;
+    }
+  } else if (cur && cur->type == K_TYPE_DOUBLE_ARRAY) {
+    // Mono output (duplicate to both channels)
+    for (ma_uint32 j = 0; j < n; j++) {
+      float sample = (idx < cur->n) ? (float)cur->data.d[idx++] : 0.0f;
+      out[j * 2] = sample;     // Left
+      out[j * 2 + 1] = sample; // Right
+    }
+  } else {
+    // No valid K object or unknown type, output silence
+    for (ma_uint32 j = 0; j < n * 2; j++) out[j] = 0.0f;
   }
   play_idx = idx;
 }
@@ -81,8 +110,12 @@ void handle_line(char* line) {
           gettimeofday(&tv, NULL);
           double ts = (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0;
           snprintf(name, sizeof(name), "%c-%f.wav", v_name, ts);
-          printf("write %c to %s\n", v_name, name);
-          write_wav_from_k(name, v->f, v->n, 1, 44100);
+          if (v->type == K_TYPE_DOUBLE_ARRAY) {
+            printf("write %c to %s\n", v_name, name);
+            write_wav_from_k(name, v->data.d, v->n, 1, 44100);
+          } else {
+            printf("Cannot save non-double array type for variable %c\n", v_name);
+          }
         } else {
           printf("nothing in %c\n", v_name);
         }
@@ -121,7 +154,11 @@ void handle_line(char* line) {
 
 // Add this above handle_line in main.c
 void p_view(K x, int opts) {
-  if (!x || x->n <= 0) {
+  if (!x) {
+    printf("[null]\n");
+    return;
+  }
+  if (x->n <= 0) {
     printf("[0]\n");
     return;
   }
@@ -130,9 +167,20 @@ void p_view(K x, int opts) {
   // 1. Element Preview (First 10 or fewer)
   printf(" (");
   int limit = (x->n < 10) ? x->n : 10;
-  for (int i = 0; i < limit; i++) {
-    printf("%.4f%s", x->f[i], (i == limit - 1) ? "" : " ");
+  if (x->type == K_TYPE_DOUBLE_ARRAY) {
+    for (int i = 0; i < limit; i++) {
+      printf("%.4f%s", x->data.d[i], (i == limit - 1) ? "" : " ");
+    }
+  } else if (x->type == K_TYPE_K_ARRAY) {
+    for (int i = 0; i < limit; i++) {
+      // Recursively call p (from ksynth.c) to print nested K objects
+      p(x->data.k[i]); 
+      if (i < limit - 1) printf(" "); // Space between elements
+    }
+  } else {
+    printf("UNKNOWN_TYPE ");
   }
+
   if (x->n > 10) printf(" ...");
   printf(")\n");
 
@@ -141,16 +189,21 @@ void p_view(K x, int opts) {
   // 2. Sparkline (Braille)
   int width = 64; 
   printf("   ");
-  for (int i = 0; i < width; i++) {
-    int idx = (i * x->n) / width;
-    double v = x->f[idx];
-    // Map -1.0..1.0 to 0..7 for Braille dots
-    int level = (int)((v + 1.0) * 3.5);
-    if (level < 0) level = 0;
-    if (level > 7) level = 7;
-    static const char* dots[] = {" ","⠂","⠒","⠖","⠶","⠷","⠿","⣿"};
-    printf("%s", dots[level]);
+  if (x->type == K_TYPE_DOUBLE_ARRAY) {
+    for (int i = 0; i < width; i++) {
+      int idx = (i * x->n) / width;
+      double v = x->data.d[idx];
+      // Map -1.0..1.0 to 0..7 for Braille dots
+      int level = (int)((v + 1.0) * 3.5);
+      if (level < 0) level = 0;
+      if (level > 7) level = 7;
+      static const char* dots[] = {" ","⠂","⠒","⠖","⠶","⠷","⠿","⣿"};
+      printf("%s", dots[level]);
+    }
+  } else {
+    printf("Sparkline not available for non-double array types.");
   }
+  printf("\n");
 }
 
 #define CHUNK_FRAME_COUNT 4096
@@ -204,9 +257,10 @@ int write_wav_from_k(char* filename, double* ptr, ma_uint64 frames, ma_uint32 ch
 }
 
 int main() {
+  dummy_function(); // Diagnostic call
   ma_device_config cfg = ma_device_config_init(ma_device_type_playback);
   cfg.playback.format = ma_format_f32;
-  cfg.playback.channels = 1;
+  cfg.playback.channels = 2; // Change to 2 for stereo
   cfg.sampleRate = 44100;
   cfg.dataCallback = cb;
   ma_device dev;
