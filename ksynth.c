@@ -4,7 +4,8 @@
 #include <math.h>
 #include "ksynth.h"
 
-K vars[26] = {0};
+K vars[26] = {0};   // A-Z user variables
+K args[3] = {0};    // x, y, z function arguments
 
 /* --- Lifecycle --- */
 
@@ -35,6 +36,92 @@ K k_get(char name) {
     if (name < 'A' || name > 'Z' || !vars[name - 'A']) return NULL;
     K v = vars[name - 'A'];
     v->r++; return v;
+}
+
+/* --- Function Support --- */
+
+// Use n == -1 to mark as function
+// Store function body as string in f[] (cast char* to double*)
+K k_func(char *body) {
+    int len = strlen(body) + 1;
+    int ndoubles = (len + sizeof(double) - 1) / sizeof(double);
+    K x = k_new(ndoubles);
+    x->n = -1;  // Mark as function
+    memcpy(x->f, body, len);
+    return x;
+}
+
+int k_is_func(K x) {
+    return x && x->n == -1;
+}
+
+char* k_func_body(K x) {
+    return k_is_func(x) ? (char*)x->f : NULL;
+}
+
+K k_call(K fn, K *call_args, int nargs) {
+    if (!k_is_func(fn)) return NULL;
+    
+    char *body = k_func_body(fn);
+    if (!body) return NULL;
+    
+    // Check which arguments the function uses
+    int uses_x = (strchr(body, 'x') != NULL);
+    int uses_y = (strchr(body, 'y') != NULL);
+    int uses_z = (strchr(body, 'z') != NULL);
+    
+    // Validate argument count
+    int required = 0;
+    if (uses_z) required = 3;
+    else if (uses_y) required = 2;
+    else if (uses_x) required = 1;
+    
+    if (nargs < required) {
+        fprintf(stderr, "Error: function requires %d argument%s, got %d\n",
+                required, required == 1 ? "" : "s", nargs);
+        return k_new(0);  // Return empty array
+    }
+    
+    // Save current x, y, z
+    K old_x = args[0];
+    K old_y = args[1];
+    K old_z = args[2];
+    
+    // Bind arguments (default to empty array if not provided)
+    args[0] = k_new(0);  // Default x to empty
+    args[1] = k_new(0);  // Default y to empty
+    args[2] = k_new(0);  // Default z to empty
+    
+    if (nargs > 0 && call_args[0]) { 
+        k_free(args[0]);
+        call_args[0]->r++; 
+        args[0] = call_args[0]; 
+    }
+    if (nargs > 1 && call_args[1]) { 
+        k_free(args[1]);
+        call_args[1]->r++; 
+        args[1] = call_args[1]; 
+    }
+    if (nargs > 2 && call_args[2]) { 
+        k_free(args[2]);
+        call_args[2]->r++; 
+        args[2] = call_args[2]; 
+    }
+    
+    // Evaluate function body
+    char *s = body;
+    K result = e(&s);
+    
+    // Restore old x, y, z
+    if (args[0]) k_free(args[0]);
+    if (args[1]) k_free(args[1]);
+    if (args[2]) k_free(args[2]);
+    
+    args[0] = old_x;
+    args[1] = old_y;
+    args[2] = old_z;
+    
+    return result;
 }
 
 /* --- Scan Adverb --- */
@@ -105,7 +192,6 @@ K scan(char op, K b) {
             break;
             
         default:
-            // Scan doesn't make sense for this verb
             fprintf(stderr, "Warning: scan not supported for '%c'\n", op);
             memcpy(x->f, b->f, b->n * sizeof(double));
             break;
@@ -119,6 +205,16 @@ K scan(char op, K b) {
 
 K mo(char c, K b) {
     if (!b) return NULL;
+    
+    // Check if variable contains a function
+    if (c >= 'A' && c <= 'Z') {
+        K var = vars[c - 'A'];
+        if (k_is_func(var)) {
+            K call_args[1] = {b};
+            return k_call(var, call_args, 1);
+        }
+    }
+    
     K x;
     if (c == '!') {
         int n = (int)b->f[0]; k_free(b);
@@ -170,18 +266,16 @@ K mo(char c, K b) {
             case 'r': x->f[i] = ((double)rand() / (double)RAND_MAX) * 2.0 - 1.0; break;
             case 'p': x->f[i] = 3.14159265358979323846 * v; break;
             case '~': x->f[i] = b->f[b->n - 1 - i]; break;
-            case 'x': x->f[i] = exp(-5.0 * v); break;  // e^(-5t)
-            case 'd': x->f[i] = tanh(v * 3.0); break;  // soft clipping
-            case 'v': x->f[i] = floor(v * 4.0) / 4.0 ; break;  // 2-bit quantizer
+            case 'x': x->f[i] = exp(-5.0 * v); break;
+            case 'd': x->f[i] = tanh(v * 3.0); break;
+            case 'v': x->f[i] = floor(v * 4.0) / 4.0 ; break;
             case 'm': {
-                // Deterministic metallic bit-shredding
                 unsigned int clock = i;
                 unsigned int h = (clock * 13) ^ (clock >> 5) ^ (clock * 193);
                 x->f[i] = (h & 128) ? 0.7 : -0.7;
                 break;
             }
             case 'b': {
-                // 909 metallic frequencies
                 double f[] = {2.43, 3.01, 3.52, 4.11, 5.23, 6.78}; 
                 double s = 0;
                 for (int j = 0; j < 6; j++) {
@@ -191,7 +285,6 @@ K mo(char c, K b) {
                 break;
             }
             case 'u': {
-                // Linear attack over first 10 samples
                 x->f[i] = (i < 10) ? (double)i / 10.0 : 1.0;
                 break;
             }
@@ -203,6 +296,16 @@ K mo(char c, K b) {
 
 K dy(char c, K a, K b) {
     if (!a || !b) { k_free(a); k_free(b); return NULL; }
+    
+    // Check if variable contains a function
+    if (c >= 'A' && c <= 'Z') {
+        K var = vars[c - 'A'];
+        if (k_is_func(var)) {
+            K call_args[2] = {a, b};
+            return k_call(var, call_args, 2);
+        }
+    }
+    
     K x;
     
     // Stereo interleave
@@ -210,8 +313,8 @@ K dy(char c, K a, K b) {
         int mn = (a->n < b->n) ? a->n : b->n;
         x = k_new(mn * 2);
         for (int i = 0; i < mn; i++) {
-            x->f[i*2]   = a->f[i];   // left
-            x->f[i*2+1] = b->f[i];   // right
+            x->f[i*2]   = a->f[i];
+            x->f[i*2+1] = b->f[i];
         }
         k_free(a); k_free(b); return x;
     }
@@ -256,7 +359,7 @@ K dy(char c, K a, K b) {
     k_free(a); k_free(b); return x;
 }
 
-/* --- Parser with Scan Support --- */
+/* --- Parser with Scan and Function Support --- */
 
 K e(char **s);
 
@@ -264,15 +367,43 @@ K atom(char **s) {
     while (**s == ' ') (*s)++;
     if (!**s || **s == '\n' || **s == ')' || **s == ';') return NULL;
 
-    // Paren handling: (A+B) or explicit (1 2 3)
+    // Paren handling
     if (**s == '(') {
         (*s)++; K x = e(s);
         if (**s == ')') (*s)++;
         return x;
     }
 
+    // Function literal {body}
+    if (**s == '{') {
+        (*s)++;  // skip '{'
+        char *start = *s;
+        int depth = 1;
+        
+        // Find matching closing brace
+        while (**s && depth > 0) {
+            if (**s == '{') depth++;
+            else if (**s == '}') depth--;
+            (*s)++;  // ALWAYS advance
+        }
+        
+        // Now *s points AFTER the closing }
+        if (depth == 0) {
+            int len = (*s - 1) - start;  // -1 to exclude the }
+            char *body = malloc(len + 1);
+            memcpy(body, start, len);
+            body[len] = '\0';
+            K func = k_func(body);
+            free(body);
+            return func;
+        }
+        
+        return NULL;  // unclosed {
+    }
+
     char c = **s;
-    // Number handling: slurp multiple space-separated numbers into one K array
+    
+    // Number handling
     if ((c >= '0' && c <= '9') || (c == '-' && (*s)[1] >= '0')) {
         double buf[1024]; int n = 0;
         char *ptr = *s;
@@ -280,7 +411,6 @@ K atom(char **s) {
             buf[n++] = strtod(ptr, &ptr);
             char *peek = ptr;
             while (*peek == ' ') peek++;
-            // Only continue if the next thing is another number
             if (!((*peek >= '0' && *peek <= '9') || (*peek == '-' && peek[1] >= '0'))) break;
             ptr = peek;
         }
@@ -290,6 +420,8 @@ K atom(char **s) {
     }
 
     (*s)++;
+    
+    // Assignment
     if (**s == ':') {
         (*s)++; K x = e(s);
         if (c >= 'A' && c <= 'Z') {
@@ -297,11 +429,17 @@ K atom(char **s) {
             if (vars[i]) k_free(vars[i]);
             if (x) { x->r++; vars[i] = x; }
         }
-        if (x) x->r++; // REPL safety: return a reference that main.c can free
+        if (x) x->r++;
         return x;
     }
     
+    // Variable lookup (uppercase A-Z)
     if (c >= 'A' && c <= 'Z') return k_get(c);
+    
+    // Argument variables (lowercase x, y, z)
+    if (c == 'x') return args[0] ? (args[0]->r++, args[0]) : k_new(0);
+    if (c == 'y') return args[1] ? (args[1]->r++, args[1]) : k_new(0);
+    if (c == 'z') return args[2] ? (args[2]->r++, args[2]) : k_new(0);
     
     // Check for scan adverb
     int is_scan = 0;
@@ -323,6 +461,35 @@ K atom(char **s) {
 K e(char **s) {
     K x = atom(s);
     while (**s == ' ') (*s)++;
+    
+    // Check for function application (juxtaposition)
+    // If x is a function and next is an argument (not operator), apply it
+    if (k_is_func(x) && **s && **s != '\n' && **s != ')' && **s != ';') {
+        char peek = **s;
+        
+        // Check if next is definitely NOT an operator
+        // Operators are: + - * % ^ & | , # and lowercase verb letters
+        int is_operator = (peek == '+' || peek == '-' || peek == '*' || 
+                          peek == '%' || peek == '^' || peek == '&' || 
+                          peek == '|' || peek == ',' || peek == '#' ||
+                          peek == 'f' || peek == 'y' || peek == 'z' ||
+                          peek == 's' || peek == 't' || peek == 'h' ||
+                          peek == 'a' || peek == 'q' || peek == 'l' ||
+                          peek == 'e' || peek == 'r' || peek == 'p' ||
+                          peek == 'd' || peek == 'v' || peek == 'm' ||
+                          peek == 'b' || peek == 'u' || peek == 'j' ||
+                          peek == 'k');
+        
+        // If it looks like an argument, apply monadically
+        if (!is_operator) {
+            K arg = e(s);
+            K call_args[1] = {arg};
+            K result = k_call(x, call_args, 1);
+            k_free(x);
+            return result;
+        }
+    }
+    
     if (!**s || **s == '\n' || **s == ')' || **s == ';') return x;
     char op = *(*s)++;
     return dy(op, x, e(s));
@@ -330,6 +497,13 @@ K e(char **s) {
 
 void p(K x) {
     if (!x) return;
+    
+    // Print functions
+    if (k_is_func(x)) {
+        printf("{%s}\n", k_func_body(x));
+        return;
+    }
+    
     if (x->n == 1) printf("%.4f\n", x->f[0]);
     else printf("Array[%d]\n", x->n);
 }

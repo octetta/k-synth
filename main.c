@@ -54,6 +54,18 @@ char get_var(char *ptr) {
 int show = 0;
 int opts = 0;
 
+void shower(int v_name) {
+  K v = vars[v_name - 'A'];
+  if (v) {
+    printf("%c ", v_name);
+    if (k_is_func(v)) {
+      printf("{%s}\n", k_func_body(v));
+    } else {
+      p_view(v, opts);
+    }
+  }
+}
+
 void handle_line(char* line) {
   while (*line == ' ') line++;
 
@@ -141,21 +153,11 @@ void handle_line(char* line) {
     } else if (line[1] == 'v') {
       if (line[2] == '\0') {
         for (int v_name='A'; v_name<='Z'; v_name++) {
-          K v = vars[v_name - 'A'];
-          if (v) {
-            printf("%c ", v_name);
-            p_view(v, opts);
-          }
+          shower(v_name);
         }
       } else {
         char v_name = get_var(line + 2);
-        if (v_name) {
-          K v = vars[v_name - 'A'];
-          if (v) {
-            printf("%c ", v_name);
-            p_view(v, opts);
-          }
-        }
+        shower(v_name);
       }
     }
   } else {
