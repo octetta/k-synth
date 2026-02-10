@@ -264,7 +264,11 @@ K mo(char c, K b) {
             case 'e': x->f[i] = exp(v); break;
             case '_': x->f[i] = floor(v); break;
             case 'r': x->f[i] = ((double)rand() / (double)RAND_MAX) * 2.0 - 1.0; break;
-            case 'p': x->f[i] = 3.14159265358979323846 * v; break;
+            case 'p': {
+                if (v == 0) x->f[i] = 44100;
+                else x->f[i] = 3.14159265358979323846 * v;
+              }
+              break;
             case '~': x->f[i] = b->f[b->n - 1 - i]; break;
             case 'x': x->f[i] = exp(-5.0 * v); break;
             case 'd': x->f[i] = tanh(v * 3.0); break;
@@ -286,6 +290,10 @@ K mo(char c, K b) {
             }
             case 'u': {
                 x->f[i] = (i < 10) ? (double)i / 10.0 : 1.0;
+                break;
+            }
+            case 'n': {
+                x->f[i] = 440.0 * pow(2.0, (v - 69.0) / 12.0);
                 break;
             }
             default:  x->f[i] = v; break;

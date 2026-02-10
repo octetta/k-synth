@@ -1,7 +1,9 @@
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include "ksynth.h"
 #include "miniaudio.h"
@@ -71,6 +73,14 @@ void handle_line(char* line) {
 
   if (line[0] == '\0' || line[0] == '/') return;
 
+  int len = strlen(line);
+  for (int i=0; i<len; i++) {
+    if (line[i] == '/') {
+      line[i] = '\0';
+      break;
+    }
+  }
+
   if (line[0] == '\\') {
     
     if (line[1] == 't') { 
@@ -105,7 +115,20 @@ void handle_line(char* line) {
     } else if (line[1] == 'l') { 
       char *fn = line + 2; while (*fn == ' ') fn++;
       FILE *f = fopen(fn, "r");
-      if (!f) { printf("Error: %s\n", fn); return; }
+      if (!f) {
+        printf("Error: %s\n", fn);
+        DIR *dir = opendir(".");
+        if (dir == NULL) return;
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != NULL) {
+          char *name = entry->d_name;
+          int len = strlen(name);
+          if (len > 2 && name[len-1] == 'k' && name[len-2] == '.')
+            printf("%s\n", name);
+        }
+        closedir(dir);
+        return;
+      }
       char buf[1024];
       while (fgets(buf, sizeof(buf), f)) {
         buf[strcspn(buf, "\n")] = 0;
