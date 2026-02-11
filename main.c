@@ -1,43 +1,65 @@
-#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include "ksynth.h"
 #include "miniaudio.h"
 #include "bestline.h"
 
-volatile K play_ptr = NULL;
-volatile int play_idx = 0;
-volatile int play_stereo = 0;  // User-controlled stereo flag
+#define MAX_VOICES 8  // Maximum simultaneous playback voices
+
+typedef struct {
+  K buffer;           // Audio buffer
+  int idx;            // Current playback position
+  int stereo;         // 0 = mono, 1 = stereo
+  int active;         // 1 = playing, 0 = empty slot
+} Voice;
+
+volatile Voice voices[MAX_VOICES] = {0};
 
 void cb(ma_device* d, void* o, const void* i, ma_uint32 n) {
   float* out = (float*)o;
-  K cur = (K)play_ptr;
-  int idx = play_idx;
-  int stereo = play_stereo;
   
-  for (ma_uint32 j = 0; j < n; j++) {
-    if (cur && idx < cur->n) {
-      if (stereo && idx + 1 < cur->n) {
-        // Stereo: read two samples (L, R)
-        out[j*2]   = (float)cur->f[idx++];  // L
-        out[j*2+1] = (float)cur->f[idx++];  // R
+  // Clear output buffer
+  for (ma_uint32 j = 0; j < n * 2; j++) {
+    out[j] = 0.0f;
+  }
+  
+  // Mix all active voices
+  for (int v = 0; v < MAX_VOICES; v++) {
+    if (!voices[v].active) continue;
+    
+    K buf = voices[v].buffer;
+    int idx = voices[v].idx;
+    int stereo = voices[v].stereo;
+    
+    if (!buf) {
+      voices[v].active = 0;
+      continue;
+    }
+    
+    for (ma_uint32 j = 0; j < n; j++) {
+      if (idx >= buf->n) {
+        // Voice finished
+        voices[v].active = 0;
+        break;
+      }
+      
+      if (stereo && idx + 1 < buf->n) {
+        // Stereo: read two samples
+        out[j*2]   += (float)buf->f[idx++];  // L
+        out[j*2+1] += (float)buf->f[idx++];  // R
       } else {
         // Mono: duplicate to both channels
-        float v = (cur && idx < cur->n) ? (float)cur->f[idx++] : 0.0f;
-        out[j*2]   = v;  // L
-        out[j*2+1] = v;  // R
+        float v = (float)buf->f[idx++];
+        out[j*2]   += v;  // L
+        out[j*2+1] += v;  // R
       }
-    } else {
-      // No more samples - silence
-      out[j*2]   = 0.0f;
-      out[j*2+1] = 0.0f;
     }
+    
+    voices[v].idx = idx;
   }
-  play_idx = idx;
 }
 
 int write_wav_from_k(char* name, double* ptr, ma_uint64 frames, ma_uint32 chans, ma_uint32 sample_rate);
@@ -56,29 +78,26 @@ char get_var(char *ptr) {
 int show = 0;
 int opts = 0;
 
-void shower(int v_name) {
-  K v = vars[v_name - 'A'];
-  if (v) {
-    printf("%c ", v_name);
-    if (k_is_func(v)) {
-      printf("{%s}\n", k_func_body(v));
-    } else {
-      p_view(v, opts);
-    }
-  }
-}
-
 void handle_line(char* line) {
   while (*line == ' ') line++;
 
   if (line[0] == '\0' || line[0] == '/') return;
 
-  int len = strlen(line);
-  for (int i=0; i<len; i++) {
-    if (line[i] == '/') {
-      line[i] = '\0';
+  // Strip inline comments (everything after first '/')
+  // But be careful: '/' inside strings or functions should be preserved
+  // Simple approach: find first '/' not inside {}
+  char *comment_start = NULL;
+  int brace_depth = 0;
+  for (char *p = line; *p; p++) {
+    if (*p == '{') brace_depth++;
+    else if (*p == '}') brace_depth--;
+    else if (*p == '/' && brace_depth == 0) {
+      comment_start = p;
       break;
     }
+  }
+  if (comment_start) {
+    *comment_start = '\0';  // Truncate at comment
   }
 
   if (line[0] == '\\') {
@@ -102,33 +121,40 @@ void handle_line(char* line) {
       if (v_name) {
         K v = vars[v_name - 'A'];
         if (v) {
-          K old = (K)play_ptr;
-          v->r++; 
-          play_idx = 0; 
-          play_ptr = v;
-          play_stereo = is_stereo;
-          if (old) k_free(old);
-          printf("playing %c (%s)\n", v_name, is_stereo ? "stereo" : "mono");
+          // Find empty voice slot
+          int slot = -1;
+          for (int i = 0; i < MAX_VOICES; i++) {
+            if (!voices[i].active) {
+              slot = i;
+              break;
+            }
+          }
+          
+          if (slot == -1) {
+            printf("No free voice slots (max %d)\n", MAX_VOICES);
+            return;
+          }
+          
+          // Free old buffer if any
+          if (voices[slot].buffer) {
+            k_free((K)voices[slot].buffer);
+          }
+          
+          // Start new voice
+          v->r++;
+          voices[slot].buffer = v;
+          voices[slot].idx = 0;
+          voices[slot].stereo = is_stereo;
+          voices[slot].active = 1;
+          
+          printf("playing %c in slot %d (%s)\n", v_name, slot, is_stereo ? "stereo" : "mono");
         }
       }
       
     } else if (line[1] == 'l') { 
       char *fn = line + 2; while (*fn == ' ') fn++;
       FILE *f = fopen(fn, "r");
-      if (!f) {
-        printf("Error: %s\n", fn);
-        DIR *dir = opendir(".");
-        if (dir == NULL) return;
-        struct dirent *entry;
-        while ((entry = readdir(dir)) != NULL) {
-          char *name = entry->d_name;
-          int len = strlen(name);
-          if (len > 2 && name[len-1] == 'k' && name[len-2] == '.')
-            printf("%s\n", name);
-        }
-        closedir(dir);
-        return;
-      }
+      if (!f) { printf("Error: %s\n", fn); return; }
       char buf[1024];
       while (fgets(buf, sizeof(buf), f)) {
         buf[strcspn(buf, "\n")] = 0;
@@ -176,12 +202,49 @@ void handle_line(char* line) {
     } else if (line[1] == 'v') {
       if (line[2] == '\0') {
         for (int v_name='A'; v_name<='Z'; v_name++) {
-          shower(v_name);
+          K v = vars[v_name - 'A'];
+          if (v) {
+            printf("%c ", v_name);
+            p_view(v, opts);
+          }
         }
       } else {
         char v_name = get_var(line + 2);
-        shower(v_name);
+        if (v_name) {
+          K v = vars[v_name - 'A'];
+          if (v) {
+            printf("%c ", v_name);
+            p_view(v, opts);
+          }
+        }
       }
+      
+    } else if (line[1] == 'x') {
+      // \x - show playing voices
+      printf("Active voices:\n");
+      for (int i = 0; i < MAX_VOICES; i++) {
+        if (voices[i].active && voices[i].buffer) {
+          K buf = voices[i].buffer;
+          int pct = (voices[i].idx * 100) / buf->n;
+          printf("  [%d] %s %d/%d (%d%%)\n", 
+                 i, 
+                 voices[i].stereo ? "stereo" : "mono",
+                 voices[i].idx,
+                 buf->n,
+                 pct);
+        }
+      }
+      
+    } else if (line[1] == 'q') {
+      // \q - stop all playback
+      for (int i = 0; i < MAX_VOICES; i++) {
+        if (voices[i].buffer) {
+          k_free((K)voices[i].buffer);
+          voices[i].buffer = NULL;
+        }
+        voices[i].active = 0;
+      }
+      printf("Stopped all voices\n");
     }
   } else {
     char *ptr = line;
@@ -287,9 +350,9 @@ int main() {
   ma_device_start(&dev);
 
   bestlineHistoryLoad("history.txt");
-  printf("ksynth v2.0.0 (with scan and stereo)\n");
+  printf("ksynth v2.1.0 (with functions, stereo, and multi-voice playback)\n");
   printf("exit \\l load | \\p[s] play | \\w wait | \\s[s] save | \\v view | \\t toggle\n");
-  printf("new: scan (\\) | stereo (z j k) | use 's' for stereo: \\ps X or \\ss X\n");
+  printf("new: \\x status | \\q stop all | up to %d simultaneous voices\n", MAX_VOICES);
 
   char* line;
   while ((line = bestline("> ")) != NULL) {
@@ -307,6 +370,14 @@ int main() {
   }
   done:
   bestlineHistorySave("history.txt");
+  
+  // Cleanup voices
+  for (int i = 0; i < MAX_VOICES; i++) {
+    if (voices[i].buffer) {
+      k_free((K)voices[i].buffer);
+    }
+  }
+  
   ma_device_uninit(&dev);
   return 0;
 }

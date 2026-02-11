@@ -5,7 +5,17 @@
 #include "ksynth.h"
 
 K vars[26] = {0};   // A-Z user variables
-K args[3] = {0};    // x, y, z function arguments
+K args[2] = {0};    // x, y function arguments
+
+/* --- Safe Value Helper --- */
+
+static inline double safe_val(double v) {
+    if (isnan(v) || isinf(v)) return 0.0;
+    // Clamp to reasonable range to prevent overflow
+    if (v > 1e6) return 1e6;
+    if (v < -1e6) return -1e6;
+    return v;
+}
 
 /* --- Lifecycle --- */
 
@@ -68,12 +78,10 @@ K k_call(K fn, K *call_args, int nargs) {
     // Check which arguments the function uses
     int uses_x = (strchr(body, 'x') != NULL);
     int uses_y = (strchr(body, 'y') != NULL);
-    int uses_z = (strchr(body, 'z') != NULL);
     
     // Validate argument count
     int required = 0;
-    if (uses_z) required = 3;
-    else if (uses_y) required = 2;
+    if (uses_y) required = 2;
     else if (uses_x) required = 1;
     
     if (nargs < required) {
@@ -82,15 +90,13 @@ K k_call(K fn, K *call_args, int nargs) {
         return k_new(0);  // Return empty array
     }
     
-    // Save current x, y, z
+    // Save current x, y
     K old_x = args[0];
     K old_y = args[1];
-    K old_z = args[2];
     
     // Bind arguments (default to empty array if not provided)
     args[0] = k_new(0);  // Default x to empty
     args[1] = k_new(0);  // Default y to empty
-    args[2] = k_new(0);  // Default z to empty
     
     if (nargs > 0 && call_args[0]) { 
         k_free(args[0]);
@@ -102,24 +108,17 @@ K k_call(K fn, K *call_args, int nargs) {
         call_args[1]->r++; 
         args[1] = call_args[1]; 
     }
-    if (nargs > 2 && call_args[2]) { 
-        k_free(args[2]);
-        call_args[2]->r++; 
-        args[2] = call_args[2]; 
-    }
     
     // Evaluate function body
     char *s = body;
     K result = e(&s);
     
-    // Restore old x, y, z
+    // Restore old x, y
     if (args[0]) k_free(args[0]);
     if (args[1]) k_free(args[1]);
-    if (args[2]) k_free(args[2]);
     
     args[0] = old_x;
     args[1] = old_y;
-    args[2] = old_z;
     
     return result;
 }
@@ -260,8 +259,12 @@ K mo(char c, K b) {
             case 'h': x->f[i] = tanh(v); break;
             case 'a': x->f[i] = fabs(v); break;
             case 'q': x->f[i] = sqrt(fabs(v)); break;
-            case 'l': x->f[i] = log(fabs(v)); break;
-            case 'e': x->f[i] = exp(v); break;
+            case 'l': x->f[i] = log(fabs(v) + 1e-10); break;  // Add small value to prevent log(0)
+            case 'e': {
+                double clamped = (v > 100) ? 100 : ((v < -100) ? -100 : v);
+                x->f[i] = exp(clamped);
+                break;
+            }
             case '_': x->f[i] = floor(v); break;
             case 'r': x->f[i] = ((double)rand() / (double)RAND_MAX) * 2.0 - 1.0; break;
             case 'p': {
@@ -335,12 +338,20 @@ K dy(char c, K a, K b) {
             if (ct > 0.95) ct = 0.95;
             if (rs > 3.98) rs = 3.98;
             double in = b->f[i] - (rs * b1);
-            b0 += ct * (in - b0); b1 += ct * (b0 - b1); x->f[i] = b1;
+            b0 += ct * (in - b0); b1 += ct * (b0 - b1);
+            
+            // Protect against NaN/Inf in feedback
+            b0 = safe_val(b0);
+            b1 = safe_val(b1);
+            
+            x->f[i] = b1;
         }
     } else if (c == 'y') {
         int d = (int)a->f[0]; x = k_new(b->n);
-        for (int i = 0; i < b->n; i++)
-            x->f[i] = b->f[i] + (0.4 * ((i >= d) ? x->f[i-d] : 0));
+        for (int i = 0; i < b->n; i++) {
+            double delayed = (i >= d) ? x->f[i-d] : 0;
+            x->f[i] = safe_val(b->f[i] + (0.4 * delayed));
+        }
     } else if (c == '#') {
         int n = (int)a->f[0]; x = k_new(n);
         if (b->n > 0) for (int i = 0; i < n; i++) x->f[i] = b->f[i % b->n];
@@ -357,7 +368,7 @@ K dy(char c, K a, K b) {
                 case '*': x->f[i] = va * vb; break;
                 case '-': x->f[i] = va - vb; break;
                 case '%': x->f[i] = (vb == 0) ? 0 : va / vb; break;
-                case '^': x->f[i] = pow(fabs(va), vb); break;
+                case '^': x->f[i] = safe_val(pow(fabs(va), vb)); break;
                 case '&': x->f[i] = va < vb ? va : vb; break;
                 case '|': x->f[i] = va > vb ? va : vb; break;
                 default:  x->f[i] = 0; break;
@@ -370,6 +381,40 @@ K dy(char c, K a, K b) {
 /* --- Parser with Scan and Function Support --- */
 
 K e(char **s);
+K atom(char **s);  // Forward declaration
+
+// Parse a single expression (stops at semicolons, used for assignments)
+K expr(char **s) {
+    K x = atom(s);
+    while (**s == ' ') (*s)++;
+    
+    // Check for function application
+    if (k_is_func(x) && **s && **s != '\n' && **s != ')' && **s != ';' && **s != '}') {
+        char peek = **s;
+        int is_operator = (peek == '+' || peek == '-' || peek == '*' || 
+                          peek == '%' || peek == '^' || peek == '&' || 
+                          peek == '|' || peek == ',' || peek == '#' ||
+                          peek == 'f' || peek == 'y' ||
+                          peek == 's' || peek == 't' || peek == 'h' ||
+                          peek == 'a' || peek == 'q' || peek == 'l' ||
+                          peek == 'e' || peek == 'r' || peek == 'p' ||
+                          peek == 'd' || peek == 'v' || peek == 'm' ||
+                          peek == 'b' || peek == 'u' || peek == 'j' ||
+                          peek == 'k' || peek == 'n');
+        if (!is_operator) {
+            K arg = expr(s);  // Recursive, but still stops at semicolon
+            K call_args[1] = {arg};
+            K result = k_call(x, call_args, 1);
+            k_free(x);
+            return result;
+        }
+    }
+    
+    // Stop at semicolon for assignment right-hand sides
+    if (!**s || **s == '\n' || **s == ')' || **s == ';' || **s == '}') return x;
+    char op = *(*s)++;
+    return dy(op, x, expr(s));  // Recursive
+}
 
 K atom(char **s) {
     while (**s == ' ') (*s)++;
@@ -431,7 +476,7 @@ K atom(char **s) {
     
     // Assignment
     if (**s == ':') {
-        (*s)++; K x = e(s);
+        (*s)++; K x = expr(s);  // Use expr() to stop at semicolons
         if (c >= 'A' && c <= 'Z') {
             int i = c - 'A';
             if (vars[i]) k_free(vars[i]);
@@ -444,10 +489,9 @@ K atom(char **s) {
     // Variable lookup (uppercase A-Z)
     if (c >= 'A' && c <= 'Z') return k_get(c);
     
-    // Argument variables (lowercase x, y, z)
+    // Argument variables (lowercase x, y)
     if (c == 'x') return args[0] ? (args[0]->r++, args[0]) : k_new(0);
     if (c == 'y') return args[1] ? (args[1]->r++, args[1]) : k_new(0);
-    if (c == 'z') return args[2] ? (args[2]->r++, args[2]) : k_new(0);
     
     // Check for scan adverb
     int is_scan = 0;
@@ -470,6 +514,18 @@ K e(char **s) {
     K x = atom(s);
     while (**s == ' ') (*s)++;
     
+    // Handle semicolon sequences - evaluate multiple expressions, return last
+    while (**s == ';') {
+        (*s)++;  // skip semicolon
+        if (x) k_free(x);  // discard previous result
+        while (**s == ' ') (*s)++;
+        if (!**s || **s == '\n' || **s == ')' || **s == '}') return k_new(0);
+        
+        // Parse next expression - atom() handles assignments internally
+        x = atom(s);
+        while (**s == ' ') (*s)++;
+    }
+    
     // Check for function application (juxtaposition)
     // If x is a function and next is an argument (not operator), apply it
     if (k_is_func(x) && **s && **s != '\n' && **s != ')' && **s != ';') {
@@ -486,7 +542,7 @@ K e(char **s) {
                           peek == 'e' || peek == 'r' || peek == 'p' ||
                           peek == 'd' || peek == 'v' || peek == 'm' ||
                           peek == 'b' || peek == 'u' || peek == 'j' ||
-                          peek == 'k');
+                          peek == 'k' || peek == 'n');
         
         // If it looks like an argument, apply monadically
         if (!is_operator) {

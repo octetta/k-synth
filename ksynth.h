@@ -6,7 +6,7 @@
 
 typedef struct { int r, n; double f[]; } *K;
 extern K vars[26];    // A-Z
-extern K args[3];     // x, y, z (function arguments)
+extern K args[2];     // x, y (function arguments)
 
 K e(char **s);
 void p(K x);
