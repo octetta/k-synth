@@ -1,12 +1,10 @@
-/ Open Hi-Hat
-/ 800ms at 44100 = 35280 samples
-
-N: 35280
+/ 808 Open Hi-Hat — same as CHH but 280ms
+/ N=12348
+N: 12348
 T: !N
 E: e(T*(0-6.9%N))
-R: r T
 M: m T
-L: 0.15 f R
+R: r T
+L: 0.5 f R
 H: R-L
-S: H*.7+M*.3
-W: w E*S
+W: w E*(M*.6+H*.4)

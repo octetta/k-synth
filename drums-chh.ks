@@ -1,13 +1,13 @@
-/ Closed Hi-Hat
-/ 100ms at 44100 = 4410 samples
-
-N: 4410
+/ 808 Closed Hi-Hat — very bright, 200ms
+/ N=8820
+N: 8820
 T: !N
 E: e(T*(0-6.9%N))
-R: r T
+/ m verb = 1-bit noise: bright and metallic
 M: m T
-/ highpass: subtract lowpass from original
-L: 0.15 f R
+/ mix 1-bit with white noise for texture
+R: r T
+/ HP above 3500Hz: subtract LP
+L: 0.5 f R
 H: R-L
-S: H*.7+M*.3
-W: w E*S
+W: w E*(M*.6+H*.4)

@@ -1,21 +1,20 @@
-/ 909-style Snare
-/ 400ms at 44100 = 17640 samples
-
-N: 17640
+/ 808 Snare — 170Hz body dominant, noise tail, 280ms
+/ N=12348
+N: 12348
 T: !N
-/ body: two detuned sines, fast decay ~10ms
-B: e(T*(0-40%N))
-F: 200*(6.28318%44100)
-G: 180*(6.28318%44100)
+/ body: 170Hz + 183Hz detuned pair, decay ~20ms
+B: e(T*(0-25%N))
+F: 170*(6.28318%44100)
+G: 183*(6.28318%44100)
 P: +\(N#F)
 Q: +\(N#G)
 S: B*(s P+s Q)*.5
-/ noise tail: full duration
+/ noise tail: full duration — lower in mix than body at start
 E: e(T*(0-6.9%N))
 R: r T
 U: E*R
-/ snap transient: very fast noise burst
+/ snap
 V: e(T*(0-80%N))
 K: r T
-/ explicit parens around each term for correct linear mix
-W: w (S*.25)+(U*.8)+(V*K*.3)
+/ body is primary (*.7), noise secondary (*.4)
+W: w (S*.7)+(U*.4)+(V*K*.2)

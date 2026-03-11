@@ -1,16 +1,15 @@
-/ Rimshot — short bright crack
-/ 120ms at 44100 = 5292 samples
-
-N: 5292
+/ 808 Rimshot — 1800Hz dominant, dead in 20ms
+/ N=2646 (60ms)
+N: 2646
 T: !N
-R: r T
-/ keep high end: subtract lowpass at ~3500Hz
-B: 0.5 f R
-H: R-B
-/ mid layer: subtract lowpass at ~1000Hz
-J: r T
-M: 0.15 f J
-K: J-M
+/ very fast overall decay
 E: e(T*(0-6.9%N))
-/ bright crack dominant, mid layer underneath
-W: w E*(H+(K*.5))
+/ 1800Hz tone — the dominant frequency
+F: 1800*(6.28318%44100)
+P: +\(N#F)
+S: (s P)
+/ broadband noise crack
+R: r T
+L: 0.15 f R
+H: R-L
+W: w E*(S*.6+H*.5)

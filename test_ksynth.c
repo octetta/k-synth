@@ -684,6 +684,142 @@ static void test_dollar_formant(void) {
 
 /* --- Main --- */
 
+
+/* ============================================================
+ * New tests: dot literals, right-assoc, drum patterns
+ * ============================================================ */
+
+static void test_dot_literal(void) {
+    reset_vars();
+    check_scalar("dot literal .8", ".8", 0.8, 1e-9);
+    check_scalar("dot literal .25", ".25", 0.25, 1e-9);
+    check_scalar("1*.5 = 0.5", "1*.5", 0.5, 1e-9);
+    check_scalar("10*.8 = 8.0", "10*.8", 8.0, 1e-9);
+    check_scalar("2*.3 = 0.6", "2*.3", 0.6, 1e-6);
+}
+
+static void test_dot_literal_vectors(void) {
+    reset_vars();
+    K x = run("(!4)*.5");
+    if (!x) { printf("FAIL [vec*.5]: NULL\n"); fail++; }
+    else {
+        int ok = (x->n==4 && fabs(x->f[0]-0.0)<1e-9 && fabs(x->f[1]-0.5)<1e-9 &&
+                  fabs(x->f[2]-1.0)<1e-9 && fabs(x->f[3]-1.5)<1e-9);
+        if (ok) { printf("pass [vec*.5: 0 .5 1 1.5]\n"); pass++; }
+        else { printf("FAIL [vec*.5]: [%.3f %.3f %.3f %.3f]\n",x->f[0],x->f[1],x->f[2],x->f[3]); fail++; }
+        k_free(x);
+    }
+}
+
+static void test_right_assoc_mix(void) {
+    reset_vars();
+    check_scalar("(2*3)+(4*5)=26", "(2*3)+(4*5)", 26.0, 1e-9);
+    check_scalar("2*3+4*5=46 right-assoc", "2*3+4*5", 46.0, 1e-9);
+    check_scalar("(1*2)+(3*4)+(5*6)=44", "(1*2)+(3*4)+(5*6)", 44.0, 1e-9);
+}
+
+static void test_envelope_decay(void) {
+    reset_vars();
+    run("N: 1000");
+    run("T: !N");
+    K x = run("e(T*(0-6.9%N))");
+    if (!x || x->n != 1000) { printf("FAIL [env_decay len=%d]\n", x?x->n:-1); fail++; if(x)k_free(x); return; }
+    double v0 = x->f[0], vend = x->f[999]; k_free(x);
+    if (fabs(v0-1.0)<1e-6) { printf("pass [env t=0 = 1.0]\n"); pass++; }
+    else { printf("FAIL [env t=0]: %.6f\n", v0); fail++; }
+    if (vend < 0.005 && vend > 0.0) { printf("pass [env t=N near 0: %.6f]\n", vend); pass++; }
+    else { printf("FAIL [env t=N]: %.6f\n", vend); fail++; }
+}
+
+static void test_noise_length(void) {
+    reset_vars();
+    run("N: 100");
+    run("T: !N");
+    K x = run("r T");
+    if (!x) { printf("FAIL [noise_len]: NULL\n"); fail++; return; }
+    if (x->n==100) { printf("pass [r T length=100]\n"); pass++; }
+    else { printf("FAIL [r T length]: got %d\n", x->n); fail++; }
+    int ok=1; for(int i=0;i<x->n;i++) if(x->f[i]<-1.0||x->f[i]>1.0){ok=0;break;}
+    if(ok){printf("pass [noise in [-1,1]]\n");pass++;}
+    else{printf("FAIL [noise range]\n");fail++;}
+    k_free(x);
+}
+
+static void test_noise_vs_scalar(void) {
+    reset_vars();
+    K x = run("r 100");
+    if (!x) { printf("FAIL [r scalar]: NULL\n"); fail++; return; }
+    if (x->n==1) { printf("pass [r scalar = 1 sample]\n"); pass++; }
+    else { printf("FAIL [r scalar len]: %d\n", x->n); fail++; }
+    k_free(x);
+}
+
+static void test_filter_cutoff(void) {
+    reset_vars();
+    run("N: 441"); run("T: !N");
+    run("P: +\\(N#(1000*(6.28318%44100)))");
+    K hi = run("0.04 f (s P)");
+    reset_vars();
+    run("N: 441"); run("T: !N");
+    run("P: +\\(N#(50*(6.28318%44100)))");
+    K lo = run("0.04 f (s P)");
+    if (!hi||!lo) { printf("FAIL [filter_cutoff gen]\n"); fail++; if(hi)k_free(hi); if(lo)k_free(lo); return; }
+    double rhi=0, rlo=0;
+    for(int i=0;i<hi->n;i++) rhi+=hi->f[i]*hi->f[i]; rhi=sqrt(rhi/hi->n);
+    for(int i=0;i<lo->n;i++) rlo+=lo->f[i]*lo->f[i]; rlo=sqrt(rlo/lo->n);
+    k_free(hi); k_free(lo);
+    if (rlo > rhi*5.0) { printf("pass [LP: lo=%.4f hi=%.4f ratio=%.1f]\n", rlo, rhi, rlo/rhi); pass++; }
+    else { printf("FAIL [LP filter ratio=%.1f < 5]\n", rlo/(rhi+1e-9)); fail++; }
+}
+
+static void test_highpass_subtract(void) {
+    reset_vars();
+    run("N: 441"); run("T: !N");
+    run("P: +\\(N#(100*(6.28318%44100)))");
+    run("S: s P");
+    K x = run("S-(0.3 f S)");
+    if (!x) { printf("FAIL [hp_subtract]: NULL\n"); fail++; return; }
+    double rms=0; for(int i=0;i<x->n;i++) rms+=x->f[i]*x->f[i]; rms=sqrt(rms/x->n); k_free(x);
+    if (rms < 0.15) { printf("pass [HP attenuates 100Hz: rms=%.4f]\n", rms); pass++; }
+    else { printf("FAIL [HP 100Hz rms=%.4f > 0.15]\n", rms); fail++; }
+}
+
+static void test_pitch_sweep(void) {
+    reset_vars();
+    run("N: 4410"); run("T: !N");
+    run("F: 50+100*e(T*(0-30%N))");
+    run("D: F*(6.28318%44100)");
+    K x = run("+\\D");
+    if (!x||x->n!=4410) { printf("FAIL [pitch_sweep len=%d]\n",x?x->n:-1); fail++; if(x)k_free(x); return; }
+    double dp0 = x->f[1]-x->f[0], dpend = x->f[4409]-x->f[4408]; k_free(x);
+    double f0 = dp0*44100/(2*3.14159265), fend = dpend*44100/(2*3.14159265);
+    if (f0 > fend*1.5) { printf("pass [pitch sweep f0=%.0f fend=%.0f]\n", f0, fend); pass++; }
+    else { printf("FAIL [pitch sweep f0=%.0f fend=%.0f]\n", f0, fend); fail++; }
+}
+
+static void test_rise_decay_envelope(void) {
+    reset_vars();
+    run("N: 8820"); run("T: !N");
+    run("X: T*e(T*(0-8%N))");
+    K x = run("w X");
+    if (!x||x->n!=8820) { printf("FAIL [rise_decay len=%d]\n",x?x->n:-1); fail++; if(x)k_free(x); return; }
+    int pi=0; for(int i=1;i<x->n;i++) if(x->f[i]>x->f[pi]) pi=i; k_free(x);
+    int expected=1102;
+    if (abs(pi-expected)<200) { printf("pass [rise_decay peak at %d (expected ~%d)]\n", pi, expected); pass++; }
+    else { printf("FAIL [rise_decay peak at %d expected ~%d]\n", pi, expected); fail++; }
+}
+
+static void test_1bit_noise(void) {
+    reset_vars();
+    run("N: 100"); run("T: !N");
+    K x = run("m T");
+    if (!x||x->n!=100) { printf("FAIL [1bit len=%d]\n",x?x->n:-1); fail++; if(x)k_free(x); return; }
+    int ok=1; for(int i=0;i<x->n;i++) if(fabs(fabs(x->f[i])-0.7)>0.01){ok=0;break;}
+    if(ok){printf("pass [1-bit noise is ±0.7]\n");pass++;}
+    else{printf("FAIL [1-bit noise values]\n");fail++;}
+    k_free(x);
+}
+
 int main(void) {
     printf("ksynth test suite\n");
     printf("=================\n");
@@ -724,6 +860,17 @@ int main(void) {
     test_dollar_amplitude_ordering();
     test_dollar_vs_o();
     test_dollar_formant();
+    test_dot_literal();
+    test_dot_literal_vectors();
+    test_right_assoc_mix();
+    test_envelope_decay();
+    test_noise_length();
+    test_noise_vs_scalar();
+    test_filter_cutoff();
+    test_highpass_subtract();
+    test_pitch_sweep();
+    test_rise_decay_envelope();
+    test_1bit_noise();
 
     printf("\n=================\n");
     printf("passed: %d  failed: %d\n", pass, fail);
