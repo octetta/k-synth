@@ -78,10 +78,22 @@ char get_var(char *ptr) {
 int show = 0;
 int opts = 0;
 
+void k_gnuplot(K x, const char *name, const char *path);
+
+void usage(int f);
+
 void handle_line(char* line) {
   while (*line == ' ') line++;
 
   if (line[0] == '\0' || line[0] == '/') return;
+
+  int len = strlen(line);
+  for (int i=0; i<len; i++) {
+    if (line[i] == '/') {
+      line[i] = '\0';
+      break;
+    }
+  }
 
   // Strip inline comments (everything after first '/')
   // But be careful: '/' inside strings or functions should be preserved
@@ -105,6 +117,8 @@ void handle_line(char* line) {
     if (line[1] == 't') { 
       show = (show == 0) ? 1 : 0;
       
+    } else if (line[1] == '?') {
+      usage(1);
     } else if (line[1] == 'p') {
       // \p X    - play mono (duplicate to both channels)
       // \ps X   - play stereo (interleaved L/R)
@@ -245,6 +259,20 @@ void handle_line(char* line) {
         voices[i].active = 0;
       }
       printf("Stopped all voices\n");
+    } else if (line[1] == 'g') {
+
+        char v_name = get_var(line + 2);
+        if (v_name) {
+          K v = vars[v_name - 'A'];
+          if (v) {
+            char s[2];
+            sprintf(s, "%c", v_name);
+            char n[16];
+            sprintf(n, "%c.gnuplot", v_name);
+            k_gnuplot(v, s, n);
+            printf("/ %c.gnuplot\n", v_name);
+          }
+        }
     }
   } else {
     char *ptr = line;
@@ -338,27 +366,35 @@ int write_wav_from_k(char* filename, double* ptr, ma_uint64 frames, ma_uint32 ch
   return (result == MA_SUCCESS) ? 0 : -1;
 }
 
-int main() {
-  // Stereo output
-  ma_device_config cfg = ma_device_config_init(ma_device_type_playback);
-  cfg.playback.format = ma_format_f32;
-  cfg.playback.channels = 2;
-  cfg.sampleRate = 44100;
-  cfg.dataCallback = cb;
-  ma_device dev;
-  if (ma_device_init(NULL, &cfg, &dev) != MA_SUCCESS) return 1;
-  ma_device_start(&dev);
-
-  bestlineHistoryLoad("history.txt");
+void usage(int f) {
   printf("ksynth v2.1.0 (with functions, stereo, and multi-voice playback)\n");
-  printf("exit \\l load | \\p[s] play | \\w wait | \\s[s] save | \\v view | \\t toggle\n");
-  printf("new: \\x status | \\q stop all | up to %d simultaneous voices\n", MAX_VOICES);
+  if (f) {
+    printf("exit \\l load | \\p[s] play | \\w wait | \\s[s] save | \\v view | \\t toggle\n");
+    printf("\\g[s] gnuplot | \\i[s] s.i16 | \\f[s] s.f32\n");
+    printf("\\x status | \\q stop all | up to %d simultaneous voices\n", MAX_VOICES);
+  }
+}
 
+void doit(char *name) {
+  FILE *fp;
+  char line[1024];
+  fp = fopen(name, "r");
+  if (fp == NULL) return;
+  while (fgets(line, sizeof(line), fp)) {
+    char *token = line;
+    handle_line(token);
+  }
+  fclose(fp);
+}
+
+void repl(int f) {
+  bestlineHistoryLoad("history.txt");
   char* line;
   while ((line = bestline("> ")) != NULL) {
     char *saveptr;
     char *token = strtok_r(line, "\n", &saveptr);
     while (token) {
+      if (!strcmp(token, "\\e")) { free(line); goto done; }
       if (!strcmp(token, "exit")) { free(line); goto done; }
       if (token[0] != '\0') {
         bestlineHistoryAdd(token);
@@ -370,14 +406,65 @@ int main() {
   }
   done:
   bestlineHistorySave("history.txt");
-  
+}
+
+ma_device_config cfg;
+ma_device dev;
+int audio_start(void) {
+  // Stereo output
+  //ma_device_config cfg = ma_device_config_init(ma_device_type_playback);
+  cfg = ma_device_config_init(ma_device_type_playback);
+  cfg.playback.format = ma_format_f32;
+  cfg.playback.channels = 2;
+  cfg.sampleRate = 44100;
+  cfg.dataCallback = cb;
+  //ma_device dev;
+  if (ma_device_init(NULL, &cfg, &dev) != MA_SUCCESS) return 1;
+  ma_device_start(&dev);
+  return 0;
+}
+
+int audio_end(void) {
   // Cleanup voices
   for (int i = 0; i < MAX_VOICES; i++) {
     if (voices[i].buffer) {
       k_free((K)voices[i].buffer);
     }
   }
-  
   ma_device_uninit(&dev);
+  return 0;
+}
+
+int main(int argc, char *argv[]) {
+  usage(0);
+  int graph = 0;
+  int i16 = 0;
+  int f32 = 0;
+  audio_start();
+  if (argc > 1) {
+    char gs[] = "W.gnuplot";
+    //char is[] = "W.i16";
+    //char fs[] = "W.f32";
+    for (int i=1; i<argc; i++) {
+      if (argv[i][0] == '-') {
+        char c = argv[i][1];
+        switch (c) {
+          case 'g': graph = (graph == 0) ? 1 : 0; break;
+          case 'i': i16 = (i16 == 0) ? 1 : 0; break;
+          case 'f': f32 = (f32 == 0) ? 1 : 0; break;
+          case 't': show = (show == 0) ? 1 : 0; break;
+        }
+      } else {
+        doit(argv[i]);
+        K v = vars['W' - 'A'];
+        if (v) {
+          if (graph) k_gnuplot(v, "W", gs);
+        }
+      }
+    }
+  } else {
+    repl(0);
+  }
+  audio_end();
   return 0;
 }

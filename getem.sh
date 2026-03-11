@@ -1,0 +1,15 @@
+wget https://lloydstellar.nl/808/assets/sounds/wa_808tape_clap_01_clean.wav
+wget https://lloydstellar.nl/808/assets/sounds/wa_808tape_clave_01_clean.wav
+wget https://lloydstellar.nl/808/assets/sounds/wa_808tape_closedhat_01_clean.wav
+wget https://lloydstellar.nl/808/assets/sounds/wa_808tape_cowbell_01_sat.wav
+wget https://lloydstellar.nl/808/assets/sounds/wa_808tape_crash_01_clean.wav
+wget https://lloydstellar.nl/808/assets/sounds/wa_808tape_hitom_01_clean.wav
+wget https://lloydstellar.nl/808/assets/sounds/wa_808tape_kick_01_clean.wav
+wget https://lloydstellar.nl/808/assets/sounds/wa_808tape_kick_01_clean.wav
+wget https://lloydstellar.nl/808/assets/sounds/wa_808tape_lotom_01_clean.wav
+wget https://lloydstellar.nl/808/assets/sounds/wa_808tape_maracas_01_clean.wav
+wget https://lloydstellar.nl/808/assets/sounds/wa_808tape_midtom_01_clean.wav
+wget https://lloydstellar.nl/808/assets/sounds/wa_808tape_openhat_01_clean.wav
+wget https://lloydstellar.nl/808/assets/sounds/wa_808tape_rim_01_clean.wav
+wget https://lloydstellar.nl/808/assets/sounds/wa_808tape_snare_01_clean.wav
+wget https://lloydstellar.nl/808/assets/sounds/wa_808tape_triggerout_01_clean.wav
