@@ -443,8 +443,8 @@ int main(int argc, char *argv[]) {
   audio_start();
   if (argc > 1) {
     char gs[] = "W.gnuplot";
-    //char is[] = "W.i16";
-    //char fs[] = "W.f32";
+    char is[] = "W.i16";
+    char fs[] = "W.f32";
     for (int i=1; i<argc; i++) {
       if (argv[i][0] == '-') {
         char c = argv[i][1];
@@ -459,6 +459,22 @@ int main(int argc, char *argv[]) {
         K v = vars['W' - 'A'];
         if (v) {
           if (graph) k_gnuplot(v, "W", gs);
+          if (i16) {
+            FILE *f = fopen(is, "w");
+            fprintf(f, "%d", (int16_t)(v->f[0] * 32767));
+            for (int i=1; i<v->n; i++) {
+              fprintf(f, ",%d", (int16_t)(v->f[i] * 32767));
+            }
+            fclose(f);
+          }
+          if (f32) {
+            FILE *f = fopen(fs, "w");
+            fprintf(f, "%g", v->f[0]);
+            for (int i=1; i<v->n; i++) {
+              fprintf(f, ",%g", v->f[i]);
+            }
+            fclose(f);
+          }
         }
       }
     }

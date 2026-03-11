@@ -1,8 +1,11 @@
 wa_*.wav
 dw8k-*.png
+drums-*.png
 test_ksynth
 test
 GEMINI.md
 history.txt
 ksynth
 *.o
+dw*.i16
+dw*.f32
