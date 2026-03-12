@@ -369,7 +369,7 @@ html, body {
 .nb-cell-header:hover .nb-del-btn { opacity: 1; }
 .nb-del-btn:hover { color: var(--error); opacity: 1; }
 
-#btn-pad {
+#btn-save, #btn-load, #btn-patches, #btn-pad {
   background: transparent;
   border: 1px solid var(--border2);
   border-radius: var(--radius);
@@ -381,7 +381,7 @@ html, body {
   flex-shrink: 0;
   white-space: nowrap;
 }
-#btn-pad:hover { border-color: var(--text); color: var(--text); }
+#btn-save:hover, #btn-load:hover, #btn-patches:hover, #btn-pad:hover { border-color: var(--text); color: var(--text); }
 #btn-pad.active { border-color: var(--accent); color: var(--accent); }
 
 #input-meta {
@@ -584,6 +584,109 @@ html, body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* ── patch browser ────────────────────────────────────────────────── */
+#patch-browser {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+}
+#patch-browser.open { display: flex; }
+
+#patch-panel {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  width: min(480px, 92vw);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#patch-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+#patch-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  flex: 1;
+}
+
+#patch-search {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 3px 8px;
+  outline: none;
+  width: 140px;
+}
+#patch-search:focus { border-color: var(--accent); }
+
+#btn-patch-close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+#btn-patch-close:hover { color: var(--text); }
+
+#patch-list {
+  overflow-y: auto;
+  flex: 1;
+}
+
+#patch-status {
+  padding: 12px;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.patch-dir {
+  padding: 4px 12px 2px;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+.patch-dir:first-child { border-top: none; margin-top: 0; }
+
+.patch-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 5px 12px 5px 20px;
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.patch-item:hover { background: var(--surface2); color: var(--accent); }
 </style>
 </head>
 <body>
@@ -611,6 +714,10 @@ html, body {
       <span id="input-label">›</span>
       <button id="btn-run">run  ⌃↵</button>
       <button id="btn-clear">clear</button>
+      <button id="btn-patches">patches</button>
+      <button id="btn-save">save</button>
+      <button id="btn-load">load</button>
+      <input id="load-input" type="file" accept=".json" style="display:none">
       <button id="btn-pad">pads</button>
     </div>
     <textarea id="editor"
@@ -629,6 +736,20 @@ html, body {
   </div><!-- /main -->
 
 </div><!-- /app -->
+
+<!-- ── patch browser ───────────────────────────────────────────── -->
+<div id="patch-browser">
+  <div id="patch-panel">
+    <div id="patch-panel-header">
+      <span id="patch-panel-title">patches · octetta/k-synth</span>
+      <input id="patch-search" type="search" placeholder="filter…" autocomplete="off" spellcheck="false">
+      <button id="btn-patch-close">✕</button>
+    </div>
+    <div id="patch-list">
+      <div id="patch-status">loading…</div>
+    </div>
+  </div>
+</div>
 
 <!-- ── pad overlay ──────────────────────────────────────────────── -->
 <div id="pad-overlay">
@@ -710,6 +831,7 @@ let ks_err    = null;
 
 // AudioContext (lazy init on first user gesture)
 let audioCtx  = null;
+let limiter   = null;
 
 // Active slot for context menu
 let menuSlot  = -1;
@@ -746,7 +868,27 @@ async function initWasm() {
    ═══════════════════════════════════════════════════════════════════ */
 
 function ensureAudio() {
-  if (!audioCtx) audioCtx = new AudioContext({sampleRate: SR});
+  if (!audioCtx) {
+    audioCtx = new AudioContext({sampleRate: SR});
+    // master gain + limiter chain
+    // gain at 0.25 gives 4 simultaneous full-scale voices without clipping
+    // compressor catches any remaining peaks before they hit the DAC
+    const masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.25;
+
+    limiter = audioCtx.createDynamicsCompressor();
+    limiter.threshold.value = -6;    // start limiting at -6 dBFS
+    limiter.knee.value      =  2;
+    limiter.ratio.value     = 20;
+    limiter.attack.value    = 0.0003; // 0.3ms — catches transients
+    limiter.release.value   = 0.1;
+
+    masterGain.connect(limiter);
+    limiter.connect(audioCtx.destination);
+
+    // reroute: sources → masterGain → limiter → destination
+    limiter._input = masterGain;
+  }
   if (audioCtx.state === 'suspended') audioCtx.resume();
 }
 
@@ -765,7 +907,7 @@ function playSlot(slotIdx, extraSemitones = 0) {
   src.buffer = s.buffer;
   const totalSt = extraSemitones;  // slot.baseRate already baked in
   src.playbackRate.value = s.baseRate * Math.pow(2, totalSt / 12);
-  src.connect(audioCtx.destination);
+  src.connect(limiter._input);
   src.start();
 }
 
@@ -825,6 +967,7 @@ function drawWave(canvas, f32) {
 
 function bankToSlot(slotIdx, f32, codeFirstLine) {
   const s = slots[slotIdx];
+  s._f32   = f32;
   s.buffer = floatArrayToAudioBuffer(f32);
   // derive label from first non-comment line
   const firstLine = codeFirstLine.replace(/^\/.*/, '').trim()
@@ -837,6 +980,7 @@ function bankToSlot(slotIdx, f32, codeFirstLine) {
 
 function clearSlot(slotIdx) {
   slots[slotIdx].buffer   = null;
+  slots[slotIdx]._f32     = null;
   slots[slotIdx].baseRate = 1.0;
   renderSlotStrip();
   renderPadGrid();
@@ -1043,7 +1187,7 @@ function addNotebookCell(entry) {
       const abuf = floatArrayToAudioBuffer(entry.floatData);
       const src  = audioCtx.createBufferSource();
       src.buffer = abuf;
-      src.connect(audioCtx.destination);
+      src.connect(limiter._input);
       src.start();
       // brief green tint flash then redraw
       const c2d = cv.getContext('2d');
@@ -1333,6 +1477,248 @@ document.addEventListener('keydown', e => {
     }
   }
 });
+
+/* ═══════════════════════════════════════════════════════════════════
+   SAVE / LOAD
+   ═══════════════════════════════════════════════════════════════════ */
+
+(function () {
+  const MAGIC   = 'ksynth-session-v1';
+
+  // Float32Array → base64 string
+  function f32ToB64(f32) {
+    const bytes = new Uint8Array(f32.buffer);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+
+  // base64 string → Float32Array
+  function b64ToF32(b64) {
+    const bin   = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Float32Array(bytes.buffer);
+  }
+
+  function saveSession() {
+    const session = {
+      magic: MAGIC,
+      saved: new Date().toISOString(),
+      slots: slots.map(s => ({
+        label:    s.label,
+        baseRate: s.baseRate,
+        audio:    s._f32 ? f32ToB64(s._f32) : null,
+      })),
+      pads: pads.map(p => ({ slot: p.slot, semitones: p.semitones })),
+      // save full history entries including audio so notebook rebuilds completely
+      history: history.slice().reverse().map(h => ({
+        code:     h.code,
+        success:  h.success,
+        samples:  h.samples,
+        error:    h.error,
+        audio:    h.floatData ? f32ToB64(h.floatData) : null,
+      })),
+    };
+
+    const json = JSON.stringify(session);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const ts   = new Date().toISOString().slice(0,19).replace(/[T:]/g, '-');
+    a.href     = url;
+    a.download = `ksynth-${ts}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function loadSession(file) {
+    let session;
+    try {
+      session = JSON.parse(await file.text());
+    } catch(e) {
+      alert('Could not parse file: ' + e.message);
+      return;
+    }
+    if (session.magic !== MAGIC) {
+      alert('Not a ksynth session file.');
+      return;
+    }
+
+    ensureAudio();
+
+    // restore slots
+    session.slots.forEach((sd, i) => {
+      slots[i].label    = sd.label;
+      slots[i].baseRate = sd.baseRate ?? 1.0;
+      if (sd.audio) {
+        const f32 = b64ToF32(sd.audio);
+        slots[i]._f32   = f32;
+        slots[i].buffer = floatArrayToAudioBuffer(f32);
+      } else {
+        slots[i]._f32   = null;
+        slots[i].buffer = null;
+      }
+    });
+
+    // restore pads
+    session.pads.forEach((pd, i) => {
+      pads[i].slot      = pd.slot;
+      pads[i].semitones = pd.semitones;
+    });
+
+    // restore history and rebuild notebook
+    history.length = 0;
+    document.getElementById('notebook').innerHTML = '';
+    histIdx = -1;
+
+    (session.history || []).forEach(hd => {
+      const f32   = hd.audio ? b64ToF32(hd.audio) : null;
+      const entry = {
+        code:      hd.code,
+        success:   hd.success,
+        samples:   hd.samples,
+        error:     hd.error,
+        floatData: f32,
+      };
+      history.unshift(entry);   // unshift keeps most-recent at index 0
+      addNotebookCell(entry);
+    });
+
+    renderSlotStrip();
+    renderPadGrid();
+  }
+
+  document.getElementById('btn-save').addEventListener('click', saveSession);
+
+  document.getElementById('btn-load').addEventListener('click', () => {
+    document.getElementById('load-input').click();
+  });
+
+  document.getElementById('load-input').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (file) loadSession(file);
+    e.target.value = ''; // reset so same file can be reloaded
+  });
+}());
+
+/* ═══════════════════════════════════════════════════════════════════
+   PATCH BROWSER
+   ═══════════════════════════════════════════════════════════════════ */
+
+(function () {
+  const REPO    = 'octetta/k-synth';
+  const API     = `https://api.github.com/repos/${REPO}`;
+  const RAW     = `https://raw.githubusercontent.com/${REPO}/HEAD`;
+
+  const browser  = document.getElementById('patch-browser');
+  const list     = document.getElementById('patch-list');
+  const status   = document.getElementById('patch-status');
+  const search   = document.getElementById('patch-search');
+  const btnOpen  = document.getElementById('btn-patches');
+  const btnClose = document.getElementById('btn-patch-close');
+
+  let allPatches = []; // [{path, name, dir}]
+  let loaded     = false;
+
+  function open() {
+    browser.classList.add('open');
+    search.value = '';
+    search.focus();
+    if (!loaded) fetchPatches();
+    else render('');
+  }
+
+  function close() {
+    browser.classList.remove('open');
+    editor.focus();
+  }
+
+  async function fetchPatches() {
+    status.textContent = 'fetching patch list…';
+    list.innerHTML = '';
+    list.appendChild(status);
+    try {
+      const res  = await fetch(`${API}/git/trees/HEAD?recursive=1`);
+      if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+      const data = await res.json();
+      allPatches = data.tree
+        .filter(f => f.type === 'blob' && f.path.endsWith('.ks'))
+        .map(f => {
+          const parts = f.path.split('/');
+          return {
+            path: f.path,
+            name: parts[parts.length - 1],
+            dir:  parts.length > 1 ? parts.slice(0, -1).join('/') : '',
+          };
+        })
+        .sort((a, b) => a.path.localeCompare(b.path));
+      loaded = true;
+      if (allPatches.length === 0) {
+        status.textContent = 'no .ks files found in repo';
+      } else {
+        render('');
+      }
+    } catch (e) {
+      status.textContent = `error: ${e.message}`;
+    }
+  }
+
+  function render(filter) {
+    list.innerHTML = '';
+    const q = filter.toLowerCase();
+    const matches = allPatches.filter(p =>
+      !q || p.path.toLowerCase().includes(q)
+    );
+    if (matches.length === 0) {
+      const s = document.createElement('div');
+      s.id = 'patch-status';
+      s.textContent = 'no matches';
+      list.appendChild(s);
+      return;
+    }
+    let lastDir = null;
+    matches.forEach(p => {
+      if (p.dir !== lastDir) {
+        const d = document.createElement('div');
+        d.className = 'patch-dir';
+        d.textContent = p.dir || '/';
+        list.appendChild(d);
+        lastDir = p.dir;
+      }
+      const btn = document.createElement('button');
+      btn.className = 'patch-item';
+      btn.textContent = p.name;
+      btn.title = p.path;
+      btn.addEventListener('click', () => loadPatch(p));
+      list.appendChild(btn);
+    });
+  }
+
+  async function loadPatch(p) {
+    const btn = list.querySelector(`[title="${p.path}"]`);
+    if (btn) { btn.textContent = '…'; btn.disabled = true; }
+    try {
+      const res = await fetch(`${RAW}/${p.path}`);
+      if (!res.ok) throw new Error(`fetch ${res.status}`);
+      const text = await res.text();
+      editor.value = text;
+      close();
+      editor.focus();
+    } catch (e) {
+      if (btn) { btn.textContent = p.name; btn.disabled = false; }
+      alert(`Could not load ${p.path}: ${e.message}`);
+    }
+  }
+
+  btnOpen.addEventListener('click', open);
+  btnClose.addEventListener('click', close);
+  browser.addEventListener('click', e => { if (e.target === browser) close(); });
+  search.addEventListener('input', () => { if (loaded) render(search.value); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && browser.classList.contains('open')) close();
+  });
+}());
 
 /* ═══════════════════════════════════════════════════════════════════
    RESIZABLE SPLIT (desktop)

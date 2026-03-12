@@ -2,7 +2,15 @@
 
 ## overview
 
-ksynth web is a browser-based live-coding environment for the ksynth synthesis language. It compiles ksynth scripts in WebAssembly and plays audio directly through the Web Audio API. The interface has three functional areas stacked vertically: the slot strip at the top, the notebook in the middle, and the editor at the bottom. A pad panel is available as an overlay.
+ksynth web is a browser-based live-coding environment for the ksynth synthesis language. It compiles ksynth scripts in WebAssembly and plays audio directly through the Web Audio API.
+
+The interface has three functional areas:
+
+- **slot strip** — two rows of 8 across the top, slots `0`–`F`. Holds audio buffers ready to trigger.
+- **notebook** — the left panel (or upper area on mobile). An append-only log of every script you have run, with waveform previews.
+- **editor** — the right panel (or lower area on mobile). Where you write and run ksynth code.
+
+A **pad panel** overlay turns the 16 slots into a playable instrument. A **patches** button fetches `.ks` files directly from the `octetta/k-synth` GitHub repo.
 
 ---
 
@@ -14,110 +22,75 @@ After building with `build.sh`, serve the directory with any static file server:
 python3 -m http.server 8080
 ```
 
-Then open `http://localhost:8080` in a browser. Wasm loads asynchronously — the status indicator in the bottom-right corner of the editor area will read `wasm ready` in green when the engine is available. Audio initialises on the first user gesture (click or keypress).
+Open `http://localhost:8080`. The status indicator in the bottom-right of the editor area reads `wasm ready` in green when the engine is available. Audio initialises on the first user gesture.
 
 ---
 
-## editor
+## tutorial
 
-The editor is the `<textarea>` at the bottom of the screen. Write ksynth code here exactly as you would write a `.ks` file — one assignment per line, comments with `/`.
+This section walks from zero to a playable melodic instrument. No prior ksynth knowledge required.
+
+### step 1 — your first sound
+
+Type the following into the editor and press `Ctrl+Enter`:
 
 ```
 N: 4410
 T: !N
-F: 440*(6.28318%44100)
-P: +\(N#F)
-W: w s P
+W: w s +\(N#(440*(6.28318%44100)))
 ```
 
-The `W` variable is the output. Any script that sets `W` will produce audio. A script that does not set `W` will produce an error.
+You should hear a 100ms sine wave at 440 Hz (concert A). A green cell appears in the notebook showing the waveform. What each line does:
 
-**Running a script** — `Ctrl+Enter` (or `Cmd+Enter` on macOS), or click the `run ⌃↵` button. The script is evaluated as a complete program: all variables are cleared before each run, so each evaluation is independent.
+- `N: 4410` — 4410 samples = 100ms at 44100 Hz
+- `T: !N` — time index: a ramp from 0 to N−1
+- `W: ...` — the output buffer. `w s` writes samples. `+\(N#...)` is a phase accumulator (running sum over N samples). `440*(6.28318%44100)` is the per-sample phase increment for 440 Hz
 
-**Clearing the notebook** — `Ctrl+L` or the `clear` button. This removes all cells from the notebook display but does not affect slots or audio buffers.
+`W` is always the output. Every script must set it.
 
----
+### step 2 — a bell sound
 
-## history navigation
+A real bell sound comes from FM synthesis, not additive partials. The classic two-operator FM bell works like this: a carrier oscillator is phase-modulated by a modulator oscillator. The modulation index (how much the modulator deflects the carrier's phase) starts high — creating a bright, complex spread of sidebands at the attack — then decays fast, leaving a cleaner tone underneath. The amplitude decays more slowly. That combination of fast index decay plus slow amplitude decay is what makes it sound like a struck bell.
 
-The editor maintains a history of every script you have run. Navigate it with the arrow keys:
-
-- `↑` at the **first line** of the editor — loads the previous entry into the editor
-- `↓` at the **last line** of the editor — moves forward through history; at the most recent entry, clears the editor
-
-Navigating history copies the code into the editor for modification. Previous entries in the notebook remain read-only. The history is in-memory and does not persist across page reloads.
-
----
-
-## notebook
-
-Each time you run a script, a cell is appended to the notebook. Cells are read-only.
-
-A successful cell shows:
-
-- `✓` in green, followed by the sample count and duration in milliseconds
-- The source code in muted text
-- A waveform display — a single-channel oscilloscope view of the `W` buffer
-- A row of bank buttons: `→0` through `→F`
-
-A failed cell shows:
-
-- `✗` in red, followed by the error message (typically `no W variable set` or a parse error)
-- The source code
-
-The notebook scrolls independently of the editor. Older cells scroll off the top.
-
----
-
-## slots
-
-The slot strip runs across the top of the screen. There are 16 slots, indexed `0` through `F` in hexadecimal.
-
-Each slot holds an audio buffer, a label, and a base playback rate. An empty slot shows a dash. A filled slot shows its label and a miniature waveform.
-
-**Banking a result to a slot** — after a successful script evaluation, click one of the `→N` bank buttons in the notebook cell. This copies the audio buffer into slot N and sets the slot label to the first meaningful line of the script.
-
-**Playing a slot** — click any filled slot card in the strip. It plays once at the slot's base rate.
-
-**Slot context menu** — right-click a slot card to access:
-
-- `▶ play` — play the slot
-- `rename` — set a custom label (prompt dialog)
-- `set base rate` — set the slot's base pitch offset in semitones (prompt dialog, ±24 range). This affects all pads assigned to this slot.
-- `clear slot` — remove the audio buffer from the slot
-
-Slot base rate is stored as a semitone offset and displayed in the slot card (e.g. `+0st`, `-3st`). It is factored into playback together with any per-pad pitch offset.
-
----
-
-## pad panel
-
-Click the `pads` button (top-right of the editor header) to open the pad overlay. Click it again, press `Escape`, or click outside the panel to close it.
-
-The pad panel contains a 4×4 grid of 16 trigger pads. Each pad has two properties:
-
-- **slot** — which of the 16 sample slots it draws from
-- **pitch** — a semitone offset applied at trigger time, on top of the slot's base rate
-
-The final playback rate for any pad trigger is:
+ksynth's right-associative parse makes FM natural. `s P + Q` parses as `s(P + s(Q))` — carrier phase plus modulator sine — which is exactly the FM formula.
 
 ```
-rate = slot.baseRate × 2^(pad.semitones / 12)
+N: 88200
+T: !N
+A: e(T*(0-3%N))
+I: 3.5*e(T*(0-40%N))
+C: 440*(6.28318%44100)
+M: 440*(6.28318%44100)
+P: +\(N#C)
+Q: +\(N#M)
+W: w A*(s P+(I*s Q))
 ```
 
-where `slot.baseRate` is itself `2^(slot.baseSemitones / 12)`.
+- `N: 88200` — 2 seconds at 44100 Hz
+- `A: e(T*(0-3%N))` — amplitude envelope: decays over ~2 seconds
+- `I: 3.5*e(T*(0-40%N))` — modulation index: starts at 3.5, decays to near zero in about 50ms. This fast transient is the clang of the strike. Index 3.5 means a peak frequency deviation of ±1540 Hz — enough for a bright attack without turning into noise
+- `C` — carrier phase increment: 440 Hz
+- `M` — modulator at the same frequency as the carrier (ratio 1:1). This places sidebands at 0 Hz, 880 Hz, 1320 Hz, etc. With a decaying index the partials shift in amplitude over time, which is what gives the bell its characteristic evolving tone
+- `P`, `Q` — carrier and modulator phase accumulators
+- `W: w A*(s P+(I*s Q))` — right-assoc parses as `A × sin(P + I×sin(Q))`, the FM formula
 
-**Triggering a pad** — click or tap any filled pad. It flashes green briefly and plays the audio once.
+**Experiment:**
 
-**Configuring a pad** — right-click any pad to open its config popup. Set the slot index (dropdown showing all 16 slots with labels) and the semitone offset (numeric input, ±24). Click `ok` to apply.
+Change `40` in the index decay to `80` for a sharper, drier attack, or `20` for a longer metallic clang. Change `3.5` (peak index) to `2` for a softer bell or `5` for something harsher. Change the amplitude decay constant `3` to `6` for a shorter ring or `1.5` for a long lingering tone. Change the modulator ratio from `1.0` to `1.4` for a more inharmonic, tubular bell quality.
 
-### presets
+### step 3 — bank it to a slot
 
-Two preset layouts are available via the buttons at the top of the pad panel:
+After running the bell script, find its cell in the notebook. Click `→0` to bank the buffer to slot 0. The slot card at the top updates to show the waveform and a label taken from the script.
 
-**drum** (default) — each pad N triggers slot N at 0 semitones. Pad 0 plays slot 0, pad 1 plays slot 1, and so on. Intended for a kit where each slot holds a different voice.
+Click the slot card to play it back. Right-click it to rename it `bell` or adjust its base pitch.
 
-**melodic** — all 16 pads trigger slot 0 at different pitches. The layout is:
+### step 4 — play it melodically
+
+This is where it gets interesting. The buffer you synthesised is a fixed recording of one pitch. The pad panel can play it back at different rates to hit different pitches — no re-synthesis needed.
+
+1. With the bell in slot 0, click the `pads` button.
+2. Click the **melodic** preset at the top of the panel.
+3. All 16 pads now play slot 0 at different semitone offsets:
 
 ```
 row 0 (top)    +9   +10   +11   +12  st
@@ -126,57 +99,120 @@ row 2          +1    +2    +3    +4  st
 row 3 (btm)    0    -2    -4    -7  st
 ```
 
-The bottom row is root, down a tone, down a minor third, down a perfect fifth — common harmonic intervals. The upper rows ascend chromatically. Load one bass or melodic patch into slot 0 and the pads become a playable instrument.
+The playback rate for each pad is `2^(semitones/12)`. At 0 semitones, the bell plays at its original pitch. At +12 it plays an octave up (2× speed). At −7 it plays a perfect fifth below (≈0.707× speed).
 
-Presets are starting points. Any pad can be reconfigured independently after applying a preset, so hybrid layouts (e.g. drums on pads 0–7, melodic on pads 8–15 from a different slot) work without restriction.
+The bottom row gives you root, a whole tone down, a minor third down, and a perfect fifth down — common harmonic intervals for bass movement. The upper rows ascend chromatically. Click the pads. You are playing the bell at different pitches.
 
-### keyboard shortcuts in the pad panel
+**Tip:** right-click the slot card and use **set base rate** to shift all pads together by a fixed number of semitones if you want to transpose the whole instrument.
 
-When the pad panel is open and the editor does not have focus, number keys `1`–`9` and `0` trigger pads 0–9 respectively.
+### step 5 — a second voice
+
+Run a second patch — a softer marimba-like FM tone — and bank it to slot 1:
+
+```
+N: 132300
+T: !N
+A: e(T*(0-1.5%N))
+I: 2*e(T*(0-40%N))
+C: 220*(6.28318%44100)
+M: 220*(6.28318%44100)
+P: +\(N#C)
+Q: +\(N#M)
+W: w A*(s P+(I*s Q))
+```
+
+220 Hz (an octave below the bell), 3-second decay, index 2 for a gentler attack. Rounder and warmer than the bell. Bank it to slot 1.
+
+Now right-click some pads in the panel. Set them to slot 1 with semitone offsets. You now have two voices: some pads play the bell, others play the soft tone, each at its own pitch.
+
+**Drum preset vs melodic preset:** the **drum** preset assigns pad N to slot N at 0 semitones — one pad per voice, good for kits. **Melodic** points all pads at slot 0 for pitched play. These are just starting points; right-click any pad to configure it independently.
 
 ---
 
-## typical workflows
+## editor
 
-### building a drum kit
+Write ksynth code one assignment per line. Comments use `/`.
 
-1. Write a kick script in the editor, run it, bank the result to slot 0 (`→0`).
-2. Write a snare script, run it, bank to slot 1 (`→1`).
-3. Continue for hat, clap, toms, etc.
-4. Open the pad panel. The **drum** preset is active by default — pad 0 plays slot 0, pad 1 plays slot 1, and so on.
-5. Trigger pads to audition the kit.
+```
+/ 440 Hz sine with amplitude envelope
+N: 44100
+T: !N
+F: 440*(6.28318%44100)
+P: +\(N#F)
+E: e(T*(0-6%N))
+W: w (s P)*E
+```
 
-### melodic / pitched instrument
+Note: `w s (E*P)` would be wrong — it scales the phase ramp, sweeping pitch to zero. `(s P)*E` correctly scales the sine output by the envelope.
 
-1. Write a synth patch script, run it, bank the result to slot 0.
-2. Open the pad panel, click **melodic**.
-3. All 16 pads now play slot 0 at the pitches shown in the layout above.
-4. Right-click any pad to override its semitone offset if you want a different scale.
+`Ctrl+Enter` or `Cmd+Enter` to run. All variables clear before each run — each script is a complete standalone program.
 
-### hybrid kit
+`Ctrl+L` or `clear` removes all cells from the notebook. Does not affect slots.
 
-1. Bank drums into slots 0–3.
-2. Bank a bass patch into slot 4.
-3. Open the pad panel.
-4. Apply **drum** preset, then right-click pads 4–7 and set each to slot 4 with semitone offsets (e.g. 0, +2, +5, +7 for a pentatonic cluster).
-5. Pads 0–3 trigger drums; pads 4–7 trigger the bass at different pitches.
+---
 
-### iterating on a sound
+## history navigation
 
-1. Run a script. If you want to refine it, press `↑` in the editor — the previous script loads.
-2. Edit and re-run. A new cell appears in the notebook; the old one remains.
-3. When satisfied, bank the new result to a slot. This overwrites any previous content in that slot.
+- `↑` at the **first line** of the editor — loads the previous run
+- `↓` at the **last line** — moves forward through history; at the most recent entry, clears the editor
+
+History is in-memory and resets on page reload.
+
+---
+
+## notebook
+
+Each run appends a cell. Successful cells show status, source, waveform, and bank buttons (`→0`–`→F`). Failed cells show the error in red.
+
+Click the **source code** in any cell to copy it back into the editor. Click the **waveform** to audition it without banking. Hover a cell and click **✕** to remove it.
+
+---
+
+## slots
+
+16 slots in a 2×8 grid at the top, indexed `0`–`F`. Each holds a buffer, a label, and a base pitch offset.
+
+**Banking** — click `→N` in a notebook cell.
+
+**Playing** — click any filled slot card.
+
+**Context menu** (right-click):
+
+- `▶ play` — play the slot
+- `rename` — set a custom label
+- `set base rate` — base pitch offset in semitones (±24). Affects all pads on this slot.
+- `clear slot` — empty the slot
+
+---
+
+## pad panel
+
+Click `pads` to open. `Escape` or click outside to close.
+
+4×4 grid of 16 trigger pads. Each pad has a slot and a semitone offset. Final playback rate:
+
+```
+rate = 2^(slot.baseSemitones/12) × 2^(pad.semitones/12)
+```
+
+Right-click any pad to configure it. Keys `1`–`9` and `0` trigger pads 0–9 when the panel is open.
+
+---
+
+## patches browser
+
+Click `patches` to open. On first open it fetches the file tree from `octetta/k-synth` on GitHub (requires internet; unauthenticated GitHub API, 60 req/hr limit).
+
+Files are listed grouped by directory. Type to filter. Click any file to load its content into the editor. The script is not run automatically — review and press `Ctrl+Enter` when ready.
 
 ---
 
 ## notes and limitations
 
-**Variable isolation** — each script run clears all ksynth variables (`A`–`Z`) before evaluation. There is no state carried between notebook cells. If you need a long script, write it all in the editor at once; the editor supports multi-line input freely.
+**Variable isolation** — variables `A`–`Z` clear before each run. No state carries between cells.
 
-**Buffer length** — there is no enforced maximum, but very long buffers (several seconds) will take longer to evaluate and consume more memory. The Wasm heap grows as needed up to browser limits.
+**Sample rate** — fixed at 44100 Hz.
 
-**Sample rate** — fixed at 44100 Hz. The `W` buffer is always interpreted at this rate.
+**Audio context** — Web Audio requires a user gesture before audio plays. Click anywhere to resume if audio stops.
 
-**Audio context** — the Web Audio API requires a user gesture before audio can play. The context is created on the first click or keypress. If the page has been idle and audio stops working, clicking anywhere will resume it.
-
-**Persistence** — nothing persists across page reloads. History, slot contents, and pad configuration are all in-memory. To save a patch, copy the script text out of a notebook cell (select the code text and copy manually) or keep your `.ks` files on disk and paste them into the editor as needed.
+**Persistence** — nothing survives a page reload. Keep scripts as `.ks` files on disk or in the repo and reload via the patches browser.
