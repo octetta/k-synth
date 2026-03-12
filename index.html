@@ -216,6 +216,8 @@ html, body {
   gap: 2px;
   transition: border-color 80ms;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none; /* suppress iOS callout menu */
 }
 .slot-card.filled { border-color: var(--border2); }
 .slot-card.filled:hover { border-color: var(--accent); }
@@ -563,6 +565,8 @@ html, body {
   gap: 2px;
   touch-action: manipulation; /* prevents double-tap zoom on iOS */
   -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none; /* suppress iOS callout menu */
 }
 .pad-button.filled { border-color: var(--border2); }
 .pad-button.filled:hover { border-color: var(--accent); }
@@ -1082,20 +1086,28 @@ function clearSlot(slotIdx) {
    ═══════════════════════════════════════════════════════════════════ */
 
 // Attach a long-press handler (500ms) to an element.
-// Also fires on contextmenu so desktop right-click still works.
-// Returns a cleanup function.
+// Uses touchstart/touchend for iOS reliability; contextmenu for desktop.
 function onLongPress(el, callback) {
-  let timer = null;
-  let fired = false;
+  let timer  = null;
+  let fired  = false;
+  let startX = 0;
+  let startY = 0;
+
+  function getXY(e) {
+    if (e.touches && e.touches[0]) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    const r = el.getBoundingClientRect();
+    return { x: e.clientX ?? r.left + r.width / 2, y: e.clientY ?? r.top + r.height / 2 };
+  }
 
   function start(e) {
     fired = false;
+    const { x, y } = getXY(e);
+    startX = x; startY = y;
+    // prevent iOS callout / text selection on long-press
+    e.preventDefault();
     timer = setTimeout(() => {
       fired = true;
-      // use pointer position if available, else element centre
-      const x = e.clientX ?? (el.getBoundingClientRect().left + el.offsetWidth  / 2);
-      const y = e.clientY ?? (el.getBoundingClientRect().top  + el.offsetHeight / 2);
-      callback(x, y, e);
+      callback(startX, startY, e);
     }, 500);
   }
 
@@ -1104,25 +1116,29 @@ function onLongPress(el, callback) {
     timer = null;
   }
 
-  function onContext(e) {
+  function move(e) {
+    if (!timer) return;
+    const { x, y } = getXY(e);
+    // cancel if moved more than 10px
+    if (Math.abs(x - startX) > 10 || Math.abs(y - startY) > 10) cancel();
+  }
+
+  function end(e) {
+    if (fired) e.preventDefault(); // suppress the synthetic click after long-press
+    cancel();
+  }
+
+  // touchstart must be non-passive to call preventDefault (stops iOS text selection)
+  el.addEventListener('touchstart',  start,  { passive: false });
+  el.addEventListener('touchmove',   move,   { passive: true  });
+  el.addEventListener('touchend',    end,    { passive: false });
+  el.addEventListener('touchcancel', cancel, { passive: true  });
+  // desktop right-click still works
+  el.addEventListener('contextmenu', e => {
     e.preventDefault();
-    cancel();
-    const x = e.clientX ?? (el.getBoundingClientRect().left + el.offsetWidth  / 2);
-    const y = e.clientY ?? (el.getBoundingClientRect().top  + el.offsetHeight / 2);
+    const { x, y } = getXY(e);
     callback(x, y, e);
-  }
-
-  // prevent the tap from firing as a click after a long-press
-  function onPointerUp(e) {
-    if (fired) { e.preventDefault(); e.stopPropagation(); }
-    cancel();
-  }
-
-  el.addEventListener('pointerdown',  start);
-  el.addEventListener('pointerup',    onPointerUp);
-  el.addEventListener('pointercancel',cancel);
-  el.addEventListener('pointermove',  cancel);
-  el.addEventListener('contextmenu',  onContext);
+  });
 }
 
 /* ═══════════════════════════════════════════════════════════════════
