@@ -64,13 +64,12 @@
 
 html, body {
   height: 100%;
-  height: 100dvh; /* dynamic viewport — accounts for Safari toolbar */
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
   font-size: 13px;
   line-height: 1.5;
-  overflow: hidden; /* #app handles all scrolling */
+  overflow: hidden;
 }
 
 /* ── layout ───────────────────────────────────────────────────────── */
@@ -78,8 +77,11 @@ html, body {
   display: flex;
   flex-direction: column;
   width: 100vw;
-  height: 100vh;     /* fallback */
-  height: 100dvh;    /* Safari iOS: excludes browser chrome */
+  /* dvh tracks Safari's collapsing toolbar; svh is the minimum (toolbar always visible);
+     100svh is the safe conservative value that never gets clipped */
+  height: 100svh;
+  height: 100dvh;
+  max-height: 100dvh;
   overflow-x: hidden;
   overflow-y: hidden;
 }
@@ -95,6 +97,9 @@ html, body {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   width: 100%;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 /* main area — horizontal on desktop, vertical on mobile */
