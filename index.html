@@ -1078,6 +1078,54 @@ function clearSlot(slotIdx) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   LONG-PRESS UTILITY
+   ═══════════════════════════════════════════════════════════════════ */
+
+// Attach a long-press handler (500ms) to an element.
+// Also fires on contextmenu so desktop right-click still works.
+// Returns a cleanup function.
+function onLongPress(el, callback) {
+  let timer = null;
+  let fired = false;
+
+  function start(e) {
+    fired = false;
+    timer = setTimeout(() => {
+      fired = true;
+      // use pointer position if available, else element centre
+      const x = e.clientX ?? (el.getBoundingClientRect().left + el.offsetWidth  / 2);
+      const y = e.clientY ?? (el.getBoundingClientRect().top  + el.offsetHeight / 2);
+      callback(x, y, e);
+    }, 500);
+  }
+
+  function cancel() {
+    clearTimeout(timer);
+    timer = null;
+  }
+
+  function onContext(e) {
+    e.preventDefault();
+    cancel();
+    const x = e.clientX ?? (el.getBoundingClientRect().left + el.offsetWidth  / 2);
+    const y = e.clientY ?? (el.getBoundingClientRect().top  + el.offsetHeight / 2);
+    callback(x, y, e);
+  }
+
+  // prevent the tap from firing as a click after a long-press
+  function onPointerUp(e) {
+    if (fired) { e.preventDefault(); e.stopPropagation(); }
+    cancel();
+  }
+
+  el.addEventListener('pointerdown',  start);
+  el.addEventListener('pointerup',    onPointerUp);
+  el.addEventListener('pointercancel',cancel);
+  el.addEventListener('pointermove',  cancel);
+  el.addEventListener('contextmenu',  onContext);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    SLOT STRIP RENDER
    ═══════════════════════════════════════════════════════════════════ */
 
@@ -1127,11 +1175,8 @@ function renderSlotStrip() {
       card.addEventListener('click', e => {
         if (e.button === 0) playSlot(i);
       });
-      // right-click → context menu
-      card.addEventListener('contextmenu', e => {
-        e.preventDefault();
-        showSlotMenu(i, e.clientX, e.clientY);
-      });
+      // right-click or long-press → context menu
+      onLongPress(card, (x, y) => showSlotMenu(i, x, y));
 
     } else {
       const hint = document.createElement('div');
@@ -1468,11 +1513,8 @@ function renderPadGrid() {
       playSlot(pd.slot, pd.semitones);
     });
 
-    // right-click / long-press → config
-    btn.addEventListener('contextmenu', e => {
-      e.preventDefault();
-      showPadConfig(i, btn.getBoundingClientRect());
-    });
+    // right-click or long-press → pad config
+    onLongPress(btn, () => showPadConfig(i, btn.getBoundingClientRect()));
 
     grid.appendChild(btn);
   }
