@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>ksynth</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -528,6 +528,7 @@ html, body {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
+  touch-action: none; /* prevent pinch-zoom on the grid */
 }
 
 .pad-button {
@@ -545,6 +546,8 @@ html, body {
   position: relative;
   padding: 4px;
   gap: 2px;
+  touch-action: manipulation; /* prevents double-tap zoom on iOS */
+  -webkit-tap-highlight-color: transparent;
 }
 .pad-button.filled { border-color: var(--border2); }
 .pad-button.filled:hover { border-color: var(--accent); }
@@ -641,6 +644,12 @@ html, body {
 .pc-btn:hover { color: var(--text); }
 
 /* ── scrollbar ────────────────────────────────────────────────────── */
+/* prevent double-tap zoom on all interactive elements */
+button, [data-pad], [data-slot] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
