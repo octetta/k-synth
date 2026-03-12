@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ksynth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── reset & base ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0e1116;
+  --surface:   #161b22;
+  --surface2:  #1c2128;
+  --border:    #21262d;
+  --border2:   #30363d;
+  --text:      #e6edf3;
+  --muted:     #7d8590;
+  --accent:    #3fb950;
+  --accent-dim:#1a3a1f;
+  --error:     #f85149;
+  --error-dim: #3a1a1a;
+  --warn:      #d29922;
+  --font:      'JetBrains Mono', 'Cascadia Code', 'Fira Mono', monospace;
+  --radius:    4px;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: hidden; /* #app handles all scrolling */
+}
+
+/* ── layout ───────────────────────────────────────────────────────── */
+#app {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+
+/* slot strip — 2 rows of 8 so all 16 slots always visible */
+#slot-strip {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: auto auto;
+  gap: 4px;
+  padding: 8px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  width: 100%;
+}
+
+/* main area — horizontal on desktop, vertical on mobile */
+#main {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+/* left panel: notebook */
+#left-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;  /* shrinks to zero before right panel clips */
+  overflow: hidden;
+}
+
+#notebook {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0;
+  min-height: 0;
+}
+
+/* drag divider — desktop only */
+#divider {
+  width: 5px;
+  flex-shrink: 0;
+  background: var(--border);
+  cursor: col-resize;
+  transition: background 80ms;
+}
+#divider:hover, #divider.dragging { background: var(--accent); }
+
+/* right panel: editor — fixed width on desktop, full width on mobile */
+#right-panel {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: var(--right-w, 40%);
+  min-width: 220px;
+  overflow: hidden;
+}
+
+/* input zone fills right panel */
+#input-zone {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+}
+
+/* editor fills remaining space in input zone */
+#editor {
+  flex: 1;
+  min-height: 60px;
+  overflow-y: auto;
+}
+
+/* pad overlay */
+#pad-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+#pad-overlay.open { display: flex; }
+
+/* ── mobile/tablet: stack vertically ─────────────────────────────── */
+@media (max-width: 767px) {
+  #main        { flex-direction: column; }
+  #divider     { display: none; }
+  #left-panel  { flex: 1; min-height: 0; min-width: 0; }
+  #right-panel {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-shrink: 0;
+    height: 40vh;
+    min-height: 160px;
+  }
+  #input-zone {
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
+
+/* ── desktop: show divider ────────────────────────────────────────── */
+@media (min-width: 768px) {
+  #divider { display: block; }
+}
+
+/* ── slot strip ───────────────────────────────────────────────────── */
+.slot-card {
+  height: 60px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 5px;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: border-color 80ms;
+  user-select: none;
+}
+.slot-card.filled { border-color: var(--border2); }
+.slot-card.filled:hover { border-color: var(--accent); }
+.slot-card.active { border-color: var(--accent); background: var(--accent-dim); }
+
+.slot-idx {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+.slot-label {
+  font-size: 10px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+.slot-wave {
+  width: 100%;
+  height: 20px;
+  display: block;
+}
+.slot-rate {
+  font-size: 9px;
+  color: var(--muted);
+  text-align: right;
+}
+.slot-empty-hint {
+  font-size: 9px;
+  color: var(--border2);
+  margin-top: auto;
+  text-align: center;
+}
+
+/* slot context menu */
+#slot-menu {
+  position: fixed;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 4px 0;
+  z-index: 200;
+  min-width: 160px;
+  display: none;
+}
+#slot-menu.open { display: block; }
+.slot-menu-item {
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+}
+.slot-menu-item:hover { background: var(--border); }
+.slot-menu-item.danger { color: var(--error); }
+
+/* ── notebook ─────────────────────────────────────────────────────── */
+.nb-cell {
+  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+}
+.nb-cell.error-cell { background: var(--error-dim); }
+
+.nb-cell-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.nb-status {
+  font-size: 11px;
+  font-weight: 600;
+}
+.nb-status.ok  { color: var(--accent); }
+.nb-status.err { color: var(--error); }
+
+.nb-meta {
+  font-size: 11px;
+  color: var(--muted);
+  flex: 1;
+}
+
+.nb-bank-row {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.nb-bank-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-family: var(--font);
+  font-size: 10px;
+  padding: 2px 5px;
+  cursor: pointer;
+  transition: border-color 80ms, color 80ms;
+}
+.nb-bank-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.nb-code {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.6;
+  margin-bottom: 4px;
+  transition: color 80ms;
+  border-radius: var(--radius);
+  padding: 2px 4px;
+  margin-left: -4px;
+}
+.nb-code:hover {
+  color: var(--text);
+  background: var(--surface2);
+}
+
+.nb-wave-wrap {
+  margin-top: 6px;
+}
+.nb-wave {
+  width: 100%;
+  height: 40px;
+  display: block;
+  border-radius: 2px;
+}
+
+/* ── input zone ───────────────────────────────────────────────────── */
+#input-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;  /* wrap to second line if too narrow */
+}
+
+#input-label {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+#btn-run {
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--accent);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: background 80ms;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+#btn-run:hover { background: #254d2a; }
+
+#btn-clear {
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+#btn-clear:hover { border-color: var(--muted); color: var(--text); }
+
+.nb-del-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 0 6px;
+  cursor: pointer;
+  line-height: 1;
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0.4;
+  transition: opacity 80ms, color 80ms;
+}
+.nb-cell-header:hover .nb-del-btn { opacity: 1; }
+.nb-del-btn:hover { color: var(--error); opacity: 1; }
+
+#btn-pad {
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+#btn-pad:hover { border-color: var(--text); color: var(--text); }
+#btn-pad.active { border-color: var(--accent); color: var(--accent); }
+
+#input-meta {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 0 10px;
+}
+
+#editor {
+  width: 100%;
+  background: var(--bg);
+  border: none;
+  outline: none;
+  resize: none;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.7;
+  padding: 10px 14px;
+  height: 160px; /* overridden to flex: 1 on desktop via #input-zone flex */
+  caret-color: var(--accent);
+}
+#editor::placeholder { color: var(--border2); }
+#editor:focus { background: #0b0f14; }
+
+#input-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-top: 1px solid var(--border);
+}
+#input-hint {
+  font-size: 10px;
+  color: var(--border2);
+}
+#wasm-status {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--muted);
+}
+#wasm-status.ready { color: var(--accent); }
+#wasm-status.error { color: var(--error); }
+
+/* ── pad overlay ─────────────────────────────────────────────────── */
+#pad-panel {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 16px;
+  width: 480px;
+  max-width: 95vw;
+}
+
+#pad-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+#pad-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+.pad-preset-btn {
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-family: var(--font);
+  font-size: 10px;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+.pad-preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+.pad-preset-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+#btn-pad-close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+#btn-pad-close:hover { color: var(--text); }
+
+#pad-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.pad-button {
+  aspect-ratio: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  transition: background 50ms, border-color 50ms;
+  position: relative;
+  padding: 4px;
+  gap: 2px;
+}
+.pad-button.filled { border-color: var(--border2); }
+.pad-button.filled:hover { border-color: var(--accent); }
+.pad-button.playing {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+.pad-button:active { background: #1a3a1f; }
+
+.pad-btn-slot {
+  font-size: 9px;
+  color: var(--muted);
+}
+.pad-btn-label {
+  font-size: 9px;
+  color: var(--text);
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pad-btn-rate {
+  font-size: 8px;
+  color: var(--muted);
+}
+.pad-btn-empty {
+  font-size: 8px;
+  color: var(--border2);
+}
+
+/* pad config popup */
+#pad-config {
+  position: fixed;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 10px;
+  z-index: 300;
+  display: none;
+  width: 200px;
+}
+#pad-config.open { display: block; }
+.pc-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.pc-label {
+  font-size: 11px;
+  color: var(--muted);
+  width: 50px;
+  flex-shrink: 0;
+}
+.pc-select, .pc-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 3px 5px;
+  outline: none;
+}
+.pc-select:focus, .pc-input:focus { border-color: var(--accent); }
+.pc-btns {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+.pc-btn {
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-family: var(--font);
+  font-size: 10px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.pc-btn.ok { border-color: var(--accent); color: var(--accent); }
+.pc-btn:hover { color: var(--text); }
+
+/* ── scrollbar ────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ── slot strip ─────────────────────────────────────────────── -->
+  <div id="slot-strip"></div>
+
+  <!-- ── main: notebook (left) + editor (right) ────────────────── -->
+  <div id="main">
+
+    <div id="left-panel">
+      <!-- notebook -->
+      <div id="notebook"></div>
+    </div>
+
+    <!-- drag divider (desktop only) -->
+    <div id="divider"></div>
+
+    <div id="right-panel">
+      <!-- input zone -->
+      <div id="input-zone">
+    <div id="input-header">
+      <span id="input-label">›</span>
+      <button id="btn-run">run  ⌃↵</button>
+      <button id="btn-clear">clear</button>
+      <button id="btn-pad">pads</button>
+    </div>
+    <textarea id="editor"
+      placeholder="N: 4410&#10;T: !N&#10;W: w s +\(N#(440*(6.28318%44100)))"
+      spellcheck="false"
+      autocorrect="off"
+      autocapitalize="off"
+    ></textarea>
+    <div id="input-footer">
+      <span id="input-hint">↑↓ history · ⌃↵ run · ⌃L clear</span>
+      <span id="wasm-status">loading wasm…</span>
+    </div>
+      </div><!-- /input-zone -->
+    </div><!-- /right-panel -->
+
+  </div><!-- /main -->
+
+</div><!-- /app -->
+
+<!-- ── pad overlay ──────────────────────────────────────────────── -->
+<div id="pad-overlay">
+  <div id="pad-panel">
+    <div id="pad-header">
+      <span id="pad-title">pads</span>
+      <button class="pad-preset-btn active" id="preset-drum">drum</button>
+      <button class="pad-preset-btn" id="preset-melodic">melodic</button>
+      <button id="btn-pad-close">✕</button>
+    </div>
+    <div id="pad-grid"></div>
+  </div>
+</div>
+
+<!-- ── slot context menu ────────────────────────────────────────── -->
+<div id="slot-menu">
+  <div class="slot-menu-item" id="smenu-play">▶ play</div>
+  <div class="slot-menu-item" id="smenu-rename">rename</div>
+  <div class="slot-menu-item" id="smenu-rate">set base rate</div>
+  <div class="slot-menu-item danger" id="smenu-clear">clear slot</div>
+</div>
+
+<!-- ── pad config popup ─────────────────────────────────────────── -->
+<div id="pad-config">
+  <div class="pc-row">
+    <span class="pc-label">slot</span>
+    <select id="pc-slot" class="pc-select"></select>
+  </div>
+  <div class="pc-row">
+    <span class="pc-label">pitch</span>
+    <input id="pc-rate" class="pc-input" type="number" min="-24" max="24" value="0">
+    <span style="font-size:10px;color:var(--muted)">st</span>
+  </div>
+  <div class="pc-btns">
+    <button class="pc-btn" id="pc-cancel">cancel</button>
+    <button class="pc-btn ok" id="pc-ok">ok</button>
+  </div>
+</div>
+
+<!-- ── Emscripten glue ───────────────────────────────────────────── -->
+<script src="ksynth.js"></script>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════════════════ */
+
+const NUM_SLOTS = 16;
+const NUM_PADS  = 16;
+const SR        = 44100;
+
+// 16 sample slots: { buffer: AudioBuffer|null, label: string, baseRate: float }
+const slots = Array.from({length: NUM_SLOTS}, (_, i) => ({
+  buffer:   null,
+  label:    `${i.toString(16).toUpperCase()}`,
+  baseRate: 1.0,
+}));
+
+// 16 pad assignments: { slot: int, semitones: int }
+// semitones is the BUTTON's pitch offset; slot.baseRate is the slot's base
+const pads = Array.from({length: NUM_PADS}, (_, i) => ({
+  slot:      i,      // drum default: pad N → slot N
+  semitones: 0,
+}));
+
+// REPL history
+const history  = [];   // array of { code, success, samples, error, floatData }
+let histIdx    = -1;   // current history navigation position
+let lastResult = null; // Float32Array of last successful run
+
+// Wasm handles
+let KS        = null;
+let ks_run    = null;
+let ks_buf    = null;
+let ks_len    = null;
+let ks_err    = null;
+
+// AudioContext (lazy init on first user gesture)
+let audioCtx  = null;
+
+// Active slot for context menu
+let menuSlot  = -1;
+// Active pad for config popup
+let configPad = -1;
+
+/* ═══════════════════════════════════════════════════════════════════
+   WASM INIT
+   ═══════════════════════════════════════════════════════════════════ */
+
+async function initWasm() {
+  const statusEl = document.getElementById('wasm-status');
+  try {
+    KS = await KSynth();
+    KS.ccall('ks_init', null, [], []);
+
+    ks_run = KS.cwrap('ks_run',        'number', ['string']);
+    ks_buf = KS.cwrap('ks_get_buffer', 'number', []);
+    ks_len = KS.cwrap('ks_get_length', 'number', []);
+    ks_err = KS.cwrap('ks_get_error',  'string', []);
+
+    statusEl.textContent = 'wasm ready';
+    statusEl.className = 'ready';
+    document.getElementById('btn-run').disabled = false;
+  } catch(e) {
+    statusEl.textContent = 'wasm failed: ' + e.message;
+    statusEl.className = 'error';
+    console.error('Wasm init failed:', e);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   AUDIO
+   ═══════════════════════════════════════════════════════════════════ */
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new AudioContext({sampleRate: SR});
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function floatArrayToAudioBuffer(f32) {
+  ensureAudio();
+  const buf = audioCtx.createBuffer(1, f32.length, SR);
+  buf.copyToChannel(f32, 0);
+  return buf;
+}
+
+function playSlot(slotIdx, extraSemitones = 0) {
+  const s = slots[slotIdx];
+  if (!s.buffer) return;
+  ensureAudio();
+  const src = audioCtx.createBufferSource();
+  src.buffer = s.buffer;
+  const totalSt = extraSemitones;  // slot.baseRate already baked in
+  src.playbackRate.value = s.baseRate * Math.pow(2, totalSt / 12);
+  src.connect(audioCtx.destination);
+  src.start();
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   KSYNTH EVAL
+   ═══════════════════════════════════════════════════════════════════ */
+
+function evalScript(code) {
+  if (!KS) return { success: false, error: 'wasm not loaded', samples: 0, floatData: null };
+
+  const n = ks_run(code);
+  if (n < 0) {
+    return { success: false, error: ks_err(), samples: 0, floatData: null };
+  }
+
+  const ptr = ks_buf();
+  const len = ks_len();
+  // Copy out of Wasm heap immediately
+  const f32 = new Float32Array(KS.HEAPF32.buffer, ptr, len).slice();
+  return { success: true, samples: len, floatData: f32, error: '' };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   WAVEFORM DRAWING
+   ═══════════════════════════════════════════════════════════════════ */
+
+function drawWave(canvas, f32) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  if (!f32 || f32.length === 0) return;
+
+  const step   = f32.length / W;
+  const mid    = H / 2;
+  const amp    = mid * 0.85;
+
+  ctx.strokeStyle = getComputedStyle(document.documentElement)
+                      .getPropertyValue('--accent').trim();
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+
+  for (let x = 0; x < W; x++) {
+    const i   = Math.floor(x * step);
+    const v   = f32[i] * amp;
+    const y   = mid - v;
+    if (x === 0) ctx.moveTo(x + 0.5, y);
+    else          ctx.lineTo(x + 0.5, y);
+  }
+  ctx.stroke();
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SLOT MANAGEMENT
+   ═══════════════════════════════════════════════════════════════════ */
+
+function bankToSlot(slotIdx, f32, codeFirstLine) {
+  const s = slots[slotIdx];
+  s.buffer = floatArrayToAudioBuffer(f32);
+  // derive label from first non-comment line
+  const firstLine = codeFirstLine.replace(/^\/.*/, '').trim()
+                        .split('\n').find(l => l.trim() && !l.trim().startsWith('/'))
+                    || `slot${slotIdx}`;
+  s.label = firstLine.slice(0, 12);
+  renderSlotStrip();
+  renderPadGrid();
+}
+
+function clearSlot(slotIdx) {
+  slots[slotIdx].buffer   = null;
+  slots[slotIdx].baseRate = 1.0;
+  renderSlotStrip();
+  renderPadGrid();
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SLOT STRIP RENDER
+   ═══════════════════════════════════════════════════════════════════ */
+
+function renderSlotStrip() {
+  const strip = document.getElementById('slot-strip');
+  strip.innerHTML = '';
+
+  for (let i = 0; i < NUM_SLOTS; i++) {
+    const s   = slots[i];
+    const hex = i.toString(16).toUpperCase();
+
+    const card = document.createElement('div');
+    card.className = 'slot-card' + (s.buffer ? ' filled' : '');
+    card.dataset.slot = i;
+
+    // index
+    const idx = document.createElement('div');
+    idx.className = 'slot-idx';
+    idx.textContent = hex;
+    card.appendChild(idx);
+
+    if (s.buffer) {
+      // label
+      const lbl = document.createElement('div');
+      lbl.className = 'slot-label';
+      lbl.textContent = s.label;
+      card.appendChild(lbl);
+
+      // waveform canvas
+      const cv = document.createElement('canvas');
+      cv.className = 'slot-wave';
+      cv.width  = 62;
+      cv.height = 20;
+      card.appendChild(cv);
+
+      // rate
+      const rt = document.createElement('div');
+      rt.className = 'slot-rate';
+      const st = Math.round(Math.log2(s.baseRate) * 12);
+      rt.textContent = (st >= 0 ? '+' : '') + st + 'st';
+      card.appendChild(rt);
+
+      // draw waveform — need the float data; store on slot
+      if (s._f32) drawWave(cv, s._f32);
+
+      // click → play
+      card.addEventListener('click', e => {
+        if (e.button === 0) playSlot(i);
+      });
+      // right-click → context menu
+      card.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        showSlotMenu(i, e.clientX, e.clientY);
+      });
+
+    } else {
+      const hint = document.createElement('div');
+      hint.className = 'slot-empty-hint';
+      hint.textContent = '—';
+      card.appendChild(hint);
+    }
+
+    strip.appendChild(card);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SLOT CONTEXT MENU
+   ═══════════════════════════════════════════════════════════════════ */
+
+function showSlotMenu(slotIdx, x, y) {
+  menuSlot = slotIdx;
+  const menu = document.getElementById('slot-menu');
+  menu.style.left = x + 'px';
+  menu.style.top  = y + 'px';
+  menu.classList.add('open');
+}
+
+function hideSlotMenu() {
+  document.getElementById('slot-menu').classList.remove('open');
+  menuSlot = -1;
+}
+
+document.getElementById('smenu-play').addEventListener('click', () => {
+  if (menuSlot >= 0) playSlot(menuSlot);
+  hideSlotMenu();
+});
+
+document.getElementById('smenu-rename').addEventListener('click', () => {
+  if (menuSlot < 0) return;
+  const name = prompt('Slot label:', slots[menuSlot].label);
+  if (name !== null) {
+    slots[menuSlot].label = name.slice(0, 16);
+    renderSlotStrip();
+  }
+  hideSlotMenu();
+});
+
+document.getElementById('smenu-rate').addEventListener('click', () => {
+  if (menuSlot < 0) return;
+  const st = Math.round(Math.log2(slots[menuSlot].baseRate) * 12);
+  const val = prompt('Base rate (semitones, ±24):', st);
+  if (val !== null) {
+    const n = parseInt(val, 10);
+    if (!isNaN(n)) slots[menuSlot].baseRate = Math.pow(2, n / 12);
+  }
+  renderSlotStrip();
+  hideSlotMenu();
+});
+
+document.getElementById('smenu-clear').addEventListener('click', () => {
+  if (menuSlot >= 0) clearSlot(menuSlot);
+  hideSlotMenu();
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#slot-menu') && !e.target.closest('.slot-card')) {
+    hideSlotMenu();
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════
+   NOTEBOOK RENDER
+   ═══════════════════════════════════════════════════════════════════ */
+
+function addNotebookCell(entry) {
+  const nb   = document.getElementById('notebook');
+  const cell = document.createElement('div');
+  cell.className = 'nb-cell' + (entry.success ? '' : ' error-cell');
+
+  // header
+  const hdr = document.createElement('div');
+  hdr.className = 'nb-cell-header';
+
+  const status = document.createElement('span');
+  status.className = 'nb-status ' + (entry.success ? 'ok' : 'err');
+  status.textContent = entry.success ? '✓' : '✗';
+  hdr.appendChild(status);
+
+  const meta = document.createElement('span');
+  meta.className = 'nb-meta';
+  meta.textContent = entry.success
+    ? `${entry.samples} samples  ${(entry.samples / SR * 1000).toFixed(1)}ms`
+    : entry.error;
+  hdr.appendChild(meta);
+
+  // delete button
+  const del = document.createElement('button');
+  del.className = 'nb-del-btn';
+  del.textContent = '✕';
+  del.title = 'remove cell';
+  del.addEventListener('click', () => cell.remove());
+  hdr.appendChild(del);
+
+  cell.appendChild(hdr);
+
+  // code — click to copy back to editor
+  const code = document.createElement('div');
+  code.className = 'nb-code';
+  code.textContent = entry.code;
+  code.title = 'click to copy to editor';
+  code.style.cursor = 'pointer';
+  code.addEventListener('click', () => {
+    const editor = document.getElementById('editor');
+    editor.value = entry.code;
+    editor.focus();
+    // flash the code div briefly
+    code.style.color = 'var(--accent)';
+    setTimeout(() => { code.style.color = ''; }, 200);
+    // reset history navigation
+    histIdx = -1;
+  });
+  cell.appendChild(code);
+
+  // waveform + bank row (success only)
+  if (entry.success && entry.floatData) {
+    const wrapDiv = document.createElement('div');
+    wrapDiv.className = 'nb-wave-wrap';
+
+    const cv = document.createElement('canvas');
+    cv.className = 'nb-wave';
+    cv.width  = 600;
+    cv.height = 40;
+    cv.title  = 'click to play';
+    cv.style.cursor = 'pointer';
+    wrapDiv.appendChild(cv);
+    cell.appendChild(wrapDiv);
+
+    // draw after insert so we have layout width
+    requestAnimationFrame(() => {
+      cv.width = cv.offsetWidth || 600;
+      drawWave(cv, entry.floatData);
+    });
+
+    // click → play directly from floatData, no slot required
+    cv.addEventListener('click', () => {
+      ensureAudio();
+      const abuf = floatArrayToAudioBuffer(entry.floatData);
+      const src  = audioCtx.createBufferSource();
+      src.buffer = abuf;
+      src.connect(audioCtx.destination);
+      src.start();
+      // brief green tint flash then redraw
+      const c2d = cv.getContext('2d');
+      c2d.fillStyle = 'rgba(63,185,80,0.15)';
+      c2d.fillRect(0, 0, cv.width, cv.height);
+      setTimeout(() => drawWave(cv, entry.floatData), 120);
+    });
+
+    // bank buttons
+    const bankRow = document.createElement('div');
+    bankRow.className = 'nb-bank-row';
+
+    for (let i = 0; i < NUM_SLOTS; i++) {
+      const btn = document.createElement('button');
+      btn.className = 'nb-bank-btn';
+      btn.textContent = '→' + i.toString(16).toUpperCase();
+      btn.title = `Bank to slot ${i}`;
+      btn.addEventListener('click', () => {
+        // store f32 on slot for waveform redraw
+        slots[i]._f32 = entry.floatData;
+        bankToSlot(i, entry.floatData, entry.code);
+      });
+      bankRow.appendChild(btn);
+    }
+    cell.appendChild(bankRow);
+  }
+
+  nb.appendChild(cell);
+  // scroll new cell into view
+  cell.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   REPL / EDITOR
+   ═══════════════════════════════════════════════════════════════════ */
+
+const editor = document.getElementById('editor');
+
+function runEditor() {
+  const code = editor.value.trim();
+  if (!code) return;
+
+  ensureAudio();
+  const result = evalScript(code);
+  const entry  = { code, ...result };
+
+  history.unshift(entry);  // prepend so index 0 = most recent
+  histIdx = -1;
+
+  if (result.success) lastResult = result.floatData;
+
+  addNotebookCell(entry);
+}
+
+// History navigation
+editor.addEventListener('keydown', e => {
+  const lines = editor.value.split('\n');
+  const atFirstLine = editor.selectionStart <= lines[0].length;
+  const atLastLine  = editor.selectionEnd >=
+    editor.value.length - lines[lines.length - 1].length;
+
+  if (e.key === 'ArrowUp' && atFirstLine && !e.shiftKey) {
+    if (history.length === 0) return;
+    e.preventDefault();
+    histIdx = Math.min(histIdx + 1, history.length - 1);
+    editor.value = history[histIdx].code;
+    editor.selectionStart = editor.selectionEnd = 0;
+    return;
+  }
+
+  if (e.key === 'ArrowDown' && atLastLine && !e.shiftKey) {
+    e.preventDefault();
+    if (histIdx <= 0) {
+      histIdx = -1;
+      editor.value = '';
+    } else {
+      histIdx--;
+      editor.value = history[histIdx].code;
+    }
+    const len = editor.value.length;
+    editor.selectionStart = editor.selectionEnd = len;
+    return;
+  }
+
+  // Ctrl+Enter or Cmd+Enter → run
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    runEditor();
+    return;
+  }
+
+  // Ctrl+L → clear notebook
+  if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
+    e.preventDefault();
+    document.getElementById('editor').value = '';
+    return;
+  }
+});
+
+document.getElementById('btn-run').addEventListener('click', runEditor);
+document.getElementById('btn-clear').addEventListener('click', () => {
+  document.getElementById('editor').value = '';
+  document.getElementById('editor').focus();
+});
+
+/* ═══════════════════════════════════════════════════════════════════
+   PAD GRID
+   ═══════════════════════════════════════════════════════════════════ */
+
+function renderPadGrid() {
+  const grid = document.getElementById('pad-grid');
+  grid.innerHTML = '';
+
+  for (let i = 0; i < NUM_PADS; i++) {
+    const pd  = pads[i];
+    const s   = slots[pd.slot];
+    const hex = i.toString(16).toUpperCase();
+
+    const btn = document.createElement('div');
+    btn.className = 'pad-button' + (s.buffer ? ' filled' : '');
+    btn.dataset.pad = i;
+
+    const slotLbl = document.createElement('div');
+    slotLbl.className = 'pad-btn-slot';
+    slotLbl.textContent = pd.slot.toString(16).toUpperCase();
+    btn.appendChild(slotLbl);
+
+    if (s.buffer) {
+      const lbl = document.createElement('div');
+      lbl.className = 'pad-btn-label';
+      lbl.textContent = s.label;
+      btn.appendChild(lbl);
+
+      const rate = document.createElement('div');
+      rate.className = 'pad-btn-rate';
+      const st = pd.semitones;
+      rate.textContent = (st >= 0 ? '+' : '') + st + 'st';
+      btn.appendChild(rate);
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'pad-btn-empty';
+      empty.textContent = '—';
+      btn.appendChild(empty);
+    }
+
+    // play on click
+    btn.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      if (!s.buffer) return;
+      ensureAudio();
+      // flash
+      btn.classList.add('playing');
+      setTimeout(() => btn.classList.remove('playing'), 120);
+      // play: slot baseRate * button semitones
+      playSlot(pd.slot, pd.semitones);
+    });
+
+    // right-click / long-press → config
+    btn.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      showPadConfig(i, btn.getBoundingClientRect());
+    });
+
+    grid.appendChild(btn);
+  }
+}
+
+/* ── pad presets ────────────────────────────────────────────────── */
+
+function applyDrumPreset() {
+  for (let i = 0; i < NUM_PADS; i++) {
+    pads[i].slot      = i;
+    pads[i].semitones = 0;
+  }
+  document.getElementById('preset-drum').classList.add('active');
+  document.getElementById('preset-melodic').classList.remove('active');
+  renderPadGrid();
+}
+
+function applyMelodicPreset() {
+  // All pads → slot 0, chromatic layout
+  // Row 3 (bottom, indices 12-15): 0, -2, -4, -7
+  // Row 2 (indices 8-11):          +1, +2, +3, +4
+  // Row 1 (indices 4-7):           +5, +6, +7, +8
+  // Row 0 (top, indices 0-3):      +9,+10,+11,+12
+  const semitones = [
+    9, 10, 11, 12,
+    5,  6,  7,  8,
+    1,  2,  3,  4,
+    0, -2, -4, -7,
+  ];
+  for (let i = 0; i < NUM_PADS; i++) {
+    pads[i].slot      = 0;
+    pads[i].semitones = semitones[i];
+  }
+  document.getElementById('preset-melodic').classList.add('active');
+  document.getElementById('preset-drum').classList.remove('active');
+  renderPadGrid();
+}
+
+document.getElementById('preset-drum').addEventListener('click', applyDrumPreset);
+document.getElementById('preset-melodic').addEventListener('click', applyMelodicPreset);
+
+/* ── pad open/close ─────────────────────────────────────────────── */
+
+const padOverlay = document.getElementById('pad-overlay');
+
+document.getElementById('btn-pad').addEventListener('click', () => {
+  const open = padOverlay.classList.toggle('open');
+  document.getElementById('btn-pad').classList.toggle('active', open);
+  if (open) renderPadGrid();
+});
+
+document.getElementById('btn-pad-close').addEventListener('click', () => {
+  padOverlay.classList.remove('open');
+  document.getElementById('btn-pad').classList.remove('active');
+});
+
+padOverlay.addEventListener('click', e => {
+  if (e.target === padOverlay) {
+    padOverlay.classList.remove('open');
+    document.getElementById('btn-pad').classList.remove('active');
+  }
+});
+
+/* ── pad config popup ───────────────────────────────────────────── */
+
+function showPadConfig(padIdx, rect) {
+  configPad = padIdx;
+  const popup = document.getElementById('pad-config');
+
+  // populate slot selector
+  const sel = document.getElementById('pc-slot');
+  sel.innerHTML = '';
+  for (let i = 0; i < NUM_SLOTS; i++) {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = i.toString(16).toUpperCase() +
+      (slots[i].buffer ? ' · ' + slots[i].label : ' · empty');
+    sel.appendChild(opt);
+  }
+  sel.value = pads[padIdx].slot;
+
+  document.getElementById('pc-rate').value = pads[padIdx].semitones;
+
+  // position near the pad button
+  popup.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+  popup.style.top  = (rect.bottom + 4) + 'px';
+  popup.classList.add('open');
+}
+
+document.getElementById('pc-ok').addEventListener('click', () => {
+  if (configPad < 0) return;
+  pads[configPad].slot      = parseInt(document.getElementById('pc-slot').value, 10);
+  pads[configPad].semitones = parseInt(document.getElementById('pc-rate').value, 10) || 0;
+  document.getElementById('pad-config').classList.remove('open');
+  configPad = -1;
+  renderPadGrid();
+});
+
+document.getElementById('pc-cancel').addEventListener('click', () => {
+  document.getElementById('pad-config').classList.remove('open');
+  configPad = -1;
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.getElementById('pad-config').classList.remove('open');
+    hideSlotMenu();
+    configPad = -1;
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════
+   KEYBOARD SHORTCUTS — global
+   ═══════════════════════════════════════════════════════════════════ */
+
+document.addEventListener('keydown', e => {
+  // number row 1-9, 0 → trigger pads 0-9 when pad panel open and focus not in editor
+  if (padOverlay.classList.contains('open') &&
+      document.activeElement !== editor) {
+    const k = e.key;
+    const n = k === '0' ? 9 : (parseInt(k, 10) - 1);
+    if (n >= 0 && n < 10) {
+      const pd = pads[n];
+      if (slots[pd.slot].buffer) playSlot(pd.slot, pd.semitones);
+    }
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESIZABLE SPLIT (desktop)
+   ═══════════════════════════════════════════════════════════════════ */
+
+(function () {
+  const divider   = document.getElementById('divider');
+  const main      = document.getElementById('main');
+  let dragging    = false;
+  let startX      = 0;
+  let startW      = 0;
+
+  const rightPanel = document.getElementById('right-panel');
+
+  function setRightWidth(px) {
+    const mainW   = main.offsetWidth;
+    const minL    = 180;
+    const minR    = 200;
+    const clamped = Math.max(minR, Math.min(px, mainW - minL - 5));
+    const pct     = (clamped / mainW * 100).toFixed(2) + '%';
+    document.documentElement.style.setProperty('--right-w', pct);
+  }
+
+  divider.addEventListener('pointerdown', e => {
+    if (window.innerWidth < 768) return;
+    dragging = true;
+    startX   = e.clientX;
+    startW   = rightPanel.offsetWidth;
+    divider.classList.add('dragging');
+    divider.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  divider.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    // moving left increases right panel width
+    setRightWidth(startW - (e.clientX - startX));
+  });
+
+  divider.addEventListener('pointerup', () => {
+    dragging = false;
+    divider.classList.remove('dragging');
+  });
+
+  window.addEventListener('resize', () => {
+    if (window.innerWidth < 768) return;
+    setRightWidth(rightPanel.offsetWidth);
+  });
+}());
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOOT
+   ═══════════════════════════════════════════════════════════════════ */
+
+renderSlotStrip();
+initWasm();
+editor.focus();
+</script>
+</body>
+</html>
