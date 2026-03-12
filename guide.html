@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ksynth web — user guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── themes ───────────────────────────────────────────────────────── */
+:root, [data-theme="retro"] {
+  --bg:        #0e1116;
+  --surface:   #161b22;
+  --surface2:  #1c2128;
+  --border:    #21262d;
+  --border2:   #30363d;
+  --text:      #e6edf3;
+  --muted:     #7d8590;
+  --accent:    #3fb950;
+  --accent-dim:#1a3a1f;
+  --error:     #f85149;
+  --error-dim: #3a1a1a;
+  --warn:      #d29922;
+  --font:      'JetBrains Mono', 'Cascadia Code', 'Fira Mono', monospace;
+  --radius:    4px;
+}
+
+[data-theme="dark"] {
+  --bg:        #1a1a2e;
+  --surface:   #16213e;
+  --surface2:  #0f3460;
+  --border:    #1a2a4a;
+  --border2:   #2a3a5a;
+  --text:      #e0e0ff;
+  --muted:     #8888bb;
+  --accent:    #e94560;
+  --accent-dim:#3a0f1a;
+  --error:     #ff6b6b;
+  --error-dim: #3a1a1a;
+  --warn:      #ffa500;
+  --font:      'JetBrains Mono', 'Cascadia Code', 'Fira Mono', monospace;
+  --radius:    4px;
+}
+
+[data-theme="light"] {
+  --bg:        #f5f5f0;
+  --surface:   #ffffff;
+  --surface2:  #ebebeb;
+  --border:    #d0d0c8;
+  --border2:   #b8b8b0;
+  --text:      #1a1a1a;
+  --muted:     #666660;
+  --accent:    #0070f3;
+  --accent-dim:#ddeeff;
+  --error:     #cc0000;
+  --error-dim: #ffeeee;
+  --warn:      #996600;
+  --font:      'JetBrains Mono', 'Cascadia Code', 'Fira Mono', monospace;
+  --radius:    4px;
+}
+html, body { min-height:100%; background:var(--bg); color:var(--text); font-family:var(--font); font-size:14px; line-height:1.7; margin:0; padding:0; }
+#doc-header { position:sticky; top:0; z-index:10; background:var(--surface); border-bottom:1px solid var(--border); padding:8px 16px; display:flex; align-items:center; gap:10px; }
+#doc-title { font-size:12px; font-weight:600; color:var(--accent); flex:1; }
+.doc-nav-btn, #btn-doc-theme { background:transparent; border:1px solid var(--border2); border-radius:4px; color:var(--muted); font-family:var(--font); font-size:11px; padding:3px 8px; cursor:pointer; text-decoration:none; display:inline-block; }
+.doc-nav-btn:hover, #btn-doc-theme:hover { border-color:var(--text); color:var(--text); }
+#doc-body { max-width:800px; margin:0 auto; padding:32px 24px 64px; }
+h1,h2,h3,h4 { color:var(--text); font-weight:600; margin:1.8em 0 0.5em; line-height:1.3; }
+h1 { font-size:1.6em; color:var(--accent); border-bottom:1px solid var(--border); padding-bottom:.3em; }
+h2 { font-size:1.2em; border-bottom:1px solid var(--border); padding-bottom:.2em; }
+h3 { font-size:1.05em; color:var(--accent); }
+h4 { font-size:1em; color:var(--muted); }
+p { margin:.6em 0; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+code { background:var(--surface2); border:1px solid var(--border); border-radius:3px; padding:1px 5px; font-size:.9em; color:var(--text); }
+pre { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:14px 16px; overflow-x:auto; margin:1em 0; }
+pre code { background:none; border:none; padding:0; font-size:.88em; line-height:1.6; }
+blockquote { border-left:3px solid var(--accent); margin:1em 0; padding:.2em 1em; color:var(--muted); }
+table { border-collapse:collapse; width:100%; margin:1em 0; font-size:.9em; }
+th,td { border:1px solid var(--border); padding:6px 12px; text-align:left; }
+th { background:var(--surface); color:var(--accent); font-weight:600; }
+tr:nth-child(even) td { background:var(--surface2); }
+ul,ol { padding-left:1.5em; margin:.5em 0; } li { margin:.2em 0; }
+hr { border:none; border-top:1px solid var(--border); margin:2em 0; }
+::-webkit-scrollbar { width:6px; height:6px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; } ::-webkit-scrollbar-thumb:hover { background:var(--muted); }
+</style>
+</head>
+<body>
+<div id="doc-header">
+  <span id="doc-title">ksynth web — user guide</span>
+  <a class="doc-nav-btn" href="index.html">&#8592; app</a>
+  <a class="doc-nav-btn" href="readme.html">readme</a>
+  <button id="btn-doc-theme">retro</button>
+</div>
+<div id="doc-body">
+<h1>ksynth web — user guide</h1>
+<h2>overview</h2>
+<p>ksynth web is a browser-based live-coding environment for the ksynth synthesis language. It compiles ksynth scripts in WebAssembly and plays audio directly through the Web Audio API.</p>
+<p>The interface has three functional areas:</p>
+<ul>
+<li><strong>slot strip</strong> — two rows of 8 across the top, slots <code>0</code>–<code>F</code>. Holds audio buffers ready to trigger.</li>
+<li><strong>notebook</strong> — the left panel (or upper area on mobile). An append-only log of every script you have run, with waveform previews.</li>
+<li><strong>editor</strong> — the right panel (or lower area on mobile). Where you write and run ksynth code.</li>
+</ul>
+<p>A <strong>pad panel</strong> overlay turns the 16 slots into a playable instrument. A <strong>patches</strong> button fetches <code>.ks</code> files directly from the <code>octetta/k-synth</code> GitHub repo.</p>
+<hr />
+<h2>setup</h2>
+<p>After building with <code>build.sh</code>, serve the directory with any static file server:</p>
+<pre><code class="language-sh">python3 -m http.server 8080
+</code></pre>
+<p>Open <code>http://localhost:8080</code>. The status indicator in the bottom-right of the editor area reads <code>wasm ready</code> in green when the engine is available. Audio initialises on the first user gesture.</p>
+<hr />
+<h2>tutorial</h2>
+<p>This section walks from zero to a playable melodic instrument. No prior ksynth knowledge required.</p>
+<h3>step 1 — your first sound</h3>
+<p>Type the following into the editor and press <code>Ctrl+Enter</code>:</p>
+<pre><code>N: 4410
+T: !N
+W: w s +\(N#(440*(6.28318%44100)))
+</code></pre>
+<p>You should hear a 100ms sine wave at 440 Hz (concert A). A green cell appears in the notebook showing the waveform. What each line does:</p>
+<ul>
+<li><code>N: 4410</code> — 4410 samples = 100ms at 44100 Hz</li>
+<li><code>T: !N</code> — time index: a ramp from 0 to N−1</li>
+<li><code>W: ...</code> — the output buffer. <code>w s</code> writes samples. <code>+\(N#...)</code> is a phase accumulator (running sum over N samples). <code>440*(6.28318%44100)</code> is the per-sample phase increment for 440 Hz</li>
+</ul>
+<p><code>W</code> is always the output. Every script must set it.</p>
+<h3>step 2 — a bell sound</h3>
+<p>A real bell sound comes from FM synthesis, not additive partials. The classic two-operator FM bell works like this: a carrier oscillator is phase-modulated by a modulator oscillator. The modulation index (how much the modulator deflects the carrier's phase) starts high — creating a bright, complex spread of sidebands at the attack — then decays fast, leaving a cleaner tone underneath. The amplitude decays more slowly. That combination of fast index decay plus slow amplitude decay is what makes it sound like a struck bell.</p>
+<p>ksynth's right-associative parse makes FM natural. <code>s P + Q</code> parses as <code>s(P + s(Q))</code> — carrier phase plus modulator sine — which is exactly the FM formula.</p>
+<pre><code>N: 88200
+T: !N
+A: e(T*(0-3%N))
+I: 3.5*e(T*(0-40%N))
+C: 440*(6.28318%44100)
+M: 440*(6.28318%44100)
+P: +\(N#C)
+Q: +\(N#M)
+W: w A*(s P+(I*s Q))
+</code></pre>
+<ul>
+<li><code>N: 88200</code> — 2 seconds at 44100 Hz</li>
+<li><code>A: e(T*(0-3%N))</code> — amplitude envelope: decays over ~2 seconds</li>
+<li><code>I: 3.5*e(T*(0-40%N))</code> — modulation index: starts at 3.5, decays to near zero in about 50ms. This fast transient is the clang of the strike. Index 3.5 means a peak frequency deviation of ±1540 Hz — enough for a bright attack without turning into noise</li>
+<li><code>C</code> — carrier phase increment: 440 Hz</li>
+<li><code>M</code> — modulator at the same frequency as the carrier (ratio 1:1). This places sidebands at 0 Hz, 880 Hz, 1320 Hz, etc. With a decaying index the partials shift in amplitude over time, which is what gives the bell its characteristic evolving tone</li>
+<li><code>P</code>, <code>Q</code> — carrier and modulator phase accumulators</li>
+<li><code>W: w A*(s P+(I*s Q))</code> — right-assoc parses as <code>A × sin(P + I×sin(Q))</code>, the FM formula</li>
+</ul>
+<p><strong>Experiment:</strong></p>
+<p>Change <code>40</code> in the index decay to <code>80</code> for a sharper, drier attack, or <code>20</code> for a longer metallic clang. Change <code>3.5</code> (peak index) to <code>2</code> for a softer bell or <code>5</code> for something harsher. Change the amplitude decay constant <code>3</code> to <code>6</code> for a shorter ring or <code>1.5</code> for a long lingering tone. Change the modulator ratio from <code>1.0</code> to <code>1.4</code> for a more inharmonic, tubular bell quality.</p>
+<h3>step 3 — bank it to a slot</h3>
+<p>After running the bell script, find its cell in the notebook. Click <code>→0</code> to bank the buffer to slot 0. The slot card at the top updates to show the waveform and a label taken from the script.</p>
+<p>Click the slot card to play it back. Right-click it to rename it <code>bell</code> or adjust its base pitch.</p>
+<h3>step 4 — play it melodically</h3>
+<p>This is where it gets interesting. The buffer you synthesised is a fixed recording of one pitch. The pad panel can play it back at different rates to hit different pitches — no re-synthesis needed.</p>
+<ol>
+<li>With the bell in slot 0, click the <code>pads</code> button.</li>
+<li>Click the <strong>melodic</strong> preset at the top of the panel.</li>
+<li>All 16 pads now play slot 0 at different semitone offsets:</li>
+</ol>
+<pre><code>row 0 (top)    +9   +10   +11   +12  st
+row 1          +5    +6    +7    +8  st
+row 2          +1    +2    +3    +4  st
+row 3 (btm)    0    -2    -4    -7  st
+</code></pre>
+<p>The playback rate for each pad is <code>2^(semitones/12)</code>. At 0 semitones, the bell plays at its original pitch. At +12 it plays an octave up (2× speed). At −7 it plays a perfect fifth below (≈0.707× speed).</p>
+<p>The bottom row gives you root, a whole tone down, a minor third down, and a perfect fifth down — common harmonic intervals for bass movement. The upper rows ascend chromatically. Click the pads. You are playing the bell at different pitches.</p>
+<p><strong>Tip:</strong> right-click the slot card and use <strong>set base rate</strong> to shift all pads together by a fixed number of semitones if you want to transpose the whole instrument.</p>
+<h3>step 5 — a second voice</h3>
+<p>Run a second patch — a softer marimba-like FM tone — and bank it to slot 1:</p>
+<pre><code>N: 132300
+T: !N
+A: e(T*(0-1.5%N))
+I: 2*e(T*(0-40%N))
+C: 220*(6.28318%44100)
+M: 220*(6.28318%44100)
+P: +\(N#C)
+Q: +\(N#M)
+W: w A*(s P+(I*s Q))
+</code></pre>
+<p>220 Hz (an octave below the bell), 3-second decay, index 2 for a gentler attack. Rounder and warmer than the bell. Bank it to slot 1.</p>
+<p>Now right-click some pads in the panel. Set them to slot 1 with semitone offsets. You now have two voices: some pads play the bell, others play the soft tone, each at its own pitch.</p>
+<p><strong>Drum preset vs melodic preset:</strong> the <strong>drum</strong> preset assigns pad N to slot N at 0 semitones — one pad per voice, good for kits. <strong>Melodic</strong> points all pads at slot 0 for pitched play. These are just starting points; right-click any pad to configure it independently.</p>
+<hr />
+<h2>editor</h2>
+<p>Write ksynth code one assignment per line. Comments use <code>/</code>.</p>
+<pre><code>/ 440 Hz sine with amplitude envelope
+N: 44100
+T: !N
+F: 440*(6.28318%44100)
+P: +\(N#F)
+E: e(T*(0-6%N))
+W: w (s P)*E
+</code></pre>
+<p>Note: <code>w s (E*P)</code> would be wrong — it scales the phase ramp, sweeping pitch to zero. <code>(s P)*E</code> correctly scales the sine output by the envelope.</p>
+<p><code>Ctrl+Enter</code> or <code>Cmd+Enter</code> to run. All variables clear before each run — each script is a complete standalone program.</p>
+<p><code>Ctrl+L</code> or <code>clear</code> removes all cells from the notebook. Does not affect slots.</p>
+<hr />
+<h2>history navigation</h2>
+<ul>
+<li><code>↑</code> at the <strong>first line</strong> of the editor — loads the previous run</li>
+<li><code>↓</code> at the <strong>last line</strong> — moves forward through history; at the most recent entry, clears the editor</li>
+</ul>
+<p>History is in-memory and resets on page reload.</p>
+<hr />
+<h2>notebook</h2>
+<p>Each run appends a cell. Successful cells show status, source, waveform, and bank buttons (<code>→0</code>–<code>→F</code>). Failed cells show the error in red.</p>
+<p>Click the <strong>source code</strong> in any cell to copy it back into the editor. Click the <strong>waveform</strong> to audition it without banking. Hover a cell and click <strong>✕</strong> to remove it.</p>
+<hr />
+<h2>slots</h2>
+<p>16 slots in a 2×8 grid at the top, indexed <code>0</code>–<code>F</code>. Each holds a buffer, a label, and a base pitch offset.</p>
+<p><strong>Banking</strong> — click <code>→N</code> in a notebook cell.</p>
+<p><strong>Playing</strong> — click any filled slot card.</p>
+<p><strong>Context menu</strong> (right-click):</p>
+<ul>
+<li><code>▶ play</code> — play the slot</li>
+<li><code>rename</code> — set a custom label</li>
+<li><code>set base rate</code> — base pitch offset in semitones (±24). Affects all pads on this slot.</li>
+<li><code>clear slot</code> — empty the slot</li>
+</ul>
+<hr />
+<h2>pad panel</h2>
+<p>Click <code>pads</code> to open. <code>Escape</code> or click outside to close.</p>
+<p>4×4 grid of 16 trigger pads. Each pad has a slot and a semitone offset. Final playback rate:</p>
+<pre><code>rate = 2^(slot.baseSemitones/12) × 2^(pad.semitones/12)
+</code></pre>
+<p>Right-click any pad to configure it. Keys <code>1</code>–<code>9</code> and <code>0</code> trigger pads 0–9 when the panel is open.</p>
+<hr />
+<h2>patches browser</h2>
+<p>Click <code>patches</code> to open. On first open it fetches the file tree from <code>octetta/k-synth</code> on GitHub (requires internet; unauthenticated GitHub API, 60 req/hr limit).</p>
+<p>Files are listed grouped by directory. Type to filter. Click any file to load its content into the editor. The script is not run automatically — review and press <code>Ctrl+Enter</code> when ready.</p>
+<hr />
+<h2>notes and limitations</h2>
+<p><strong>Variable isolation</strong> — variables <code>A</code>–<code>Z</code> clear before each run. No state carries between cells.</p>
+<p><strong>Sample rate</strong> — fixed at 44100 Hz.</p>
+<p><strong>Audio context</strong> — Web Audio requires a user gesture before audio plays. Click anywhere to resume if audio stops.</p>
+<p><strong>Persistence</strong> — nothing survives a page reload. Keep scripts as <code>.ks</code> files on disk or in the repo and reload via the patches browser.</p>
+</div>
+<script>
+
+(function () {
+  const THEMES = ['retro', 'dark', 'light'];
+  const btn = document.getElementById('btn-doc-theme');
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    btn.textContent = t;
+    localStorage.setItem('ks-theme', t);
+  }
+  const saved = localStorage.getItem('ks-theme');
+  applyTheme(THEMES.includes(saved) ? saved : 'retro');
+  btn.addEventListener('click', function() {
+    var cur  = document.documentElement.getAttribute('data-theme') || 'retro';
+    var next = THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length];
+    applyTheme(next);
+  });
+}());
+
+</script>
+</body>
+</html>

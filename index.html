@@ -10,7 +10,8 @@
 /* ── reset & base ─────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-:root {
+/* ── themes ───────────────────────────────────────────────────────── */
+:root, [data-theme="retro"] {
   --bg:        #0e1116;
   --surface:   #161b22;
   --surface2:  #1c2128;
@@ -23,6 +24,40 @@
   --error:     #f85149;
   --error-dim: #3a1a1a;
   --warn:      #d29922;
+  --font:      'JetBrains Mono', 'Cascadia Code', 'Fira Mono', monospace;
+  --radius:    4px;
+}
+
+[data-theme="dark"] {
+  --bg:        #1a1a2e;
+  --surface:   #16213e;
+  --surface2:  #0f3460;
+  --border:    #1a2a4a;
+  --border2:   #2a3a5a;
+  --text:      #e0e0ff;
+  --muted:     #8888bb;
+  --accent:    #e94560;
+  --accent-dim:#3a0f1a;
+  --error:     #ff6b6b;
+  --error-dim: #3a1a1a;
+  --warn:      #ffa500;
+  --font:      'JetBrains Mono', 'Cascadia Code', 'Fira Mono', monospace;
+  --radius:    4px;
+}
+
+[data-theme="light"] {
+  --bg:        #f5f5f0;
+  --surface:   #ffffff;
+  --surface2:  #ebebeb;
+  --border:    #d0d0c8;
+  --border2:   #b8b8b0;
+  --text:      #1a1a1a;
+  --muted:     #666660;
+  --accent:    #0070f3;
+  --accent-dim:#ddeeff;
+  --error:     #cc0000;
+  --error-dim: #ffeeee;
+  --warn:      #996600;
   --font:      'JetBrains Mono', 'Cascadia Code', 'Fira Mono', monospace;
   --radius:    4px;
 }
@@ -369,7 +404,7 @@ html, body {
 .nb-cell-header:hover .nb-del-btn { opacity: 1; }
 .nb-del-btn:hover { color: var(--error); opacity: 1; }
 
-#btn-save, #btn-load, #btn-patches, #btn-pad {
+#btn-save, #btn-load, #btn-patches, #btn-theme, #btn-guide, #btn-readme, #btn-pad {
   background: transparent;
   border: 1px solid var(--border2);
   border-radius: var(--radius);
@@ -381,7 +416,7 @@ html, body {
   flex-shrink: 0;
   white-space: nowrap;
 }
-#btn-save:hover, #btn-load:hover, #btn-patches:hover, #btn-pad:hover { border-color: var(--text); color: var(--text); }
+#btn-save:hover, #btn-load:hover, #btn-patches:hover, #btn-theme:hover, #btn-guide:hover, #btn-readme:hover, #btn-pad:hover { border-color: var(--text); color: var(--text); }
 #btn-pad.active { border-color: var(--accent); color: var(--accent); }
 
 #input-meta {
@@ -718,6 +753,9 @@ html, body {
       <button id="btn-save">save</button>
       <button id="btn-load">load</button>
       <input id="load-input" type="file" accept=".json" style="display:none">
+      <button id="btn-theme">retro</button>
+      <button id="btn-guide">guide</button>
+      <button id="btn-readme">readme</button>
       <button id="btn-pad">pads</button>
     </div>
     <textarea id="editor"
@@ -1477,6 +1515,45 @@ document.addEventListener('keydown', e => {
     }
   }
 });
+
+/* ═══════════════════════════════════════════════════════════════════
+   THEME
+   ═══════════════════════════════════════════════════════════════════ */
+
+(function () {
+  const THEMES = ['retro', 'dark', 'light'];
+  const LABELS = { retro: 'retro', dark: 'dark', light: 'light' };
+  const btn    = document.getElementById('btn-theme');
+
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    btn.textContent = LABELS[t];
+    localStorage.setItem('ks-theme', t);
+  }
+
+  // restore saved theme
+  const saved = localStorage.getItem('ks-theme');
+  applyTheme(THEMES.includes(saved) ? saved : 'retro');
+
+  btn.addEventListener('click', () => {
+    const cur  = document.documentElement.getAttribute('data-theme') || 'retro';
+    const next = THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length];
+    applyTheme(next);
+  });
+}());
+
+/* ═══════════════════════════════════════════════════════════════════
+   DOCS
+   ═══════════════════════════════════════════════════════════════════ */
+
+(function () {
+  document.getElementById('btn-guide').addEventListener('click', () => {
+    window.open('guide.html', '_blank');
+  });
+  document.getElementById('btn-readme').addEventListener('click', () => {
+    window.open('readme.html', '_blank');
+  });
+}());
 
 /* ═══════════════════════════════════════════════════════════════════
    SAVE / LOAD

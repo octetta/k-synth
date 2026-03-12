@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>k/synth — readme</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── themes ───────────────────────────────────────────────────────── */
+:root, [data-theme="retro"] {
+  --bg:        #0e1116;
+  --surface:   #161b22;
+  --surface2:  #1c2128;
+  --border:    #21262d;
+  --border2:   #30363d;
+  --text:      #e6edf3;
+  --muted:     #7d8590;
+  --accent:    #3fb950;
+  --accent-dim:#1a3a1f;
+  --error:     #f85149;
+  --error-dim: #3a1a1a;
+  --warn:      #d29922;
+  --font:      'JetBrains Mono', 'Cascadia Code', 'Fira Mono', monospace;
+  --radius:    4px;
+}
+
+[data-theme="dark"] {
+  --bg:        #1a1a2e;
+  --surface:   #16213e;
+  --surface2:  #0f3460;
+  --border:    #1a2a4a;
+  --border2:   #2a3a5a;
+  --text:      #e0e0ff;
+  --muted:     #8888bb;
+  --accent:    #e94560;
+  --accent-dim:#3a0f1a;
+  --error:     #ff6b6b;
+  --error-dim: #3a1a1a;
+  --warn:      #ffa500;
+  --font:      'JetBrains Mono', 'Cascadia Code', 'Fira Mono', monospace;
+  --radius:    4px;
+}
+
+[data-theme="light"] {
+  --bg:        #f5f5f0;
+  --surface:   #ffffff;
+  --surface2:  #ebebeb;
+  --border:    #d0d0c8;
+  --border2:   #b8b8b0;
+  --text:      #1a1a1a;
+  --muted:     #666660;
+  --accent:    #0070f3;
+  --accent-dim:#ddeeff;
+  --error:     #cc0000;
+  --error-dim: #ffeeee;
+  --warn:      #996600;
+  --font:      'JetBrains Mono', 'Cascadia Code', 'Fira Mono', monospace;
+  --radius:    4px;
+}
+html, body { min-height:100%; background:var(--bg); color:var(--text); font-family:var(--font); font-size:14px; line-height:1.7; margin:0; padding:0; }
+#doc-header { position:sticky; top:0; z-index:10; background:var(--surface); border-bottom:1px solid var(--border); padding:8px 16px; display:flex; align-items:center; gap:10px; }
+#doc-title { font-size:12px; font-weight:600; color:var(--accent); flex:1; }
+.doc-nav-btn, #btn-doc-theme { background:transparent; border:1px solid var(--border2); border-radius:4px; color:var(--muted); font-family:var(--font); font-size:11px; padding:3px 8px; cursor:pointer; text-decoration:none; display:inline-block; }
+.doc-nav-btn:hover, #btn-doc-theme:hover { border-color:var(--text); color:var(--text); }
+#doc-body { max-width:800px; margin:0 auto; padding:32px 24px 64px; }
+h1,h2,h3,h4 { color:var(--text); font-weight:600; margin:1.8em 0 0.5em; line-height:1.3; }
+h1 { font-size:1.6em; color:var(--accent); border-bottom:1px solid var(--border); padding-bottom:.3em; }
+h2 { font-size:1.2em; border-bottom:1px solid var(--border); padding-bottom:.2em; }
+h3 { font-size:1.05em; color:var(--accent); }
+h4 { font-size:1em; color:var(--muted); }
+p { margin:.6em 0; }
+a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+code { background:var(--surface2); border:1px solid var(--border); border-radius:3px; padding:1px 5px; font-size:.9em; color:var(--text); }
+pre { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:14px 16px; overflow-x:auto; margin:1em 0; }
+pre code { background:none; border:none; padding:0; font-size:.88em; line-height:1.6; }
+blockquote { border-left:3px solid var(--accent); margin:1em 0; padding:.2em 1em; color:var(--muted); }
+table { border-collapse:collapse; width:100%; margin:1em 0; font-size:.9em; }
+th,td { border:1px solid var(--border); padding:6px 12px; text-align:left; }
+th { background:var(--surface); color:var(--accent); font-weight:600; }
+tr:nth-child(even) td { background:var(--surface2); }
+ul,ol { padding-left:1.5em; margin:.5em 0; } li { margin:.2em 0; }
+hr { border:none; border-top:1px solid var(--border); margin:2em 0; }
+::-webkit-scrollbar { width:6px; height:6px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; } ::-webkit-scrollbar-thumb:hover { background:var(--muted); }
+</style>
+</head>
+<body>
+<div id="doc-header">
+  <span id="doc-title">k/synth — readme</span>
+  <a class="doc-nav-btn" href="index.html">&#8592; app</a>
+  <a class="doc-nav-btn" href="guide.html">guide</a>
+  <button id="btn-doc-theme">retro</button>
+</div>
+<div id="doc-body">
+<h1>k/synth</h1>
+<blockquote>
+<p>"A pocket-calculator version of a synthesizer."</p>
+</blockquote>
+<p><strong>k/synth</strong> is a minimalist, array-oriented synthesis environment. Heavily
+inspired by the <strong>K/Simple</strong> lineage and the work of Arthur Whitney, it
+treats sound not as a stream, but as a holistic mathematical vector.</p>
+<h3>📐 The Philosophy</h3>
+<p>This isn't a DAW; it's a vector-processing engine designed for "Base Camp"
+signal processing.</p>
+<p>It uses:
+* <strong>One-Letter Variables</strong>: A-Z globals only.
+* <strong>Right-Associativity</strong>: Expressions evaluate from right to left.
+* <strong>Vectorized Verbs</strong>: Math applied to entire buffers at once.</p>
+<p>Sound is a vector. A kick drum is a vector. A two-second bell tone is a
+vector. You do math on vectors and the result is audio. There are no tracks,
+no timelines, no patch cables — only expressions.</p>
+<hr />
+<h3>🚀 Quick Start</h3>
+<p>To hear the engine in action, try these incantations:</p>
+<pre><code>/ make a sine wave 1 second @ 440Hz
+W:s (!44100) * p2 * 440 % 44100
+/ play it
+\p W
+
+/ now a kick drum
+A: !8000
+E: 1 - 0.000125 * A
+K: 0.5 &amp; -0.5 | 5 * (s 0.007 * A) * E * E
+\p K
+
+/ now a snare drum
+N: 0.5 f r A
+P: E * E * E * E * E
+T: (s 0.2 * P * A) * P
+S: 0.7 &amp; -0.7 | (2 * T) + N * E * E
+\p S
+
+/ now closed and open hi-hats
+C: (0.95 f r A) * P
+O: (0.95 f r A) * (0.8 * E) + (0.5 * P)
+
+/ now make a pattern
+Z: K,K,S,K,K,S,K,K,S,C,C,C,O,S,S
+
+/ save it to a wav file
+\s Z
+</code></pre>
+<p><a href="https://github.com/user-attachments/assets/49376dbd-db15-4292-b93a-3fb42f8d78d6"><strong>hear Z</strong></a></p>
+<hr />
+<h3>🔧 Build</h3>
+<pre><code class="language-sh">gcc -O2 ksynth.c -lm -o ksynth
+</code></pre>
+<p>The engine is a single C file with no dependencies beyond libc and libm.
+It can also be embedded as a library: include <code>ksynth.h</code> and call <code>ks_run()</code>
+per script line from any C program. It compiles to WebAssembly via Emscripten
+for browser use.</p>
+<hr />
+<h3>🎛️ What It Can Do</h3>
+<h4>Oscillators</h4>
+<p>Any waveform you can express mathematically. The phase accumulator pattern
+<code>+\(N#F)</code> where <code>F</code> is a per-sample phase increment gives a clean oscillator
+at any frequency. Apply <code>s</code> for sine, <code>c</code> for cosine, or do math on the raw
+ramp for triangle and sawtooth shapes.</p>
+<pre><code>/ sawtooth at 220 Hz, 1 second
+N: 44100
+T: !N
+F: 220%44100
+P: +\(N#F)
+W: w (P*2)-1
+</code></pre>
+<h4>FM Synthesis</h4>
+<p>Right-associativity makes FM natural. <code>s P + Q</code> parses as <code>s(P + s(Q))</code> —
+that is the FM formula. Carrier phase plus modulator sine, with no extra
+syntax required.</p>
+<pre><code>/ FM bell: fast index decay, slow amplitude decay
+N: 88200
+T: !N
+A: e(T*(0-3%N))
+I: 3.5*e(T*(0-40%N))
+C: 440*(6.28318%44100)
+M: 440*(6.28318%44100)
+P: +\(N#C)
+Q: +\(N#M)
+W: w A*(s P+(I*s Q))
+</code></pre>
+<p>Vary the carrier-to-modulator ratio for different timbres: <code>1.0</code> is warm and
+round, <code>1.4</code> is metallic and bell-like, <code>3.5</code> is tubular and bright.</p>
+<h4>Additive Synthesis</h4>
+<p>The <code>o</code> and <code>$</code> operators sum harmonic series directly. <code>P o H</code> sums
+<code>sin(P×h)</code> for each harmonic h in H at equal amplitude. <code>P $ A</code> weights each
+harmonic by a corresponding amplitude in A.</p>
+<pre><code>/ organ tone: odd harmonics at equal amplitude
+N: 44100
+T: !N
+F: 220*(6.28318%44100)
+P: +\(N#F)
+H: 1 3 5 7
+W: w P o H
+
+/ cello-ish: weighted harmonic series
+A: 1 0.6 0.4 0.25 0.15 0.08
+W: w P $ A
+</code></pre>
+<h4>Envelopes and Dynamics</h4>
+<p><code>e(T*(0-k%N))</code> gives a pure exponential decay from 1 to <code>e^-k</code> over N
+samples. Adjust <code>k</code> to control the decay time. For a percussive rise-and-fall
+shape, <code>T*e(T*(0-k%N))</code> peaks at sample <code>N/k</code> then decays naturally.</p>
+<p>Soft clipping with <code>d</code> (<code>tanh(3x)</code>) adds saturation and tames peaks without
+hard discontinuities. Hard clipping uses min/max: <code>x &amp; -limit | limit</code>.</p>
+<h4>Filters</h4>
+<p>Two-pole lowpass via <code>ct f signal</code> where <code>ct</code> is a normalized cutoff (0–1).
+Subtract a lowpass from the original signal for highpass. Subtract two
+lowpass filters for bandpass.</p>
+<pre><code>/ bandpass filtered noise
+N: 44100
+T: !N
+R: r T
+H: 0.7 f R      / lowpass ~7 kHz
+L: 0.08 f R     / lowpass ~600 Hz
+B: H-L          / band between them
+W: w B
+</code></pre>
+<h4>Noise and Percussion</h4>
+<p><code>r T</code> generates white noise (N samples when T is a length-N index vector).
+<code>m T</code> generates 1-bit noise — alternating <code>±0.7</code> — with a harder, metallic
+timbre useful for cymbals and hi-hats.</p>
+<p>Combine noise, filtered noise, and sine sweeps to build any percussion voice:</p>
+<pre><code>/ kick: pitch-swept sine + noise transient
+N: 13230
+T: !N
+F: 50+91*e(T*(0-60%N))
+D: F*(6.28318%44100)
+P: +\D
+S: (s P)*e(T*(0-6.9%N))
+R: 0.5 f r T
+E: e(T*(0-40%N))
+W: w (S+(R*E))
+</code></pre>
+<h4>Patterns and Sequencing</h4>
+<p>The <code>,</code> operator concatenates vectors. A bar of drums is the concatenation
+of individual voice vectors in sequence:</p>
+<pre><code>Z: K,K,S,K,K,S,K,K,S,C,C,C,O,S,S
+</code></pre>
+<p>Longer patterns, fills, and arrangement are vector math — tile with <code>#</code>,
+mix with weighted addition, chain bars with more <code>,</code>.</p>
+<h4>Feedback Delay and Comb Filtering</h4>
+<p><code>[d g] y signal</code> applies a feedback delay of <code>d</code> samples with gain <code>g</code>.
+Values of <code>g</code> near 1.0 give long, resonant comb filtering. Lower values
+give short slap echoes. Use it to add metallic resonance to noise or space
+to any signal.</p>
+<h4>Convolution</h4>
+<p><code>A z B</code> convolves two vectors. Design FIR filters, apply impulse responses,
+or build custom reverb tails from measured room samples.</p>
+<hr />
+<h3>🌐 Web Interface</h3>
+<p>k/synth compiles to WebAssembly via Emscripten and runs in the browser as a
+live-coding notebook. The web interface provides:</p>
+<ul>
+<li>A <strong>notebook</strong> that logs every script run with waveform display and one-click replay</li>
+<li><strong>16 sample slots</strong> in a 2×8 grid to hold synthesized buffers</li>
+<li>A <strong>pad panel</strong> — a 4×4 trigger grid with per-pad pitch control</li>
+<li><strong>Melodic mode</strong> — all 16 pads play one slot at different semitone offsets, turning any synthesized patch into a playable instrument</li>
+<li>A <strong>patches browser</strong> that fetches <code>.ks</code> files directly from this repo</li>
+</ul>
+<pre><code class="language-sh">source /path/to/emsdk/emsdk_env.sh
+bash build.sh
+python3 -m http.server 8080
+</code></pre>
+<hr />
+<h3>📖 Language Quick Reference</h3>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>Example</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Index vector</td>
+<td><code>!N</code></td>
+<td><code>[0, 1, …, N-1]</code></td>
+</tr>
+<tr>
+<td>Phase accumulator</td>
+<td><code>+\(N#F)</code></td>
+<td>Oscillator at frequency F</td>
+</tr>
+<tr>
+<td>Sine / cosine</td>
+<td><code>s P</code> / <code>c P</code></td>
+<td>Elementwise</td>
+</tr>
+<tr>
+<td>Exponential decay</td>
+<td><code>e(T*(0-k%N))</code></td>
+<td>Decay from 1 to e^-k over N</td>
+</tr>
+<tr>
+<td>White noise</td>
+<td><code>r T</code></td>
+<td>One sample per element of T</td>
+</tr>
+<tr>
+<td>1-bit noise</td>
+<td><code>m T</code></td>
+<td><code>±0.7</code>, metallic timbre</td>
+</tr>
+<tr>
+<td>Lowpass filter</td>
+<td><code>ct f sig</code></td>
+<td>Two-pole, ct=0..1</td>
+</tr>
+<tr>
+<td>Additive equal</td>
+<td><code>P o H</code></td>
+<td>Sum harmonics in H</td>
+</tr>
+<tr>
+<td>Additive weighted</td>
+<td><code>P $ A</code></td>
+<td>Weighted harmonic series</td>
+</tr>
+<tr>
+<td>FM synthesis</td>
+<td><code>s P+(I*s Q)</code></td>
+<td>Right-assoc gives FM naturally</td>
+</tr>
+<tr>
+<td>Concatenate</td>
+<td><code>A,B,C</code></td>
+<td>Build patterns</td>
+</tr>
+<tr>
+<td>Tile</td>
+<td><code>N#V</code></td>
+<td>Repeat V to length N</td>
+</tr>
+<tr>
+<td>Soft clip</td>
+<td><code>d x</code></td>
+<td><code>tanh(3x)</code></td>
+</tr>
+<tr>
+<td>Normalize</td>
+<td><code>w x</code></td>
+<td>Scale to peak ±1</td>
+</tr>
+<tr>
+<td>Feedback delay</td>
+<td><code>[d g] y sig</code></td>
+<td>Comb / echo</td>
+</tr>
+<tr>
+<td>Convolution</td>
+<td><code>A z B</code></td>
+<td>FIR / impulse response</td>
+</tr>
+</tbody>
+</table>
+<p>Right-associativity: <code>a op b op c</code> = <code>a op (b op c)</code>. Use parentheses for
+linear mixes: <code>(A*0.5)+(B*0.5)</code>, not <code>A*0.5+B*0.5</code>.</p>
+<hr />
+<h3>❤️ Credits</h3>
+<p>🧮 <a href="https://github.com/kparc/ksimple">ksimple</a> <em>tiny k by arthur whitney</em></p>
+<p>🔊 <a href="https://github.com/mackron/miniaudio">miniaudio</a> <em>audio library by mackron</em></p>
+<p>🖥️ <a href="https://github.com/jart/bestline">bestline</a> <em>command session by jart</em></p>
+<p><strong>Built</strong> by Joseph Stewart <a href="https://octetta.com">octetta</a> 🐙♊ in collaboration with AI-🧠
+pair programming.</p>
+</div>
+<script>
+
+(function () {
+  const THEMES = ['retro', 'dark', 'light'];
+  const btn = document.getElementById('btn-doc-theme');
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    btn.textContent = t;
+    localStorage.setItem('ks-theme', t);
+  }
+  const saved = localStorage.getItem('ks-theme');
+  applyTheme(THEMES.includes(saved) ? saved : 'retro');
+  btn.addEventListener('click', function() {
+    var cur  = document.documentElement.getAttribute('data-theme') || 'retro';
+    var next = THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length];
+    applyTheme(next);
+  });
+}());
+
+</script>
+</body>
+</html>
