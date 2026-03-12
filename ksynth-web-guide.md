@@ -235,6 +235,8 @@ Files are listed grouped by directory. Type to filter. Click any file to load it
 
 **Variable isolation** — variables `A`–`Z` clear before each run. No state carries between cells.
 
+**Literal arrays** — when writing a vector of numbers, every number after the first must start with a digit `0`–`9`. Use `0.5` not `.5`, or the parser stops collecting the vector early and treats the space as a binary operator, producing zero. For example: `A: 1 0.5 0.333 0.25` is correct; `A: 1 .5 .333 .25` silently fails.
+
 **Sample rate** — fixed at 44100 Hz.
 
 **Audio headroom** — a master gain stage (0.25×) followed by a dynamics limiter sits between all voices and the output. This prevents clipping when multiple pads fire simultaneously at the cost of an overall level reduction of about 12 dB. If you need more volume, use an external mixer or turn up your system volume.

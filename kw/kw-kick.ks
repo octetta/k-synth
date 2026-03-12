@@ -14,7 +14,7 @@ F: 50+70*e(T*(0-50%N))
 D: F*(6.28318%44100)
 P: +\D
 / Triangle spectrum: h1=1, h3=-1/9, h5=1/25, h7=-1/49
-A: 1 0 -.111 0 .04 0 -.0204
+A: 1 0 -.111 0 0.04 0 -.0204
 S: P $ A
 
 / SDS-V "click drum" — extra attack from pad impact

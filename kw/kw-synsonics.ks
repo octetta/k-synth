@@ -13,7 +13,7 @@ E: e(T*(0-6.9%N))
 F: 160+240*e(T*(0-80%N))
 D: F*(6.28318%44100)
 P: +\D
-A: 1 0 -.111 0 .04
+A: 1 0 -.111 0 0.04
 S: P $ A
 
 / Synsonics had almost no separate noise control — purely tonal

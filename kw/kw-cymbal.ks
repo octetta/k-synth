@@ -18,7 +18,7 @@ S: +\(N#(B*1.618))
 U: +\(N#(B*1.478))
 
 / Triangle spectrum for each partial
-A: 1 0 -.111 0 .04
+A: 1 0 -.111 0 0.04
 J: P $ A
 K: Q $ A
 L: R $ A

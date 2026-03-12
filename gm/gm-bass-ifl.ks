@@ -21,9 +21,9 @@ P: +\(N#F)
 Q: +\(N#G)
 
 / Sawtooth wave from ksynth perspective: use spectrum approximation
-/ Sawtooth = 1/n harmonics: 1, 0, .5, 0, .333, 0, .25...
+/ Sawtooth = 1/n harmonics: 1, 0, 0.5, 0, 0.333, 0, 0.25...
 / We use a simpler approach: two-oscillator mix (Moog used sawtooth VCOs)
-A: 1 .5 .333 .25 .2 .167 .143
+A: 1 0.5 0.333 0.25 0.2 0.167 0.143
 S: P $ A
 U: Q $ A
 

@@ -13,7 +13,7 @@ F: 65.4*(6.28318%44100)
 P: +\(N#F)
 
 / Sawtooth via spectrum
-A: 1 .5 .333 .25 .2 .167 .143
+A: 1 0.5 0.333 0.25 0.2 0.167 0.143
 S: P $ A
 
 / Minimoog LP: tighter cutoff (more resonant character = more filter body)

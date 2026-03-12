@@ -11,7 +11,7 @@ E: e(T*(0-6.9%N))
 F: 200+200*e(T*(0-40%N))
 D: F*(6.28318%44100)
 P: +\D
-A: 1 0 -.111 0 .04 0 -.0204
+A: 1 0 -.111 0 0.04 0 -.0204
 S: P $ A
 
 / Minimal noise — SDS-V tom had lower noise level than snare

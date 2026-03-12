@@ -20,7 +20,7 @@ Q: +\(N#G)
 R: +\(N#H)
 
 / Soft sawtooth — fewer harmonics than Moog (Solina was tonally softer)
-A: 1 .5 .25 .125
+A: 1 0.5 0.25 0.125
 S: P $ A
 U: Q $ A
 X: R $ A

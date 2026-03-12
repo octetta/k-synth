@@ -22,7 +22,7 @@ Q: 4096 v S
 / Slow attack following the kick (the bass swelling in)
 G: 42*(6.28318%44100)
 M: +\(N#G)
-A: 1 0 -.111 0 .04
+A: 1 0 -.111 0 0.04
 B: (M $ A)*e(T*(0-4%N))
 
 / Click: the 808 beater transient

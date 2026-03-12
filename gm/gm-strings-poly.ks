@@ -14,7 +14,7 @@ P: +\(N#F)
 Q: +\(N#G)
 
 / Prophet-5 sawtooth (CEM oscillator): full harmonic content
-A: 1 .5 .333 .25 .2 .167 .143
+A: 1 0.5 0.333 0.25 0.2 0.167 0.143
 S: P $ A
 U: Q $ A
 V: (S+U)*.5

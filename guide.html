@@ -58,41 +58,36 @@
   --font:      'JetBrains Mono', 'Cascadia Code', 'Fira Mono', monospace;
   --radius:    4px;
 }
-html, body { min-height:100%; background:var(--bg); color:var(--text); font-family:var(--font); font-size:14px; line-height:1.7; margin:0; padding:0; }
-#doc-header { position:sticky; top:0; z-index:10; background:var(--surface); border-bottom:1px solid var(--border); padding:8px 16px; display:flex; align-items:center; gap:10px; }
-#doc-title { font-size:12px; font-weight:600; color:var(--accent); flex:1; }
-.doc-nav-btn, #btn-doc-theme { background:transparent; border:1px solid var(--border2); border-radius:4px; color:var(--muted); font-family:var(--font); font-size:11px; padding:3px 8px; cursor:pointer; text-decoration:none; display:inline-block; }
-.doc-nav-btn:hover, #btn-doc-theme:hover { border-color:var(--text); color:var(--text); }
-#doc-body { max-width:800px; margin:0 auto; padding:32px 24px 64px; }
-h1,h2,h3,h4 { color:var(--text); font-weight:600; margin:1.8em 0 0.5em; line-height:1.3; }
-h1 { font-size:1.6em; color:var(--accent); border-bottom:1px solid var(--border); padding-bottom:.3em; }
-h2 { font-size:1.2em; border-bottom:1px solid var(--border); padding-bottom:.2em; }
-h3 { font-size:1.05em; color:var(--accent); }
-h4 { font-size:1em; color:var(--muted); }
-p { margin:.6em 0; }
-a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
-code { background:var(--surface2); border:1px solid var(--border); border-radius:3px; padding:1px 5px; font-size:.9em; color:var(--text); }
-pre { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:14px 16px; overflow-x:auto; margin:1em 0; position:relative; }
-pre code { background:none; border:none; padding:0; font-size:.88em; line-height:1.6; }
-.copy-btn { position:absolute; top:6px; right:6px; background:var(--surface2); border:1px solid var(--border2); border-radius:3px; color:var(--muted); font-family:var(--font); font-size:10px; padding:2px 7px; cursor:pointer; opacity:0; transition:opacity 100ms,color 100ms,border-color 100ms; }
-pre:hover .copy-btn { opacity:1; } .copy-btn:hover { color:var(--text); border-color:var(--text); } .copy-btn.copied { color:var(--accent); border-color:var(--accent); }
-blockquote { border-left:3px solid var(--accent); margin:1em 0; padding:.2em 1em; color:var(--muted); }
-table { border-collapse:collapse; width:100%; margin:1em 0; font-size:.9em; }
-th,td { border:1px solid var(--border); padding:6px 12px; text-align:left; }
-th { background:var(--surface); color:var(--accent); font-weight:600; }
-tr:nth-child(even) td { background:var(--surface2); }
-ul,ol { padding-left:1.5em; margin:.5em 0; } li { margin:.2em 0; }
-hr { border:none; border-top:1px solid var(--border); margin:2em 0; }
-::-webkit-scrollbar { width:6px; height:6px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; } ::-webkit-scrollbar-thumb:hover { background:var(--muted); }
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.7;margin:0;padding:0}
+#doc-header{position:sticky;top:0;z-index:10;background:var(--surface);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:10px}
+#doc-title{font-size:12px;font-weight:600;color:var(--accent);flex:1}
+.doc-nav-btn,#btn-doc-theme{background:transparent;border:1px solid var(--border2);border-radius:4px;color:var(--muted);font-family:var(--font);font-size:11px;padding:3px 8px;cursor:pointer;text-decoration:none;display:inline-block}
+.doc-nav-btn:hover,#btn-doc-theme:hover{border-color:var(--text);color:var(--text)}
+#doc-body{max-width:800px;margin:0 auto;padding:32px 24px 64px}
+h1,h2,h3,h4{color:var(--text);font-weight:600;margin:1.8em 0 0.5em;line-height:1.3}
+h1{font-size:1.6em;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:1.2em;border-bottom:1px solid var(--border);padding-bottom:.2em}
+h3{font-size:1.05em;color:var(--accent)}
+h4{font-size:1em;color:var(--muted)}
+p{margin:.6em 0}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+code{background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:.9em;color:var(--text)}
+pre{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:14px 16px;overflow-x:auto;margin:1em 0;position:relative}
+pre code{background:none;border:none;padding:0;font-size:.88em;line-height:1.6}
+.copy-btn{position:absolute;top:6px;right:6px;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;color:var(--muted);font-family:var(--font);font-size:10px;padding:2px 7px;cursor:pointer;opacity:0;transition:opacity 100ms,color 100ms,border-color 100ms}
+pre:hover .copy-btn{opacity:1}.copy-btn:hover{color:var(--text);border-color:var(--text)}.copy-btn.copied{color:var(--accent);border-color:var(--accent)}
+blockquote{border-left:3px solid var(--accent);margin:1em 0;padding:.2em 1em;color:var(--muted)}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:.9em}
+th,td{border:1px solid var(--border);padding:6px 12px;text-align:left}
+th{background:var(--surface);color:var(--accent);font-weight:600}
+tr:nth-child(even) td{background:var(--surface2)}
+ul,ol{padding-left:1.5em;margin:.5em 0}li{margin:.2em 0}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--muted)}
 </style>
 </head>
 <body>
-<div id="doc-header">
-  <span id="doc-title">ksynth web — user guide</span>
-  <a class="doc-nav-btn" href="index.html">&#8592; app</a>
-  <a class="doc-nav-btn" href="readme.html">readme</a>
-  <button id="btn-doc-theme">retro</button>
-</div>
+<div id="doc-header"><span id="doc-title">ksynth web — user guide</span><a class="doc-nav-btn" href="index.html">&#8592; app</a><a class="doc-nav-btn" href="readme.html">readme</a><button id="btn-doc-theme">retro</button></div>
 <div id="doc-body">
 <h1>ksynth web — user guide</h1>
 <h2>overview</h2>
@@ -268,6 +263,7 @@ W: w (s P)*E
 <hr />
 <h2>notes and limitations</h2>
 <p><strong>Variable isolation</strong> — variables <code>A</code>–<code>Z</code> clear before each run. No state carries between cells.</p>
+<p><strong>Literal arrays</strong> — when writing a vector of numbers, every number after the first must start with a digit <code>0</code>–<code>9</code>. Use <code>0.5</code> not <code>.5</code>, or the parser stops collecting the vector early and treats the space as a binary operator, producing zero. For example: <code>A: 1 0.5 0.333 0.25</code> is correct; <code>A: 1 .5 .333 .25</code> silently fails.</p>
 <p><strong>Sample rate</strong> — fixed at 44100 Hz.</p>
 <p><strong>Audio headroom</strong> — a master gain stage (0.25×) followed by a dynamics limiter sits between all voices and the output. This prevents clipping when multiple pads fire simultaneously at the cost of an overall level reduction of about 12 dB. If you need more volume, use an external mixer or turn up your system volume.</p>
 <p><strong>Audio context</strong> — Web Audio requires a user gesture before audio plays. Click anywhere to resume if audio stops.</p>
@@ -291,8 +287,6 @@ W: w (s P)*E
     applyTheme(next);
   });
 }());
-
-// inject copy buttons into all pre blocks
 document.querySelectorAll('pre').forEach(function(pre) {
   var btn = document.createElement('button');
   btn.className = 'copy-btn';
@@ -303,10 +297,7 @@ document.querySelectorAll('pre').forEach(function(pre) {
     navigator.clipboard.writeText(text).then(function() {
       btn.textContent = 'copied';
       btn.classList.add('copied');
-      setTimeout(function() {
-        btn.textContent = 'copy';
-        btn.classList.remove('copied');
-      }, 1500);
+      setTimeout(function() { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 1500);
     });
   });
   pre.appendChild(btn);

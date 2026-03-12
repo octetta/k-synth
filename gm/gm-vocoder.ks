@@ -14,7 +14,7 @@ F: 120*(6.28318%44100)
 P: +\(N#F)
 
 / Unfiltered sawtooth: rich harmonic content feeds all vocoder bands
-A: 1 .5 .333 .25 .2 .167 .143 .125 .111 .1
+A: 1 0.5 0.333 0.25 0.2 0.167 0.143 0.125 0.111 0.1
 S: P $ A
 
 / VCA envelope: sustained for the duration of the vocoded phrase
