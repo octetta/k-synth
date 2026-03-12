@@ -394,6 +394,21 @@ html, body {
 }
 #btn-clear:hover { border-color: var(--muted); color: var(--text); }
 
+.nb-dl-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 10px;
+  padding: 0 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 100ms, color 100ms;
+  line-height: 1;
+  font-family: var(--font);
+}
+.nb-cell-header:hover .nb-dl-btn { opacity: 1; }
+.nb-dl-btn:hover { color: var(--accent); opacity: 1; }
+
 .nb-del-btn {
   background: transparent;
   border: none;
@@ -842,6 +857,7 @@ button, [data-pad], [data-slot] {
 <!-- ── slot context menu ────────────────────────────────────────── -->
 <div id="slot-menu">
   <div class="slot-menu-item" id="smenu-play">▶ play</div>
+  <div class="slot-menu-item" id="smenu-dl">↓ download wav</div>
   <div class="slot-menu-item" id="smenu-rename">rename</div>
   <div class="slot-menu-item" id="smenu-rate">set base rate</div>
   <div class="slot-menu-item danger" id="smenu-clear">clear slot</div>
@@ -1150,6 +1166,15 @@ document.getElementById('smenu-play').addEventListener('click', () => {
   hideSlotMenu();
 });
 
+document.getElementById('smenu-dl').addEventListener('click', () => {
+  const s = slots[menuSlot];
+  if (s._f32) {
+    const name = (s.label || `slot${menuSlot}`).replace(/[^a-z0-9_-]/gi, '_');
+    downloadWav(s._f32, `${name}.wav`);
+  }
+  hideSlotMenu();
+});
+
 document.getElementById('smenu-rename').addEventListener('click', () => {
   if (menuSlot < 0) return;
   const name = prompt('Slot label:', slots[menuSlot].label);
@@ -1207,6 +1232,21 @@ function addNotebookCell(entry) {
     ? `${entry.samples} samples  ${(entry.samples / SR * 1000).toFixed(1)}ms`
     : entry.error;
   hdr.appendChild(meta);
+
+  // download button (success only)
+  if (entry.success && entry.floatData) {
+    const dl = document.createElement('button');
+    dl.className = 'nb-dl-btn';
+    dl.textContent = '↓ wav';
+    dl.title = 'download as WAV';
+    dl.addEventListener('click', e => {
+      e.stopPropagation();
+      const ts   = new Date().toISOString().slice(0,19).replace(/[T:]/g, '-');
+      const name = `ksynth-${ts}`;
+      downloadWav(entry.floatData, `${name}.wav`);
+    });
+    hdr.appendChild(dl);
+  }
 
   // delete button
   const del = document.createElement('button');
@@ -1609,6 +1649,55 @@ document.addEventListener('keydown', e => {
     window.open('readme.html', '_blank');
   });
 }());
+
+/* ═══════════════════════════════════════════════════════════════════
+   WAV EXPORT
+   ═══════════════════════════════════════════════════════════════════ */
+
+function downloadWav(f32, filename) {
+  // build a minimal 16-bit PCM WAV in memory
+  const numSamples = f32.length;
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = SR * numChannels * bitsPerSample / 8;
+  const blockAlign = numChannels * bitsPerSample / 8;
+  const dataSize = numSamples * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  function writeStr(off, s) {
+    for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i));
+  }
+  writeStr(0,  'RIFF');
+  view.setUint32(4,  36 + dataSize, true);
+  writeStr(8,  'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);           // PCM chunk size
+  view.setUint16(20, 1,  true);           // PCM format
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, SR, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitsPerSample, true);
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  // convert float32 → int16
+  let off = 44;
+  for (let i = 0; i < numSamples; i++) {
+    const s = Math.max(-1, Math.min(1, f32[i]));
+    view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    off += 2;
+  }
+
+  const blob = new Blob([buffer], { type: 'audio/wav' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 /* ═══════════════════════════════════════════════════════════════════
    SAVE / LOAD
