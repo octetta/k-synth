@@ -1088,7 +1088,38 @@ function clearSlot(slotIdx) {
 
 // Attach a long-press handler (500ms) to an element.
 // Uses touchstart/touchend for iOS reliability; contextmenu for desktop.
-function onLongPress(el, callback) {
+// onLongPressPointer — for elements already using pointerdown for play.
+// Uses pointer events only (no touchstart), so it doesn't conflict.
+// Long-press = hold 500ms without moving. Right-click also triggers.
+function onLongPressPointer(el, onLong) {
+  let timer  = null;
+  let startX = 0;
+  let startY = 0;
+
+  el.addEventListener('pointerdown', e => {
+    startX = e.clientX; startY = e.clientY;
+    timer = setTimeout(() => {
+      timer = null;
+      onLong();
+    }, 500);
+  });
+  el.addEventListener('pointermove', e => {
+    if (!timer) return;
+    if (Math.abs(e.clientX - startX) > 10 || Math.abs(e.clientY - startY) > 10) {
+      clearTimeout(timer); timer = null;
+    }
+  });
+  const cancel = () => { clearTimeout(timer); timer = null; };
+  el.addEventListener('pointerup',    cancel);
+  el.addEventListener('pointercancel',cancel);
+  el.addEventListener('contextmenu', e => { e.preventDefault(); cancel(); onLong(); });
+}
+
+// onLongPress(el, onLong, onTap)
+// onLong(x, y) — fired after 500ms hold
+// onTap()      — fired on quick release (optional); used on iOS where
+//                preventDefault on touchstart suppresses synthetic click
+function onLongPress(el, onLong, onTap) {
   let timer  = null;
   let fired  = false;
   let startX = 0;
@@ -1104,11 +1135,12 @@ function onLongPress(el, callback) {
     fired = false;
     const { x, y } = getXY(e);
     startX = x; startY = y;
-    // prevent iOS callout / text selection on long-press
+    // preventDefault stops iOS text-selection callout on long-press,
+    // but also suppresses the synthetic click — we handle tap manually in end()
     e.preventDefault();
     timer = setTimeout(() => {
       fired = true;
-      callback(startX, startY, e);
+      onLong(startX, startY, e);
     }, 500);
   }
 
@@ -1120,25 +1152,28 @@ function onLongPress(el, callback) {
   function move(e) {
     if (!timer) return;
     const { x, y } = getXY(e);
-    // cancel if moved more than 10px
     if (Math.abs(x - startX) > 10 || Math.abs(y - startY) > 10) cancel();
   }
 
   function end(e) {
-    if (fired) e.preventDefault(); // suppress the synthetic click after long-press
-    cancel();
+    if (fired) {
+      e.preventDefault(); // suppress synthetic click after long-press
+    } else if (timer) {
+      // quick release = tap; synthetic click is suppressed so fire manually
+      cancel();
+      if (onTap) onTap();
+    }
   }
 
-  // touchstart must be non-passive to call preventDefault (stops iOS text selection)
   el.addEventListener('touchstart',  start,  { passive: false });
   el.addEventListener('touchmove',   move,   { passive: true  });
   el.addEventListener('touchend',    end,    { passive: false });
   el.addEventListener('touchcancel', cancel, { passive: true  });
-  // desktop right-click still works
+  // desktop right-click still works; click handles desktop tap
   el.addEventListener('contextmenu', e => {
     e.preventDefault();
     const { x, y } = getXY(e);
-    callback(x, y, e);
+    onLong(x, y, e);
   });
 }
 
@@ -1188,12 +1223,25 @@ function renderSlotStrip() {
       // draw waveform — need the float data; store on slot
       if (s._f32) drawWave(cv, s._f32);
 
-      // click → play
+      // desktop click → play
       card.addEventListener('click', e => {
         if (e.button === 0) playSlot(i);
       });
-      // right-click or long-press → context menu
-      onLongPress(card, (x, y) => showSlotMenu(i, x, y));
+
+      // iOS: fire play immediately on touchstart — no 500ms wait
+      let _touchMoved = false;
+      card.addEventListener('touchstart', e => {
+        e.preventDefault(); // stop iOS callout + synthetic click
+        _touchMoved = false;
+        playSlot(i);
+      }, { passive: false });
+      card.addEventListener('touchmove', () => { _touchMoved = true; }, { passive: true });
+
+      // right-click (desktop) → context menu
+      card.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        showSlotMenu(i, e.clientX, e.clientY);
+      });
 
     } else {
       const hint = document.createElement('div');
@@ -1530,8 +1578,8 @@ function renderPadGrid() {
       playSlot(pd.slot, pd.semitones);
     });
 
-    // right-click or long-press → pad config
-    onLongPress(btn, () => showPadConfig(i, btn.getBoundingClientRect()));
+    // right-click or long-press → pad config (pointer-based, no conflict with pointerdown play)
+    onLongPressPointer(btn, () => showPadConfig(i, btn.getBoundingClientRect()));
 
     grid.appendChild(btn);
   }
