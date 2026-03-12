@@ -72,8 +72,10 @@ h4 { font-size:1em; color:var(--muted); }
 p { margin:.6em 0; }
 a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
 code { background:var(--surface2); border:1px solid var(--border); border-radius:3px; padding:1px 5px; font-size:.9em; color:var(--text); }
-pre { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:14px 16px; overflow-x:auto; margin:1em 0; }
+pre { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:14px 16px; overflow-x:auto; margin:1em 0; position:relative; }
 pre code { background:none; border:none; padding:0; font-size:.88em; line-height:1.6; }
+.copy-btn { position:absolute; top:6px; right:6px; background:var(--surface2); border:1px solid var(--border2); border-radius:3px; color:var(--muted); font-family:var(--font); font-size:10px; padding:2px 7px; cursor:pointer; opacity:0; transition:opacity 100ms,color 100ms,border-color 100ms; }
+pre:hover .copy-btn { opacity:1; } .copy-btn:hover { color:var(--text); border-color:var(--text); } .copy-btn.copied { color:var(--accent); border-color:var(--accent); }
 blockquote { border-left:3px solid var(--accent); margin:1em 0; padding:.2em 1em; color:var(--muted); }
 table { border-collapse:collapse; width:100%; margin:1em 0; font-size:.9em; }
 th,td { border:1px solid var(--border); padding:6px 12px; text-align:left; }
@@ -102,6 +104,7 @@ hr { border:none; border-top:1px solid var(--border); margin:2em 0; }
 <li><strong>editor</strong> — the right panel (or lower area on mobile). Where you write and run ksynth code.</li>
 </ul>
 <p>A <strong>pad panel</strong> overlay turns the 16 slots into a playable instrument. A <strong>patches</strong> button fetches <code>.ks</code> files directly from the <code>octetta/k-synth</code> GitHub repo.</p>
+<p>The toolbar has <strong>save</strong> and <strong>load</strong> buttons for persisting sessions as <code>.json</code> files, a <strong>theme</strong> toggle (retro / dark / light) remembered across reloads, and <strong>guide</strong> / <strong>readme</strong> buttons that open documentation in a new tab.</p>
 <hr />
 <h2>setup</h2>
 <p>After building with <code>build.sh</code>, serve the directory with any static file server:</p>
@@ -224,7 +227,40 @@ W: w (s P)*E
 <p>4×4 grid of 16 trigger pads. Each pad has a slot and a semitone offset. Final playback rate:</p>
 <pre><code>rate = 2^(slot.baseSemitones/12) × 2^(pad.semitones/12)
 </code></pre>
-<p>Right-click any pad to configure it. Keys <code>1</code>–<code>9</code> and <code>0</code> trigger pads 0–9 when the panel is open.</p>
+<p>Right-click any pad to configure it.</p>
+<p><strong>Keyboard triggers</strong> (panel must be open, editor must not have focus):</p>
+<table>
+<thead>
+<tr>
+<th>Keys</th>
+<th>Pads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code>–<code>9</code></td>
+<td>pads 0–8</td>
+</tr>
+<tr>
+<td><code>0</code></td>
+<td>pad 9</td>
+</tr>
+<tr>
+<td><code>a</code>–<code>f</code></td>
+<td>pads 10–15</td>
+</tr>
+</tbody>
+</table>
+<p>Each pad button shows its key shortcut in the top-right corner. The button flashes on trigger whether triggered by key or click.</p>
+<hr />
+<h2>save / load</h2>
+<p>Click <code>save</code> to download the current session as a <code>.json</code> file named <code>ksynth-YYYY-MM-DD-HH-MM-SS.json</code>. The file contains:</p>
+<ul>
+<li>all 16 slot buffers (audio encoded as base64), labels, and base rates</li>
+<li>all 16 pad assignments and semitone offsets</li>
+<li>the full script history with waveform data</li>
+</ul>
+<p>Click <code>load</code> to restore a saved session. The notebook is rebuilt from the history, slots are repopulated, and the pad grid is restored. No scripts are re-run — audio is decoded directly from the file.</p>
 <hr />
 <h2>patches browser</h2>
 <p>Click <code>patches</code> to open. On first open it fetches the file tree from <code>octetta/k-synth</code> on GitHub (requires internet; unauthenticated GitHub API, 60 req/hr limit).</p>
@@ -233,6 +269,7 @@ W: w (s P)*E
 <h2>notes and limitations</h2>
 <p><strong>Variable isolation</strong> — variables <code>A</code>–<code>Z</code> clear before each run. No state carries between cells.</p>
 <p><strong>Sample rate</strong> — fixed at 44100 Hz.</p>
+<p><strong>Audio headroom</strong> — a master gain stage (0.25×) followed by a dynamics limiter sits between all voices and the output. This prevents clipping when multiple pads fire simultaneously at the cost of an overall level reduction of about 12 dB. If you need more volume, use an external mixer or turn up your system volume.</p>
 <p><strong>Audio context</strong> — Web Audio requires a user gesture before audio plays. Click anywhere to resume if audio stops.</p>
 <p><strong>Persistence</strong> — nothing survives a page reload. Keep scripts as <code>.ks</code> files on disk or in the repo and reload via the patches browser.</p>
 </div>
@@ -254,6 +291,26 @@ W: w (s P)*E
     applyTheme(next);
   });
 }());
+
+// inject copy buttons into all pre blocks
+document.querySelectorAll('pre').forEach(function(pre) {
+  var btn = document.createElement('button');
+  btn.className = 'copy-btn';
+  btn.textContent = 'copy';
+  btn.addEventListener('click', function() {
+    var code = pre.querySelector('code');
+    var text = code ? code.innerText : pre.innerText;
+    navigator.clipboard.writeText(text).then(function() {
+      btn.textContent = 'copied';
+      btn.classList.add('copied');
+      setTimeout(function() {
+        btn.textContent = 'copy';
+        btn.classList.remove('copied');
+      }, 1500);
+    });
+  });
+  pre.appendChild(btn);
+});
 
 </script>
 </body>

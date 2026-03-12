@@ -12,6 +12,8 @@ The interface has three functional areas:
 
 A **pad panel** overlay turns the 16 slots into a playable instrument. A **patches** button fetches `.ks` files directly from the `octetta/k-synth` GitHub repo.
 
+The toolbar has **save** and **load** buttons for persisting sessions as `.json` files, a **theme** toggle (retro / dark / light) remembered across reloads, and **guide** / **readme** buttons that open documentation in a new tab.
+
 ---
 
 ## setup
@@ -195,7 +197,29 @@ Click `pads` to open. `Escape` or click outside to close.
 rate = 2^(slot.baseSemitones/12) × 2^(pad.semitones/12)
 ```
 
-Right-click any pad to configure it. Keys `1`–`9` and `0` trigger pads 0–9 when the panel is open.
+Right-click any pad to configure it.
+
+**Keyboard triggers** (panel must be open, editor must not have focus):
+
+| Keys | Pads |
+|------|------|
+| `1`–`9` | pads 0–8 |
+| `0` | pad 9 |
+| `a`–`f` | pads 10–15 |
+
+Each pad button shows its key shortcut in the top-right corner. The button flashes on trigger whether triggered by key or click.
+
+---
+
+## save / load
+
+Click `save` to download the current session as a `.json` file named `ksynth-YYYY-MM-DD-HH-MM-SS.json`. The file contains:
+
+- all 16 slot buffers (audio encoded as base64), labels, and base rates
+- all 16 pad assignments and semitone offsets
+- the full script history with waveform data
+
+Click `load` to restore a saved session. The notebook is rebuilt from the history, slots are repopulated, and the pad grid is restored. No scripts are re-run — audio is decoded directly from the file.
 
 ---
 
@@ -212,6 +236,8 @@ Files are listed grouped by directory. Type to filter. Click any file to load it
 **Variable isolation** — variables `A`–`Z` clear before each run. No state carries between cells.
 
 **Sample rate** — fixed at 44100 Hz.
+
+**Audio headroom** — a master gain stage (0.25×) followed by a dynamics limiter sits between all voices and the output. This prevents clipping when multiple pads fire simultaneously at the cost of an overall level reduction of about 12 dB. If you need more volume, use an external mixer or turn up your system volume.
 
 **Audio context** — Web Audio requires a user gesture before audio plays. Click anywhere to resume if audio stops.
 
