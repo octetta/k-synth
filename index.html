@@ -429,7 +429,7 @@ html, body {
 .nb-cell-header:hover .nb-del-btn { opacity: 1; }
 .nb-del-btn:hover { color: var(--error); opacity: 1; }
 
-#btn-save, #btn-load, #btn-patches, #btn-theme, #btn-guide, #btn-readme, #btn-pad {
+#btn-save, #btn-load, #btn-patches, #btn-theme, #btn-guide, #btn-readme, #btn-pad, #btn-fix {
   background: transparent;
   border: 1px solid var(--border2);
   border-radius: var(--radius);
@@ -441,7 +441,7 @@ html, body {
   flex-shrink: 0;
   white-space: nowrap;
 }
-#btn-save:hover, #btn-load:hover, #btn-patches:hover, #btn-theme:hover, #btn-guide:hover, #btn-readme:hover, #btn-pad:hover { border-color: var(--text); color: var(--text); }
+#btn-save:hover, #btn-load:hover, #btn-patches:hover, #btn-theme:hover, #btn-guide:hover, #btn-readme:hover, #btn-pad:hover, #btn-fix:hover { border-color: var(--text); color: var(--text); }
 #btn-pad.active { border-color: var(--accent); color: var(--accent); }
 
 #input-meta {
@@ -809,6 +809,7 @@ button, [data-pad], [data-slot] {
       <button id="btn-load">load</button>
       <input id="load-input" type="file" accept=".json" style="display:none">
       <button id="btn-pad">pads</button>
+      <button id="btn-fix">fix</button>
     </div>
     <div id="input-toolbar">
       <button id="btn-theme">retro</button>
@@ -986,6 +987,22 @@ function ensureAudio() {
     limiter._input = masterGain;
   }
   if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+// Assuming 'audioCtx' is your existing AudioContext
+async function reconnectAudio() {
+  try {
+    if (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted') {
+      await audioCtx.resume();
+    } else if (audioCtx.state === 'running') {
+      // If it thinks it's running but silent, cycle it
+      await audioCtx.suspend();
+      await audioCtx.resume();
+    }
+    console.log("Audio state is now:", audioCtx.state);
+  } catch (e) {
+    console.error("Failed to reconnect audio:", e);
+  }
 }
 
 function floatArrayToAudioBuffer(f32) {
@@ -1945,6 +1962,7 @@ function downloadWav(f32, filename) {
   const search   = document.getElementById('patch-search');
   const btnOpen  = document.getElementById('btn-patches');
   const btnClose = document.getElementById('btn-patch-close');
+  const btnFix   = document.getElementById('btn-fix');
 
   let allPatches = []; // [{path, name, dir}]
   let loaded     = false;
@@ -2039,6 +2057,7 @@ function downloadWav(f32, filename) {
     }
   }
 
+  btnFix.addEventListener('click', e => { reconnectAudio(); });
   btnOpen.addEventListener('click', open);
   btnClose.addEventListener('click', close);
   browser.addEventListener('click', e => { if (e.target === browser) close(); });
