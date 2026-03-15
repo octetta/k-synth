@@ -45,6 +45,9 @@ O: (0.95 f r A) * (0.8 * E) + (0.5 * P)
 
 / now make a pattern
 W: K,K,S,K,K,S,K,K,S,C,C,C,O,S,S
+
+/ on the web interface click run then click on the waveform to hear it
+/ on the CLI type \pW to hear it
 ```
 
 ---
