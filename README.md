@@ -74,13 +74,119 @@ Any waveform you can express mathematically. The phase accumulator pattern
 at any frequency. Apply `s` for sine, `c` for cosine, or do math on the raw
 ramp for triangle and sawtooth shapes.
 
+#### Fundamental Waveforms Reference
+
+- Duration: 1 second (44100 samples)
+- Frequency: 220 Hz (A2)
+
+##### Sine wave
+
 ```
-/ sawtooth at 220 Hz, 1 second
+/ The simplest oscillator using the 's' monadic verb.
+/ Logic: 
+/ 1. Calculate phase increment: freq * (2pi / sr).
+/ 2. Tile to length N and accumulate (+\) to create a continuous phase ramp.
+/ 3. Apply sine verb and normalize (w) to peak +/- 1.0.
 N: 44100
 T: !N
-F: 220%44100
+F: 220*(6.28318%44100)
 P: +\(N#F)
-W: w (P*2)-1
+W: w s P
+```
+
+##### Sawtooth wave (additive)
+
+```
+/ Constructed using the '$' weighted additive verb.
+/ Logic:
+/ 1. A sawtooth contains all harmonics (1, 2, 3...).
+/ 2. Create amplitude vector A where each harmonic 'n' has amplitude 1/n.
+/ 3. '$' sums sin(P*1)*1 + sin(P*2)*0.5 + sin(P*3)*0.33...
+N: 44100
+T: !N
+F: 220*(6.28318%44100)
+P: +\(N#F)
+H: !32
+H: H+1
+A: 1%H
+W: w P $ A
+```
+
+##### Square wave (additive)
+
+```
+/ A "hollow" timbre constructed from odd harmonics only.
+/ Logic:
+/ 1. A square wave contains only harmonics 1, 3, 5, 7...
+/ 2. Amplitudes follow 1/n, but even positions in vector A are set to 0.
+/ 3. Results in the characteristic binary-state sound.
+N: 44100
+T: !N
+F: 220*(6.28318%44100)
+P: +\(N#F)
+A: 1 0 0.333 0 0.2 0 0.143 0 0.111
+W: w P $ A
+```
+
+##### Triangle wave (additive)
+
+```
+/ A mellow oscillation with odd harmonics that decay rapidly.
+/ Logic:
+/ 1. Uses odd harmonics (1, 3, 5...) like a square wave.
+/ 2. Amplitudes decay by 1/n^2 (1, 1/9, 1/25...).
+/ 3. Signs alternate (+, 0, -, 0, +) to create the peaked "triangle" shape.
+N: 44100
+T: !N
+F: 220*(6.28318%44100)
+P: +\(N#F)
+A: 1 0 -.111 0 .04 0 -.0204 0 .0123
+W: w P $ A
+```
+
+##### Sawtooth with exponential envelope
+
+```
+N: 44100
+T: !N
+F: 220*(6.28318%44100)
+P: +\(N#F)
+
+/ 1. Sawtooth Oscillator (using additive synthesis)
+H: !32
+H: H+1
+A: 1%H
+S: P $ A
+
+/ 2. Exponential Envelope (decays to -60dB over the buffer)
+/ Formula: e(T*(0-k%N)) where k=6.9 is standard decay
+E: e(T*(0-6.9%N))
+
+/ 3. Apply envelope and normalize
+/ Parentheses are mandatory to prevent right-assoc parsing errors
+W: w (E*S)
+```
+
+##### Sawtooth Pluck
+
+```
+N: 44100
+T: !N
+F: 220*(6.28318%44100)
+P: +\(N#F)
+
+/ 1. Sawtooth Oscillator
+H: !32
+H: H+1
+A: 1%H
+S: P $ A
+
+/ 2. Sharp Envelope ...  k=40 creates a sharp percussive decay
+/ Tau in samples = N/40 = 1102 samples (approx 25ms)
+E: e(T*(0-40%N))
+
+/ 3. Apply envelope and normalize
+W: w (E*S)
 ```
 
 #### FM Synthesis
