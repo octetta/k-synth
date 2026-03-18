@@ -3,6 +3,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <wchar.h>
 #include "ksynth.h"
 #include "miniaudio.h"
 #include "bestline.h"
@@ -283,6 +284,7 @@ void handle_line(char* line) {
   }
 }
 
+void print_scope(double *data, int len, int width, int height);
 void p_view(K x, int opts) {
   if (!x || x->n <= 0) {
     printf("[0]\n");
@@ -301,21 +303,7 @@ void p_view(K x, int opts) {
   printf(")\n");
 
   if (opts) return;
-
-  // Sparkline (Braille)
-  int width = 64; 
-  printf("   ");
-  for (int i = 0; i < width; i++) {
-    int idx = (i * x->n) / width;
-    double v = x->f[idx];
-    // Map -1.0..1.0 to 0..7 for Braille dots
-    int level = (int)((v + 1.0) * 3.5);
-    if (level < 0) level = 0;
-    if (level > 7) level = 7;
-    static const char* dots[] = {" ","⠂","⠒","⠖","⠶","⠷","⠿","⣿"};
-    printf("%s", dots[level]);
-  }
-  printf("\n");
+  print_scope(x->f, x->n, 128, 64);
 }
 
 #define CHUNK_FRAME_COUNT 4096
@@ -483,4 +471,237 @@ int main(int argc, char *argv[]) {
   }
   audio_end();
   return 0;
+}
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+
+// Universal "Safe" Colors
+#define CLR_WAVE  "\x1b[38;5;34m"  
+#define CLR_GRID  "\x1b[38;5;244m" 
+#define CLR_CLIP  "\x1b[1;31m"     
+#define CLR_TEXT  "\x1b[38;5;240m" 
+#define CLR_RESET "\x1b[0m"
+
+void print_scope_graph(double *data, int len, int width, int height) {
+    const double min_y = -1.0;
+    const double max_y = 1.0;
+    int clipped = 0;
+
+    int canvas_w = (width / 2) * 2;
+    int canvas_h = (height / 4) * 4;
+    
+    unsigned char *grid = calloc(canvas_w * canvas_h, sizeof(unsigned char));
+    if (!grid) return;
+
+    // We iterate over every pixel column (x) to ensure no gaps
+    for (int x = 0; x < canvas_w; x++) {
+        // Calculate the position in the data array (floating point)
+        double data_pos = (double)x / (canvas_w - 1) * (len - 1);
+        int idx_low = (int)floor(data_pos);
+        int idx_high = (int)ceil(data_pos);
+        double fraction = data_pos - idx_low;
+
+        // Linear interpolation between the two nearest data points
+        double val = data[idx_low] * (1.0 - fraction) + data[idx_high] * fraction;
+
+        if (fabs(val) >= 1.0) clipped = 1;
+
+        // Clamp for drawing
+        if (val < min_y) val = min_y;
+        if (val > max_y) val = max_y;
+
+        int y = (int)((max_y - val) / (max_y - min_y) * (canvas_h - 1));
+        if (y >= 0 && y < canvas_h) {
+            grid[y * canvas_w + x] = 1;
+        }
+    }
+
+    // --- Header ---
+    printf("\n  " CLR_TEXT "IDX: [0..%d]" CLR_RESET, len - 1);
+    if (clipped) printf("%*s" CLR_CLIP "[ CLIP ]" CLR_RESET, (width/2) - 15, "");
+    
+    printf("\n  ┌" CLR_GRID);
+    for(int i=0; i<width/2; i++) printf("─");
+    printf(CLR_RESET "┐ " CLR_TEXT "+1.0" CLR_RESET "\n");
+
+    // --- Render ---
+    for (int y = 0; y < canvas_h; y += 4) {
+        printf("  " CLR_GRID "│" CLR_RESET);
+        for (int x = 0; x < canvas_w; x += 2) {
+            unsigned int byte_offset = 0;
+            int bit_map[8] = {1, 2, 4, 8, 16, 32, 64, 128};
+            int dots[8][2] = {{0,0}, {1,0}, {2,0}, {0,1}, {1,1}, {2,1}, {3,0}, {3,1}};
+
+            for (int i = 0; i < 8; i++) {
+                int dy = y + dots[i][0];
+                int dx = x + dots[i][1];
+                if (dy < canvas_h && dx < canvas_w && grid[dy * canvas_w + dx]) {
+                    byte_offset |= bit_map[i];
+                }
+            }
+
+            if (byte_offset == 0) {
+                int center_y = canvas_h / 2;
+                if (y <= center_y && y + 4 > center_y) printf(CLR_GRID "‥" CLR_RESET);
+                else printf(" ");
+            } else {
+                unsigned int code = 0x2800 + byte_offset;
+                printf(CLR_WAVE "%c%c%c" CLR_RESET, (0xE0|(code>>12)), (0x80|((code>>6)&0x3F)), (0x80|(code&0x3F)));
+            }
+        }
+        if (y == canvas_h / 2 - (canvas_h / 2 % 4)) printf(CLR_GRID "┤ " CLR_TEXT " 0.0" CLR_RESET "\n");
+        else printf(CLR_GRID "│" CLR_RESET "\n");
+    }
+
+    printf("  └" CLR_GRID);
+    for(int i=0; i<width/2; i++) printf("─");
+    printf(CLR_RESET "┘ " CLR_TEXT "-1.0" CLR_RESET "\n\n");
+
+    free(grid);
+}
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <float.h>
+#include <string.h>
+
+/* Universal "Safe" Colors (8-bit ANSI)
+   These are chosen to be visible on both black and white backgrounds. */
+#define CLR_WAVE  "\x1b[38;5;34m"  /* Medium Green */
+#define CLR_GRID  "\x1b[38;5;244m" /* Neutral Gray */
+#define CLR_TEXT  "\x1b[38;5;240m" /* Darker Gray */
+#define CLR_RESET "\x1b[0m"
+
+/* Helper: Standard Bresenham's line algorithm to fill bits in the grid */
+void draw_line(unsigned char *grid, int x1, int y1, int x2, int y2, int w, int h) {
+    int dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
+    int dy = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
+    int err = dx + dy, e2;
+
+    while (1) {
+        if (x1 >= 0 && x1 < w && y1 >= 0 && y1 < h) {
+            grid[y1 * w + x1] = 1;
+        }
+        if (x1 == x2 && y1 == y2) break;
+        e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x1 += sx; }
+        if (e2 <= dx) { err += dx; y1 += sy; }
+    }
+}
+
+/**
+ * print_scope
+ * data:   Pointer to double array
+ * len:    Number of elements in array
+ * width:  Desired width in pixels (Braille chars use 2px width each)
+ * height: Desired height in pixels (Braille chars use 4px height each)
+ */
+void print_scope(double *data, int len, int width, int height) {
+    if (len < 2) return;
+
+    // 1. Auto-Scale: Find the actual range of the data
+    double min_y = DBL_MAX;
+    double max_y = -DBL_MAX;
+    for (int i = 0; i < len; i++) {
+        if (data[i] < min_y) min_y = data[i];
+        if (data[i] > max_y) max_y = data[i];
+    }
+
+    // Prevent collapse if data is flat
+    if (max_y == min_y) { max_y += 0.1; min_y -= 0.1; }
+
+    // Braille cells are 2x4. Ensure canvas dimensions are multiples.
+    int canvas_w = (width / 2) * 2;
+    int canvas_h = (height / 4) * 4;
+    unsigned char *grid = calloc(canvas_w * canvas_h, sizeof(unsigned char));
+    if (!grid) return;
+
+    // 2. Plotting with Line Connection
+    int prev_y = -1;
+    for (int x = 0; x < canvas_w; x++) {
+        // Map pixel x to data index with linear interpolation
+        double data_pos = (double)x / (canvas_w - 1) * (len - 1);
+        int idx_low = (int)floor(data_pos);
+        int idx_high = (int)ceil(data_pos);
+        double fraction = data_pos - idx_low;
+        
+        double val = data[idx_low] * (1.0 - fraction) + 
+                     data[idx_high >= len ? len-1 : idx_high] * fraction;
+
+        // Map value to pixel y (inverted for terminal: max_y at top)
+        int y = (int)((max_y - val) / (max_y - min_y) * (canvas_h - 1));
+
+        if (prev_y != -1) {
+            draw_line(grid, x - 1, prev_y, x, y, canvas_w, canvas_h);
+        } else {
+            if (y >= 0 && y < canvas_h) grid[y * canvas_w + x] = 1;
+        }
+        prev_y = y;
+    }
+
+    // 3. Header: Show Max Value and Frame
+    printf("\n  " CLR_TEXT "MAX: %-10.4f" CLR_RESET, max_y);
+    printf("\n  ┌" CLR_GRID);
+    for(int i = 0; i < canvas_w / 2; i++) printf("─");
+    printf(CLR_RESET "┐\n");
+
+    // 4. Braille Render Loop (Rows of 4px)
+    for (int y = 0; y < canvas_h; y += 4) {
+        // Calculate value range for this specific row to check for Zero-Crossing
+        double row_val_top = max_y - ((double)y / (canvas_h - 1)) * (max_y - min_y);
+        double row_val_bot = max_y - ((double)(y + 4) / (canvas_h - 1)) * (max_y - min_y);
+        int has_zero = (row_val_top >= 0 && row_val_bot <= 0);
+
+        // Left Margin (0 label)
+        if (has_zero) printf(CLR_TEXT "0 " CLR_RESET);
+        else printf("  ");
+
+        printf(CLR_GRID "│" CLR_RESET);
+
+        for (int x = 0; x < canvas_w; x += 2) {
+            unsigned int byte_offset = 0;
+            /* Braille bit-to-dot mapping:
+               1  8
+               2 16
+               4 32
+              64 128 (bottom row) */
+            int bit_map[8] = {1, 2, 4, 8, 16, 32, 64, 128};
+            int dots[8][2] = {{0,0}, {1,0}, {2,0}, {0,1}, {1,1}, {2,1}, {3,0}, {3,1}};
+
+            for (int i = 0; i < 8; i++) {
+                int dy = y + dots[i][0];
+                int dx = x + dots[i][1];
+                if (dy < canvas_h && dx < canvas_w && grid[dy * canvas_w + dx]) {
+                    byte_offset |= bit_map[i];
+                }
+            }
+
+            if (byte_offset == 0) {
+                // Background graticule for zero line
+                if (has_zero) printf(CLR_GRID "‥" CLR_RESET);
+                else printf(" ");
+            } else {
+                // Encode to UTF-8 Braille block (U+2800 + offset)
+                unsigned int code = 0x2800 + byte_offset;
+                printf(CLR_WAVE "%c%c%c" CLR_RESET, 
+                       (unsigned char)(0xE0 | (code >> 12)),
+                       (unsigned char)(0x80 | ((code >> 6) & 0x3F)),
+                       (unsigned char)(0x80 | (code & 0x3F)));
+            }
+        }
+
+        // Right Margin (0 label)
+        if (has_zero) printf(CLR_GRID "│" CLR_TEXT " 0" CLR_RESET "\n");
+        else printf(CLR_GRID "│" CLR_RESET "\n");
+    }
+
+    // 5. Footer: Frame and Min Value
+    printf("  └" CLR_GRID);
+    for(int i = 0; i < canvas_w / 2; i++) printf("─");
+    printf(CLR_RESET "┘\n  " CLR_TEXT "MIN: %-10.4f" CLR_RESET "\n\n", min_y);
+
+    free(grid);
 }

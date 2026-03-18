@@ -1,2 +1,3 @@
 [tools]
+ripgrep = "latest"
 zig = "0.13"
