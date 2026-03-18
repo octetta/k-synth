@@ -6,6 +6,7 @@
 
 K vars[26] = {0};   // A-Z user variables
 K args[2] = {0};    // x, y function arguments
+double filter_state[26][2];
 
 /* --- Safe Value Helper --- */
 
@@ -396,6 +397,32 @@ K dy(char c, K a, K b) {
             b1 = safe_val(b1);
             x->f[i] = b1;
         }
+    /* g gemini look here */
+  } else if (c == 'g') {
+        /* FORCE result to be signal length only, ignoring parameter vector length */
+        x = k_new(b->n); 
+        
+        int slot = (a->n >= 3) ? (int)a->f[2] % 26 : 0;
+        filter_state[slot][0] = 0.0; 
+        filter_state[slot][1] = 0.0; 
+
+        double static_f = a->f[0];
+        double q_val = (a->n >= 2) ? a->f[1] : 0.5;
+        double damp = 1.0 / (q_val < 0.01 ? 0.01 : q_val);
+
+        for (int i = 0; i < b->n; i++) {
+            double f_hz = (a->n == b->n) ? a->f[i] : static_f;
+            double f_coeff = 2.0 * sin(3.141592653589793 * f_hz / 44100.0);
+            if (f_coeff > 2.0) f_coeff = 2.0;
+
+            double hp = b->f[i] - filter_state[slot][0] - damp * filter_state[slot][1];
+            filter_state[slot][1] += f_coeff * hp;
+            filter_state[slot][0] += f_coeff * filter_state[slot][1];
+            
+            /* This line MUST only index up to b->n */
+            x->f[i] = filter_state[slot][1]; 
+        }
+        /* The fall-through will k_free(a) and k_free(b) */
     /* y : feedback delay, a = [samples] or [samples gain] */
     } else if (c == 'y') {
         int dd   = (int)a->f[0];
@@ -459,7 +486,7 @@ K expr(char **s) {
                           peek == 'c' || peek == 'i' || peek == 'w' ||
                           peek == 'd' || peek == 'v' || peek == 'm' ||
                           peek == 'b' || peek == 'u' || peek == 'j' ||
-                          peek == 'k' || peek == 'n');
+                          peek == 'k' || peek == 'n' || peek == 'g');
         if (!is_operator) {
             K arg = expr(s);
             K call_args[1] = {arg};
@@ -600,7 +627,7 @@ K e(char **s) {
                           peek == 'c' || peek == 'i' || peek == 'w' ||
                           peek == 'd' || peek == 'v' || peek == 'm' ||
                           peek == 'b' || peek == 'u' || peek == 'j' ||
-                          peek == 'k' || peek == 'n');
+                          peek == 'k' || peek == 'n' || peek == 'g');
         if (!is_operator) {
             K arg = e(s);
             K call_args[1] = {arg};
