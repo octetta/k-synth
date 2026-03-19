@@ -1,3 +1,7 @@
+tmp
+tmp/*
+alt-test
+super-test
 [A-Z]-*.wav
 wa_*.wav
 dw8k-*.png
