@@ -141,9 +141,79 @@ W: w P $ A
 
 `e(T*(0-k%N))` gives exponential decay from 1 over N samples. `T*e(T*(0-k%N))` gives a percussive rise-and-fall shape peaking at sample `N/k`.
 
+**Exponential decay** — a sine tone that fades out over 2 seconds:
+
+```
+N: 88200
+T: !N
+A: e(T*(0-3%N))
+P: +\(N#(440*(6.28318%44100)))
+W: w A*s P
+```
+
+Adjust the `3` to taste — larger decays faster, smaller lingers longer. At `k=1` the decay is very slow; at `k=10` it's a short pluck.
+
+**Percussive rise-and-fall** — a thump that swells briefly then fades:
+
+```
+N: 44100
+T: !N
+A: T*e(T*(0-8%N))
+P: +\(N#(180*(6.28318%44100)))
+W: w A*s P
+```
+
+The peak lands at sample `N/k` — here `44100/8` ≈ 5500 samples ≈ 125ms in. Good for kick and tom shapes.
+
+**Two envelopes on one voice** — fast index decay for a bright attack, slow amplitude decay for the body (the FM bell pattern):
+
+```
+N: 88200
+T: !N
+A: e(T*(0-3%N))
+I: 3.5*e(T*(0-40%N))
+C: 440*(6.28318%44100)
+M: 440*(6.28318%44100)
+P: +\(N#C)
+Q: +\(N#M)
+W: w A*(s P+(I*s Q))
+```
+
+`A` decays slowly (the ring). `I` decays fast (the clang). The combination is what makes it sound like a struck bell rather than a plain FM tone.
+
+**Soft clipping** — `d` applies `tanh(3x)`, rounding peaks without hard discontinuities. Useful after loud envelopes:
+
+```
+N: 44100
+T: !N
+A: T*e(T*(0-5%N))
+P: +\(N#(220*(6.28318%44100)))
+W: w d A*s P
+```
+
 ### filters
 
-`ct f signal` — two-pole lowpass, `ct` is a normalised cutoff 0–1. Subtract two lowpass results for bandpass.
+Two Chamberlin state-variable lowpass filters — same topology, different cutoff convention.
+
+**`f` — normalised coefficient**
+
+`ct f signal` — cutoff `ct` is a coefficient 0.0–0.95. Approximate mapping: 0.05 ≈ 350 Hz, 0.1 ≈ 700 Hz, 0.2 ≈ 1.4 kHz, 0.4 ≈ 3 kHz, 0.7 ≈ 6.5 kHz. Optional resonance as second parameter: `0.2 1.5 f signal`. Resonance 0–3.9; above ~3.5 approaches self-oscillation. A cutoff vector the same length as the signal gives a time-varying filter.
+
+Subtract the lowpass from the original for highpass. Subtract two lowpass results for bandpass.
+
+**`g` — Hz input**
+
+`freq_hz g signal` — same filter, cutoff in Hz directly. Optional resonance: `800 2.0 g signal`. Accepts a modulation vector for swept cutoff:
+
+```
+N: 44100
+T: !N
+/ LFO sweeping cutoff 200–1200 Hz at 3 Hz
+L: 700+(500*s +\(N#(3*(6.28318%N))))
+W: w L g r T
+```
+
+Use `f` when working with normalised coefficients. Use `g` when thinking in Hz.
 
 ### noise and percussion
 

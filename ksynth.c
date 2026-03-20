@@ -6,7 +6,6 @@
 
 K vars[26] = {0};   // A-Z user variables
 K args[2] = {0};    // x, y function arguments
-double filter_state[26][2];
 
 /* --- Safe Value Helper --- */
 
@@ -425,7 +424,16 @@ K dy(char c, K a, K b) {
         k_free(a); k_free(b); return x;
     }
 
-    /* f : two-pole lowpass filter */
+    /* f : Chamberlin state-variable lowpass filter
+     * a = [cutoff]  or  [cutoff resonance]
+     *   cutoff    — normalised coefficient 0.0–0.95 (not Hz)
+     *               approx: ct ≈ 2*sin(π*freq/SR) for freq << SR/2
+     *               e.g. 0.1 ≈ 700 Hz, 0.3 ≈ 2.2 kHz, 0.7 ≈ 6.5 kHz
+     *   resonance — 0.0 (none) to ~3.9 (near self-oscillation), default 0
+     * b = signal vector
+     * output = lowpass tap; subtract from input for highpass, use b0 for bandpass
+     * usage: 0.2 f signal   or   0.2 1.5 f signal
+     */
     if (c == 'f') {
         x = k_new(b->n); double b0 = 0, b1 = 0;
         for (int i = 0; i < b->n; i++) {
@@ -439,32 +447,36 @@ K dy(char c, K a, K b) {
             b1 = safe_val(b1);
             x->f[i] = b1;
         }
-    /* g gemini look here */
-  } else if (c == 'g') {
-        /* FORCE result to be signal length only, ignoring parameter vector length */
-        x = k_new(b->n); 
-        
-        int slot = (a->n >= 3) ? (int)a->f[2] % 26 : 0;
-        filter_state[slot][0] = 0.0; 
-        filter_state[slot][1] = 0.0; 
 
+    /* g : Chamberlin state-variable lowpass filter, Hz input
+     * Same topology as f but cutoff is specified in Hz directly.
+     * a = [freq_hz]  or  [freq_hz  q]
+     *   freq_hz — cutoff frequency in Hz (0–20000)
+     *   q       — resonance 0.01–~3.9, default 0.5 (Q=2, gentle peak)
+     * b = signal vector
+     * usage: 800 g signal   or   800 2.0 g signal
+     * For a modulated cutoff, pass a vector of the same length as b:
+     *   F: 200+600*(s P)    / LFO sweeping 200-800 Hz
+     *   W: w F g signal
+     */
+    } else if (c == 'g') {
+        x = k_new(b->n);
+        double s0 = 0.0, s1 = 0.0;
         double static_f = a->f[0];
-        double q_val = (a->n >= 2) ? a->f[1] : 0.5;
-        double damp = 1.0 / (q_val < 0.01 ? 0.01 : q_val);
+        double q_val    = (a->n >= 2) ? a->f[1] : 0.5;
+        double damp     = 1.0 / (q_val < 0.01 ? 0.01 : q_val);
 
         for (int i = 0; i < b->n; i++) {
-            double f_hz = (a->n == b->n) ? a->f[i] : static_f;
-            double f_coeff = 2.0 * sin(3.141592653589793 * f_hz / 44100.0);
-            if (f_coeff > 2.0) f_coeff = 2.0;
-
-            double hp = b->f[i] - filter_state[slot][0] - damp * filter_state[slot][1];
-            filter_state[slot][1] += f_coeff * hp;
-            filter_state[slot][0] += f_coeff * filter_state[slot][1];
-            
-            /* This line MUST only index up to b->n */
-            x->f[i] = filter_state[slot][1]; 
+            double f_hz    = (a->n == b->n) ? a->f[i] : static_f;
+            double f_coeff = 2.0 * sin(M_PI * f_hz / 44100.0);
+            if (f_coeff > 1.99) f_coeff = 1.99;
+            double hp = b->f[i] - s0 - damp * s1;
+            s1 += f_coeff * hp;
+            s0 += f_coeff * s1;
+            s0 = safe_val(s0);
+            s1 = safe_val(s1);
+            x->f[i] = s1;
         }
-        /* The fall-through will k_free(a) and k_free(b) */
     /* y : feedback delay, a = [samples] or [samples gain] */
     } else if (c == 'y') {
         int dd   = (int)a->f[0];
