@@ -68,34 +68,46 @@ W: w s +\(N#(440*(6.28318%44100)))
 <hr>
 <h2 id="what-it-can-do">what it can do</h2>
 <h3 id="wavetable-oscillator">wavetable oscillator</h3>
-<p><code>table t [freq_hz  n_samples]</code> — plays <code>table</code> as a DDS oscillator at <code>freq_hz</code> Hz for <code>n_samples</code> samples, with linear interpolation between table entries. The table should contain exactly one cycle of the desired waveform.</p>
-<p>Build tables using the phase accumulator pattern — <code>+\(N#F)</code> accumulates <code>F</code> radians per step over <code>N</code> steps:</p>
-<pre><code>/ sine wavetable — one cycle in 1024 samples
+<p><code>table t freq dur</code> — plays <code>table</code> as a DDS oscillator at <code>freq</code> Hz for <code>dur</code> samples, with linear interpolation. <code>freq</code> and <code>dur</code> form a two-element vector — scalar variables following a number are absorbed into the vector literal, so <code>T t 440 D</code> works naturally.</p>
+<p>Build tables using the phase accumulator pattern, using a separate variable for table size vs output duration:</p>
+<pre><code>/ sine at 440 Hz for 2 seconds
 N: 1024
 P: +\(N#(6.28318%N))
 T: s P
-W: w T t 440 88200
+D: 88200
+W: w T t 440 D
 </code></pre>
-<pre><code>/ sawtooth — ramp from -1 to +1
+<pre><code>/ sawtooth at 220 Hz for 1 second
 N: 1024
 P: +\(N#(1%N))
 T: (2*P)-1
-W: w T t 220 44100
+D: 44100
+W: w T t 220 D
 </code></pre>
-<pre><code>/ triangle — 0 → +1 → 0 → -1 → 0
+<pre><code>/ triangle at 330 Hz for 1 second
 N: 1024
 P: +\(N#(1%N))
 T: (2*a((2*P)-1))-1
-W: w T t 330 44100
+D: 44100
+W: w T t 330 D
 </code></pre>
-<pre><code>/ custom FM wavetable, then play at 440 Hz for 2 seconds
+<pre><code>/ square wave at 220 Hz for 1 second
+N: 1024
+P: +\(N#(1%N))
+T: (2*(P&lt;0.5))-1
+D: 44100
+W: w T t 220 D
+</code></pre>
+<pre><code>/ FM wavetable at MIDI note 69 (A4) for 2 seconds
 N: 1024
 P: +\(N#(6.28318%N))
 I: 2.5
 T: s P+(I*s P)
-W: w T t 440 88200
+M: 69
+D: 88200
+W: w T t (nM) D
 </code></pre>
-<p>Any vector works as a table — recorded samples, computed shapes, whatever. Monadic <code>t</code> remains <code>tan</code>.</p>
+<p>Monadic <code>t</code> remains <code>tan</code>.</p>
 <h3 id="oscillators">oscillators</h3>
 <p>The phase accumulator pattern <code>+\(N#F)</code> where <code>F</code> is a per-sample phase increment gives a clean oscillator at any frequency. Apply <code>s</code> for sine, <code>c</code> for cosine, or do math on the raw ramp for triangle and sawtooth.</p>
 <pre><code>/ sawtooth at 220 Hz, 1 second (via harmonic sum)

@@ -37,44 +37,58 @@ Press `Ctrl+Enter` to run. A cell appears in the notebook with a waveform. Click
 
 ### wavetable oscillator
 
-`table t [freq_hz  n_samples]` — plays `table` as a DDS oscillator at `freq_hz` Hz for `n_samples` samples, with linear interpolation between table entries. The table should contain exactly one cycle of the desired waveform.
+`table t freq dur` — plays `table` as a DDS oscillator at `freq` Hz for `dur` samples, with linear interpolation. `freq` and `dur` form a two-element vector — scalar variables following a number are absorbed into the vector literal, so `T t 440 D` works naturally.
 
-Build tables using the phase accumulator pattern — `+\(N#F)` accumulates `F` radians per step over `N` steps:
+Build tables using the phase accumulator pattern, using a separate variable for table size vs output duration:
 
 ```
-/ sine wavetable — one cycle in 1024 samples
+/ sine at 440 Hz for 2 seconds
 N: 1024
 P: +\(N#(6.28318%N))
 T: s P
-W: w T t 440 88200
+D: 88200
+W: w T t 440 D
 ```
 
 ```
-/ sawtooth — ramp from -1 to +1
+/ sawtooth at 220 Hz for 1 second
 N: 1024
 P: +\(N#(1%N))
 T: (2*P)-1
-W: w T t 220 44100
+D: 44100
+W: w T t 220 D
 ```
 
 ```
-/ triangle — 0 → +1 → 0 → -1 → 0
+/ triangle at 330 Hz for 1 second
 N: 1024
 P: +\(N#(1%N))
 T: (2*a((2*P)-1))-1
-W: w T t 330 44100
+D: 44100
+W: w T t 330 D
 ```
 
 ```
-/ custom FM wavetable, then play at 440 Hz for 2 seconds
+/ square wave at 220 Hz for 1 second
+N: 1024
+P: +\(N#(1%N))
+T: (2*(P<0.5))-1
+D: 44100
+W: w T t 220 D
+```
+
+```
+/ FM wavetable at MIDI note 69 (A4) for 2 seconds
 N: 1024
 P: +\(N#(6.28318%N))
 I: 2.5
 T: s P+(I*s P)
-W: w T t 440 88200
+M: 69
+D: 88200
+W: w T t (nM) D
 ```
 
-Any vector works as a table — recorded samples, computed shapes, whatever. Monadic `t` remains `tan`.
+Monadic `t` remains `tan`.
 
 ### oscillators
 
