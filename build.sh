@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# build.sh — compile ksynth to WebAssembly via Emscripten
+# build.sh — compile ksynth to WebAssembly via Emscripten, then build docs HTML
 #
 # Prerequisites:
 #   source /path/to/emsdk/emsdk_env.sh
 #
-# Output:
-#   ksynth.js   — Emscripten glue (ES module, MODULARIZE=1)
-#   ksynth.wasm — WebAssembly binary
+# To rebuild docs only (no Emscripten needed):
+#   python3 docs-build.py
 #
-# Place both files alongside index.html and serve with any static server.
-# For local dev: python3 -m http.server 8080
+# Output:
+#   ksynth.js, ksynth.wasm — WebAssembly engine
+#   guide.html, readme.html — documentation
+#
+# Serve with: python3 -m http.server 8080
 
 set -e
 
@@ -18,6 +20,8 @@ EXPORTED_FUNCTIONS='[
   "_ks_run",
   "_ks_repl",
   "_ks_repl_str",
+  "_ks_get_var",
+  "_ks_get_var_buf",
   "_ks_get_buffer",
   "_ks_get_length",
   "_ks_get_error"
@@ -52,3 +56,7 @@ emcc \
 
 echo "Build complete: ksynth.js + ksynth.wasm"
 echo "Serve with: python3 -m http.server 8080"
+
+# Build documentation HTML from markdown sources
+echo "Building docs..."
+python3 docs-build.py

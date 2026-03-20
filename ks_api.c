@@ -131,6 +131,12 @@ int ks_repl(const char *expr) {
     for (int i = 0; i < 26; i++)
         if (vars[i] == result) { in_vars = 1; break; }
 
+    /* Copy result values into repl_vals buffer for JS retrieval */
+    repl_n    = result->n;
+    repl_vals = (double*)malloc((size_t)repl_n * sizeof(double));
+    if (repl_vals)
+        for (int i = 0; i < repl_n; i++) repl_vals[i] = result->f[i];
+
     /* Format result into repl_str */
     if (result->n == 1) {
         snprintf(repl_str, sizeof(repl_str), "%g", result->f[0]);
@@ -155,6 +161,40 @@ int ks_repl(const char *expr) {
 
 /* Result string from last ks_repl call */
 const char *ks_repl_str(void) { return repl_str; }
+
+/*
+ * Copy a named variable (A-Z) into a float buffer for JS inspection.
+ * Returns the number of elements, or 0 if not set.
+ * Call ks_get_var_buf() immediately after to get a pointer to the
+ * float copy (valid until the next ks_get_var call).
+ */
+static float *get_var_fbuf = NULL;
+static int    get_var_flen = 0;
+
+int ks_get_var(int letter_upper) {
+    free(get_var_fbuf); get_var_fbuf = NULL; get_var_flen = 0;
+    if (letter_upper < 'A' || letter_upper > 'Z') return 0;
+    K v = vars[letter_upper - 'A'];
+    if (!v || v->n <= 0) return 0;
+    get_var_fbuf = (float*)malloc((size_t)v->n * sizeof(float));
+    if (!get_var_fbuf) return 0;
+    for (int i = 0; i < v->n; i++) get_var_fbuf[i] = (float)v->f[i];
+    get_var_flen = v->n;
+    return v->n;
+}
+
+float *ks_get_var_buf(void) { return get_var_fbuf; }
+
+/* Number of values from last ks_repl call */
+int ks_repl_length(void) { return repl_n; }
+
+/* Copy repl values as floats into a caller-allocated buffer.
+   Returns number of values written. */
+int ks_repl_get_floats(float *out, int max_n) {
+    int n = repl_n < max_n ? repl_n : max_n;
+    for (int i = 0; i < n; i++) out[i] = (float)repl_vals[i];
+    return n;
+}
 
 /* Pointer to the float output buffer (valid until next ks_run call) */
 float *ks_get_buffer(void) { return ks_buf; }

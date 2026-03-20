@@ -163,7 +163,7 @@ html, body {
 
 /* editor fills remaining space in input zone */
 #editor {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 60px;
   overflow-y: auto;
 }
@@ -853,6 +853,64 @@ button, [data-pad], [data-slot] {
   text-overflow: ellipsis;
 }
 .patch-item:hover { background: var(--surface2); color: var(--accent); }
+
+/* ── vector graph popup ───────────────────────────────────────────── */
+#vec-popup {
+  display: none;
+  position: fixed;
+  z-index: 200;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  padding: 0;
+  min-width: 480px;
+  max-width: 700px;
+  width: 50vw;
+}
+#vec-popup.open { display: flex; flex-direction: column; }
+#vec-popup-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  gap: 10px;
+}
+#vec-popup-title {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  flex: 1;
+}
+#vec-popup-meta {
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--muted);
+}
+#vec-popup-close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+#vec-popup-close:hover { color: var(--text); }
+#vec-popup-canvas {
+  width: 100%;
+  height: 160px;
+  display: block;
+}
+#vec-popup-stats {
+  font-family: var(--font);
+  font-size: 10px;
+  color: var(--muted);
+  padding: 4px 12px 8px;
+  display: flex;
+  gap: 16px;
+}
 </style>
 </head>
 <body>
@@ -904,7 +962,7 @@ button, [data-pad], [data-slot] {
       <input id="repl-input" type="text" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="off" placeholder="expression…">
     </div>
     <div id="input-footer">
-      <span id="input-hint">↑↓ history · ⌃↵ run · ⌃L clear</span>
+      <span id="input-hint">↑↓ history · ⌃↵ run · ⌃L clear · \pV play var · \vV graph var</span>
       <span id="wasm-status">loading wasm…</span>
     </div>
       </div><!-- /input-zone -->
@@ -968,6 +1026,20 @@ button, [data-pad], [data-slot] {
 </div>
 
 <!-- ── Emscripten glue ───────────────────────────────────────────── -->
+
+<!-- ── vector graph popup ──────────────────────────────────────── -->
+<div id="vec-popup">
+  <div id="vec-popup-header">
+    <span id="vec-popup-title"></span>
+    <span id="vec-popup-meta"></span>
+    <button id="vec-popup-close">✕</button>
+  </div>
+  <canvas id="vec-popup-canvas"></canvas>
+  <div id="vec-popup-stats">
+    <span id="vec-popup-minmax"></span>
+    <span id="vec-popup-zero"></span>
+  </div>
+</div>
 <script src="ksynth.js"></script>
 
 <script>
@@ -1007,8 +1079,10 @@ let ks_run      = null;
 let ks_buf      = null;
 let ks_len      = null;
 let ks_err      = null;
-let ks_repl     = null;
-let ks_repl_str = null;
+let ks_repl         = null;
+let ks_repl_str     = null;
+let ks_get_var      = null;
+let ks_get_var_buf  = null;
 
 // AudioContext (lazy init on first user gesture)
 let audioCtx  = null;
@@ -1033,8 +1107,10 @@ async function initWasm() {
     ks_buf      = KS.cwrap('ks_get_buffer', 'number', []);
     ks_len      = KS.cwrap('ks_get_length', 'number', []);
     ks_err      = KS.cwrap('ks_get_error',  'string', []);
-    ks_repl     = KS.cwrap('ks_repl',       'number', ['string']);
-    ks_repl_str = KS.cwrap('ks_repl_str',   'string', []);
+    ks_repl        = KS.cwrap('ks_repl',       'number', ['string']);
+    ks_repl_str    = KS.cwrap('ks_repl_str',   'string', []);
+    ks_get_var     = KS.cwrap('ks_get_var',     'number', ['number']);
+    ks_get_var_buf = KS.cwrap('ks_get_var_buf', 'number', []);
 
     statusEl.textContent = 'wasm ready';
     statusEl.className = 'ready';
@@ -1580,6 +1656,19 @@ function runEditor() {
   const code = editor.value.trim();
   if (!code) return;
 
+  /* Handle \\pX and \\vX commands — lines starting with \\ are inspect commands */
+  const lines = code.split('\n');
+  for (const line of lines) {
+    const m = line.trim().match(/^\\\\([pv])([a-zA-Z])\s*$/);
+    if (!m) continue;
+    const [, cmd, varName] = m;
+    const f32 = window._vecGet && window._vecGet(varName.toUpperCase());
+    if (!f32) { alert(`Variable ${varName.toUpperCase()} is not set.`); return; }
+    if (cmd === 'p') { ensureAudio(); window._vecPlay(varName.toUpperCase(), f32); }
+    else              { window._vecGraph(f32, varName.toUpperCase()); }
+    return;   /* don't eval — it was a command line */
+  }
+
   ensureAudio();
   const result = evalScript(code);
   const entry  = { code, ...result, patchName: pendingPatchName };
@@ -1659,6 +1748,29 @@ document.getElementById('btn-clear').addEventListener('click', () => {
   function runRepl() {
     const expr = input.value.trim();
     if (!expr) return;
+
+    /* Intercept \pX (play) and \vX (graph) commands */
+    const m = expr.match(/^\\([pv])([a-zA-Z])$/i);
+    if (m) {
+      const cmd     = m[1].toLowerCase();
+      const varChar = m[2].toUpperCase();
+      const f32     = window._vecGet && window._vecGet(varChar);
+      if (!f32) {
+        output.textContent = '> ' + expr + '  !  variable ' + varChar + ' is not set';
+        output.className   = 'err';
+      } else if (cmd === 'p') {
+        window._vecPlay(varChar, f32);
+        output.textContent = '> ' + expr + '  =>  playing ' + varChar + ' (' + f32.length + ' samples)';
+        output.className   = 'ok';
+      } else {
+        window._vecGraph(f32, varChar);
+        output.textContent = '> ' + expr + '  =>  graphing ' + varChar;
+        output.className   = 'ok';
+      }
+      input.select();
+      return;
+    }
+
     if (!ks_repl) { output.textContent = 'wasm not ready'; output.className='err'; return; }
 
     ensureAudio();
@@ -2222,6 +2334,189 @@ function downloadWav(f32, filename) {
   });
 }());
 
+
+/* ═══════════════════════════════════════════════════════════════════
+   VECTOR INSPECT  \pV = play variable V   \vV = graph variable V
+   ═══════════════════════════════════════════════════════════════════ */
+
+(function () {
+  const popup    = document.getElementById('vec-popup');
+  const titleEl  = document.getElementById('vec-popup-title');
+  const metaEl   = document.getElementById('vec-popup-meta');
+  const canvas   = document.getElementById('vec-popup-canvas');
+  const minmaxEl = document.getElementById('vec-popup-minmax');
+  const zeroEl   = document.getElementById('vec-popup-zero');
+  const closeBtn = document.getElementById('vec-popup-close');
+
+  /* Centre popup on screen */
+  function positionPopup() {
+    popup.style.left = '50%';
+    popup.style.top  = '50%';
+    popup.style.transform = 'translate(-50%, -50%)';
+  }
+
+  function getVar(name) {
+    if (!ks_get_var || !KS) return null;
+    const upper = name.toUpperCase().charCodeAt(0);
+    const n = ks_get_var(upper);
+    if (n <= 0) return null;
+    const ptr = ks_get_var_buf();
+    /* ks_get_var_buf returns a float* — use HEAPF32 */
+    return new Float32Array(KS.HEAPF32.buffer, ptr, n).slice();
+  }
+
+  function drawGraph(f32, varName) {
+    titleEl.textContent = varName;
+    const n  = f32.length;
+    const sr = 44100;
+    const ms = (n / sr * 1000).toFixed(1);
+    metaEl.textContent  = `${n} samples  ·  ${ms} ms`;
+
+    let mn = Infinity, mx = -Infinity;
+    for (let i = 0; i < n; i++) {
+      if (f32[i] < mn) mn = f32[i];
+      if (f32[i] > mx) mx = f32[i];
+    }
+
+    const hasZero = mn <= 0 && mx >= 0;
+    minmaxEl.textContent = `min ${mn.toPrecision(4)}  ·  max ${mx.toPrecision(4)}`;
+    zeroEl.textContent   = hasZero ? 'zero crossing present' : 'no zero crossing';
+
+    /* Draw */
+    positionPopup();
+    popup.classList.add('open');
+
+    requestAnimationFrame(() => {
+      const W = canvas.offsetWidth;
+      const H = canvas.offsetHeight;
+      canvas.width  = W;
+      canvas.height = H;
+      const ctx = canvas.getContext('2d');
+
+      /* Background */
+      const bg = getComputedStyle(document.documentElement)
+        .getPropertyValue('--bg').trim() || '#111';
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      /* Determine scale: use full range if non-audio, else ±1 */
+      const isAudio = mx <= 1.05 && mn >= -1.05;
+      const scaleMax = isAudio ? 1.0 : Math.max(Math.abs(mn), Math.abs(mx), 1e-9);
+      const scaleMin = isAudio ? -1.0 : -scaleMax;
+      const range    = scaleMax - scaleMin;
+
+      function yFor(v) {
+        return H - ((v - scaleMin) / range) * H;
+      }
+
+      /* Zero line */
+      const accent = getComputedStyle(document.documentElement)
+        .getPropertyValue('--border2').trim() || '#333';
+      ctx.strokeStyle = accent;
+      ctx.lineWidth   = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      const y0 = yFor(0);
+      ctx.moveTo(0, y0); ctx.lineTo(W, y0);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      /* Min/max guide lines */
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 0.5;
+      ctx.setLineDash([2, 6]);
+      [mn, mx].forEach(v => {
+        ctx.beginPath();
+        const y = yFor(v);
+        ctx.moveTo(0, y); ctx.lineTo(W, y);
+        ctx.stroke();
+      });
+      ctx.setLineDash([]);
+
+      /* Waveform */
+      const wave = getComputedStyle(document.documentElement)
+        .getPropertyValue('--accent').trim() || '#3fb854';
+      ctx.strokeStyle = wave;
+      ctx.lineWidth   = 1.5;
+      ctx.beginPath();
+      for (let px = 0; px < W; px++) {
+        const si = Math.floor(px / W * n);
+        const y  = yFor(f32[Math.min(si, n - 1)]);
+        if (px === 0) ctx.moveTo(px, y);
+        else          ctx.lineTo(px, y);
+      }
+      ctx.stroke();
+
+      /* Min/max labels */
+      ctx.fillStyle = accent;
+      ctx.font = '9px monospace';
+      ctx.fillText(mx.toPrecision(3), 4, yFor(mx) - 3);
+      ctx.fillText(mn.toPrecision(3), 4, yFor(mn) + 11);
+      ctx.fillText('0', 4, y0 - 3);
+    });
+  }
+
+  function playVar(varName, f32) {
+    ensureAudio();
+    /* Scale to ±1 if needed */
+    let mx = 0;
+    for (let i = 0; i < f32.length; i++) if (Math.abs(f32[i]) > mx) mx = Math.abs(f32[i]);
+    const scale = (mx > 1e-9 && mx > 1.0) ? 1.0 / mx : 1.0;
+
+    const abuf  = audioCtx.createBuffer(1, f32.length, SR);
+    const ch    = abuf.getChannelData(0);
+    for (let i = 0; i < f32.length; i++) ch[i] = f32[i] * scale;
+
+    const src2 = audioCtx.createBufferSource();
+    src2.buffer = abuf;
+    src2.connect(limiter._input);
+    src2.start();
+  }
+
+  closeBtn.addEventListener('click', () => popup.classList.remove('open'));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') popup.classList.remove('open');
+  });
+
+  /* Expose to runEditor's \pV / \vV dispatch */
+  window._vecGet   = getVar;
+  window._vecPlay  = playVar;
+  window._vecGraph = drawGraph;
+
+  /* Intercept \pX and \vX in the editor keydown */
+  document.getElementById('editor').addEventListener('keydown', e => {
+    if (e.key !== '\\') return;
+    /* Check the char just before cursor */
+    const ed  = e.target;
+    const pos = ed.selectionStart;
+    /* We need to wait for the backslash to be inserted, then check next char */
+    /* Instead, watch for the full two-char sequence on input event */
+  });
+
+  /* Watch for \pX or \vX typed in the editor (X = variable letter) */
+  document.getElementById('editor').addEventListener('input', e => {
+    const ed  = e.target;
+    const pos = ed.selectionStart;
+    if (pos < 3) return;
+    const three = ed.value.slice(pos - 3, pos);
+    if (three[0] !== '\\') return;
+    const cmd     = three[1].toLowerCase();
+    const varChar = three[2].toUpperCase();
+    if ((cmd !== 'p' && cmd !== 'v') || !/[A-Z]/.test(varChar)) return;
+
+    /* Remove the \cmdX from the editor */
+    ed.value = ed.value.slice(0, pos - 3) + ed.value.slice(pos);
+    ed.selectionStart = ed.selectionEnd = pos - 3;
+
+    const f32 = getVar(varChar);
+    if (!f32) { alert(`Variable ${varChar} is empty or not set.`); return; }
+
+    if (cmd === 'p') playVar(varChar, f32);
+    else             drawGraph(f32, varChar);
+  });
+
+}());
+
 /* ═══════════════════════════════════════════════════════════════════
    RESIZABLE SPLIT (desktop)
    ═══════════════════════════════════════════════════════════════════ */
@@ -2279,7 +2574,6 @@ renderSlotStrip();
 initWasm();
 editor.focus();
 </script>
+
 </body>
 </html>
-```
-
