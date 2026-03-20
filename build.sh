@@ -16,6 +16,8 @@ set -e
 EXPORTED_FUNCTIONS='[
   "_ks_init",
   "_ks_run",
+  "_ks_repl",
+  "_ks_repl_str",
   "_ks_get_buffer",
   "_ks_get_length",
   "_ks_get_error"

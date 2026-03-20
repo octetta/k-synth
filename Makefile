@@ -1,4 +1,4 @@
-CC = zig cc
+CC := zig cc
 CFLAGS = -O3 -Wall
 LDFLAGS = -lm
 

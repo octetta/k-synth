@@ -6,7 +6,10 @@
 #include <wchar.h>
 #include "ksynth.h"
 #include "miniaudio.h"
+#ifdef _WIN32
+#else
 #include "bestline.h"
+#endif
 
 #define MAX_VOICES 8  // Maximum simultaneous playback voices
 
