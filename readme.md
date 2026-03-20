@@ -18,6 +18,29 @@ Sound is a vector. A kick drum is a vector. A two-second bell tone is a vector. 
 
 **`W` is the output** — every script must set `W: w ...` to produce audio.
 
+**`p` constants** — `p0` = 44100 (sample rate). `pN` = N×π for N≥1. So `p1` = π, `p2` = 2π, `p3` = 3π, etc. Since `p` is a verb it applies element-wise: `p 2` = 2π, `p !4` = `[44100, π, 2π, 3π]`.
+
+The idiom `p2%p0` = 2π/44100 — the per-sample radian increment for 1 Hz — is the cleanest way to express the phase accumulator constant:
+
+```
+C: p2%p0               / 2π / 44100
+P: +\(N#(440*C))       / phase ramp for 440 Hz over N samples
+```
+
+**User-defined functions** — `{ expression }` defines a function. Inside, `x` is the first argument and `y` is the second. Call with `arg1 FuncVar arg2` for two arguments or `FuncVar arg` for one.
+
+The phase accumulator as a reusable function:
+
+```
+C: p2%p0
+X: { +\(x#(y*C)) }    / x = n_samples, y = freq_hz
+P: N X 440             / phase ramp for 440 Hz
+Q: N X 445             / phase ramp for 445 Hz — 5 Hz beating with P
+R: N X 227             / slightly detuned octave below
+```
+
+Functions eliminate repetition in multi-voice scripts and make the intent readable. Define the function once, call it for each voice.
+
 ---
 
 ## quick start
@@ -26,7 +49,7 @@ Sound is a vector. A kick drum is a vector. A two-second bell tone is a vector. 
 / sine wave, 1 second, 440 Hz
 N: 44100
 T: !N
-W: w s +\(N#(440*(6.28318%44100)))
+W: w s +\(N#(440*(p2%p0)))
 ```
 
 Press `Ctrl+Enter` to run. A cell appears in the notebook with a waveform. Click `→0` to bank to slot 0. Click the slot to play it.
@@ -44,7 +67,7 @@ Build tables using the phase accumulator pattern, using a separate variable for 
 ```
 / sine at 440 Hz for 2 seconds
 N: 1024
-P: +\(N#(6.28318%N))
+P: +\(N#(p2%N))
 T: s P
 D: 88200
 W: w T t 440 D
@@ -80,12 +103,12 @@ W: w T t 220 D
 ```
 / FM wavetable at MIDI note 69 (A4) for 2 seconds
 N: 1024
-P: +\(N#(6.28318%N))
+P: +\(N#(p2%N))
 I: 2.5
 T: s P+(I*s P)
-M: 69
+M: n69          / MIDI note 69 = 440 Hz; assign to M so "T t M D" works
 D: 88200
-W: w T t (nM) D
+W: w T t M D
 ```
 
 Monadic `t` remains `tan`.
@@ -98,7 +121,7 @@ The phase accumulator pattern `+\(N#F)` where `F` is a per-sample phase incremen
 / sawtooth at 220 Hz, 1 second (via harmonic sum)
 N: 44100
 T: !N
-F: 220*(6.28318%44100)
+F: 220*(p2%p0)
 P: +\(N#F)
 H: 1 0.5 0.333 0.25 0.2 0.167
 W: w P $ H
@@ -114,8 +137,8 @@ N: 88200
 T: !N
 A: e(T*(0-3%N))
 I: 3.5*e(T*(0-40%N))
-C: 440*(6.28318%44100)
-M: 440*(6.28318%44100)
+C: 440*(p2%p0)
+M: 440*(p2%p0)
 P: +\(N#C)
 Q: +\(N#M)
 W: w A*(s P+(I*s Q))
@@ -147,7 +170,7 @@ W: w P $ A
 N: 88200
 T: !N
 A: e(T*(0-3%N))
-P: +\(N#(440*(6.28318%44100)))
+P: +\(N#(440*(p2%p0)))
 W: w A*s P
 ```
 
@@ -159,7 +182,7 @@ Adjust the `3` to taste — larger decays faster, smaller lingers longer. At `k=
 N: 44100
 T: !N
 A: T*e(T*(0-8%N))
-P: +\(N#(180*(6.28318%44100)))
+P: +\(N#(180*(p2%p0)))
 W: w A*s P
 ```
 
@@ -172,8 +195,8 @@ N: 88200
 T: !N
 A: e(T*(0-3%N))
 I: 3.5*e(T*(0-40%N))
-C: 440*(6.28318%44100)
-M: 440*(6.28318%44100)
+C: 440*(p2%p0)
+M: 440*(p2%p0)
 P: +\(N#C)
 Q: +\(N#M)
 W: w A*(s P+(I*s Q))
@@ -187,19 +210,19 @@ W: w A*(s P+(I*s Q))
 N: 44100
 T: !N
 A: T*e(T*(0-5%N))
-P: +\(N#(220*(6.28318%44100)))
+P: +\(N#(220*(p2%p0)))
 W: w d A*s P
 ```
 
 ### filters
 
-Two Chamberlin state-variable lowpass filters — same topology, different cutoff convention.
+Two Chamberlin-derived lowpass filters — same topology, different cutoff convention.
 
 **`f` — normalised coefficient**
 
-`ct f signal` — cutoff `ct` is a coefficient 0.0–0.95. Approximate mapping: 0.05 ≈ 350 Hz, 0.1 ≈ 700 Hz, 0.2 ≈ 1.4 kHz, 0.4 ≈ 3 kHz, 0.7 ≈ 6.5 kHz. Optional resonance as second parameter: `0.2 1.5 f signal`. Resonance 0–3.9; above ~3.5 approaches self-oscillation. A cutoff vector the same length as the signal gives a time-varying filter.
+`ct f signal` — cutoff `ct` is a coefficient 0.0–0.95. Approximate mapping: 0.05 ≈ 350 Hz, 0.1 ≈ 700 Hz, 0.2 ≈ 1.4 kHz, 0.4 ≈ 3 kHz, 0.7 ≈ 6.5 kHz.
 
-Subtract the lowpass from the original for highpass. Subtract two lowpass results for bandpass.
+Optional resonance as second parameter: `0.2 1.5 f signal`. Resonance 0–3.9. Note: the resonance feedback is from the lowpass tap rather than the bandpass tap, so it produces a broad shelf boost near cutoff rather than a sharp resonant peak — stable and musical, not Moog-style self-oscillation.
 
 **`g` — Hz input**
 
@@ -209,8 +232,31 @@ Subtract the lowpass from the original for highpass. Subtract two lowpass result
 N: 44100
 T: !N
 / LFO sweeping cutoff 200–1200 Hz at 3 Hz
-L: 700+(500*s +\(N#(3*(6.28318%N))))
+L: 700+(500*s +\(N#(3*(p2%N))))
 W: w L g r T
+```
+
+**Highpass and bandpass**
+
+Highpass — subtract the lowpass from the signal. Clean at zero resonance. With resonance, `signal - L` develops a shelf artefact near cutoff — usable but not a true resonant highpass:
+
+```
+N: 44100
+T: !N
+R: r T
+L: 0.1 f R
+W: w R-L
+```
+
+Bandpass — subtract two lowpass filters at different cutoffs. Works correctly at any resonance:
+
+```
+N: 44100
+T: !N
+R: r T
+H: 0.4 f R      / lowpass ~3 kHz
+L: 0.05 f R     / lowpass ~350 Hz
+W: w H-L        / band between them
 ```
 
 Use `f` when working with normalised coefficients. Use `g` when thinking in Hz.
@@ -224,7 +270,7 @@ Use `f` when working with normalised coefficients. Use `g` when thinking in Hz.
 N: 13230
 T: !N
 F: 50+91*e(T*(0-60%N))
-P: +\(N#(F*(6.28318%44100)))
+P: +\(N#(F*(p2%p0)))
 S: (s P)*e(T*(0-6.9%N))
 R: 0.5 f r T
 E: e(T*(0-40%N))
@@ -241,11 +287,93 @@ Z: K,K,S,K,K,S,K,K,S,C,C,C,O,S,S
 
 ### feedback delay
 
-`[d g] y signal` — feedback delay of `d` samples with gain `g`. Values near 1.0 give resonant comb filtering.
+`[d g] y signal` — feedback delay of `d` samples with gain `g`. Each output sample is `signal[i] + g * output[i-d]`. The output is the same length as the input.
+
+**Pitched metallic noise** — white noise through a comb filter resonates strongly at the frequency matching the delay period and its harmonics. Delay of `SR/freq` samples tunes the resonance:
+
+```
+N: 44100
+T: !N
+R: r T
+W: w 100 0.9 y R      / comb resonance at ~441 Hz
+```
+
+Change `100` to `200` for ~220 Hz, `50` for ~882 Hz. Higher gain = stronger resonance and more metallic character.
+
+**Echo on a decaying sound** — the echo is only audible as a distinct repeat when the source has decayed before the delayed copy arrives. A bell with a 300ms echo:
+
+```
+N: 88200
+T: !N
+C: p2%p0
+A: e(T*(0-4%N))
+I: 3.5*e(T*(0-40%N))
+P: +\(N#(440*C))
+Q: +\(N#(440*C))
+S: A*(s P+(I*s Q))
+W: w 13230 0.5 y S    / 300ms echo at 50% level
+```
+
+**Resonant frequency boost** — when the delay exactly matches the period of the input frequency, each feedback cycle arrives perfectly in phase and the amplitude builds dramatically:
+
+```
+N: 44100
+T: !N
+C: p2%p0
+S: s +\(N#(220*C))
+W: w 200 0.9 y S      / delay=200 = one period of 220 Hz, strong resonance
+```
 
 ### convolution
 
-`A z B` — convolves two vectors. Design FIR filters or apply impulse responses.
+`A z B` — convolves vectors `A` and `B`. Output length is `A.length + B.length - 1`. Convolution multiplies the frequency spectra of the two inputs — useful for FIR filtering and applying impulse responses.
+
+**FIR lowpass** — convolving with a box kernel (equal weights summing to 1) smooths the signal. Longer kernel = lower cutoff:
+
+```
+N: 44100
+T: !N
+R: r T
+B: 8#(1%8)            / 8-tap box filter, each coefficient = 1/8
+W: w R z B
+```
+
+**Convolution reverb** — convolves a signal with an impulse response to apply a synthetic room character. The output is the full reverberated signal — there is no dry component. Scale the source down to avoid clipping, since convolution sums many overlapping contributions:
+
+```
+N: 44100
+T: !N
+C: p2%p0
+/ FM bell, scaled down to avoid clipping after convolution
+A: 0.3*e(T*(0-3%N))
+I: 3.5*e(T*(0-40%N))
+P: +\(N#(440*C))
+Q: +\(N#(440*C))
+S: A*(s P+(I*s Q))
+/ 0.3 second impulse response — rises then decays (more room-like than plain exp decay)
+K: 13230
+J: !K
+V: (J%K)*e(J*(0-8%K))*r J
+/ convolve — output is ~1.3 seconds of reverberated bell
+W: w S z V
+```
+
+**Spectral multiplication** — convolving two periodic signals multiplies their spectra, creating a tone with the combined harmonic content of both. Keep the second signal short or the output will be very long:
+
+```
+N: 44100
+T: !N
+C: p2%p0
+/ sawtooth (rich harmonics) convolved with a short filtered tone
+P: +\(N#(220*C))
+H: 1 0.5 0.333 0.25 0.2
+S: P $ H                  / sawtooth via harmonic sum
+K: 2205                   / short second signal (50ms)
+J: !K
+/ resonant tone at 660 Hz
+Q: e(J*(0-10%K))*s +\(K#(660*C))
+W: w S z Q
+```
 
 ---
 

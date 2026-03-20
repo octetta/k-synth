@@ -424,14 +424,21 @@ K dy(char c, K a, K b) {
         k_free(a); k_free(b); return x;
     }
 
-    /* f : Chamberlin state-variable lowpass filter
+    /* f : two-pole lowpass filter (Chamberlin simplified / cascaded one-pole)
      * a = [cutoff]  or  [cutoff resonance]
      *   cutoff    — normalised coefficient 0.0–0.95 (not Hz)
      *               approx: ct ≈ 2*sin(π*freq/SR) for freq << SR/2
      *               e.g. 0.1 ≈ 700 Hz, 0.3 ≈ 2.2 kHz, 0.7 ≈ 6.5 kHz
-     *   resonance — 0.0 (none) to ~3.9 (near self-oscillation), default 0
+     *   resonance — 0.0 (none) to ~3.9 (near instability), default 0
+     *               feedback is from the LP tap (b1), not the BP tap (b0)
+     *               this gives a gentle shelf boost near cutoff rather than
+     *               a sharp resonant peak — stable and musical, not Moog-style
      * b = signal vector
-     * output = lowpass tap; subtract from input for highpass, use b0 for bandpass
+     *
+     * Derived outputs in ksynth script:
+     *   highpass (rs=0 only): HP: signal - (ct f signal)  — clean at zero resonance
+     *                         with resonance: signal-LP has shelf artefacts, use with care
+     *   bandpass: (hi f signal) - (lo f signal)  — works correctly at any resonance
      * usage: 0.2 f signal   or   0.2 1.5 f signal
      */
     if (c == 'f') {
@@ -643,7 +650,35 @@ K atom(char **s) {
         return x;
     }
 
-    if (c >= 'A' && c <= 'Z') return k_get(c);
+    if (c >= 'A' && c <= 'Z') {
+        K first = k_get(c);
+        if (!first || first->n != 1) return first;
+        /* K convention: scalar variables separated by spaces form a vector.
+         * "M D" where M=440 D=88200 gives [440, 88200]. Same rule as numerics. */
+        double buf[1024];
+        int n = 0;
+        buf[n++] = first->f[0];
+        k_free(first);
+        char *ptr = *s;
+        while (n < 1024) {
+            char *peek = ptr;
+            while (*peek == ' ') peek++;
+            if (peek == ptr) break;                    /* no space — stop */
+            if (*peek < 'A' || *peek > 'Z') break;    /* not a variable — stop */
+            if (peek[1] == ':') break;                 /* assignment target — stop */
+            K v = vars[*peek - 'A'];
+            if (!v || v->n != 1) break;               /* not a scalar — stop */
+            buf[n++] = v->f[0];
+            ptr = peek + 1;
+        }
+        *s = ptr;
+        if (n == 1) {
+            K x = k_new(1); x->f[0] = buf[0]; return x;
+        }
+        K x = k_new(n);
+        memcpy(x->f, buf, n * sizeof(double));
+        return x;
+    }
 
     if (c == 'x') return args[0] ? (args[0]->r++, args[0]) : k_new(0);
     if (c == 'y') return args[1] ? (args[1]->r++, args[1]) : k_new(0);

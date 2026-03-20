@@ -57,12 +57,26 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <p><strong>Right-associativity</strong> — expressions evaluate right to left.</p>
 <p><strong>Vectorised verbs</strong> — math applied to entire buffers at once.</p>
 <p><strong><code>W</code> is the output</strong> — every script must set <code>W: w ...</code> to produce audio.</p>
+<p><strong><code>p</code> constants</strong> — <code>p0</code> = 44100 (sample rate). <code>pN</code> = N×π for N≥1. So <code>p1</code> = π, <code>p2</code> = 2π, <code>p3</code> = 3π, etc. Since <code>p</code> is a verb it applies element-wise: <code>p 2</code> = 2π, <code>p !4</code> = <code>[44100, π, 2π, 3π]</code>.</p>
+<p>The idiom <code>p2%p0</code> = 2π/44100 — the per-sample radian increment for 1 Hz — is the cleanest way to express the phase accumulator constant:</p>
+<pre><code>C: p2%p0               / 2π / 44100
+P: +\(N#(440*C))       / phase ramp for 440 Hz over N samples
+</code></pre>
+<p><strong>User-defined functions</strong> — <code>{ expression }</code> defines a function. Inside, <code>x</code> is the first argument and <code>y</code> is the second. Call with <code>arg1 FuncVar arg2</code> for two arguments or <code>FuncVar arg</code> for one.</p>
+<p>The phase accumulator as a reusable function:</p>
+<pre><code>C: p2%p0
+X: { +\(x#(y*C)) }    / x = n_samples, y = freq_hz
+P: N X 440             / phase ramp for 440 Hz
+Q: N X 445             / phase ramp for 445 Hz — 5 Hz beating with P
+R: N X 227             / slightly detuned octave below
+</code></pre>
+<p>Functions eliminate repetition in multi-voice scripts and make the intent readable. Define the function once, call it for each voice.</p>
 <hr>
 <h2 id="quick-start">quick start</h2>
 <pre><code>/ sine wave, 1 second, 440 Hz
 N: 44100
 T: !N
-W: w s +\(N#(440*(6.28318%44100)))
+W: w s +\(N#(440*(p2%p0)))
 </code></pre>
 <p>Press <code>Ctrl+Enter</code> to run. A cell appears in the notebook with a waveform. Click <code>→0</code> to bank to slot 0. Click the slot to play it.</p>
 <hr>
@@ -72,7 +86,7 @@ W: w s +\(N#(440*(6.28318%44100)))
 <p>Build tables using the phase accumulator pattern, using a separate variable for table size vs output duration:</p>
 <pre><code>/ sine at 440 Hz for 2 seconds
 N: 1024
-P: +\(N#(6.28318%N))
+P: +\(N#(p2%N))
 T: s P
 D: 88200
 W: w T t 440 D
@@ -100,12 +114,12 @@ W: w T t 220 D
 </code></pre>
 <pre><code>/ FM wavetable at MIDI note 69 (A4) for 2 seconds
 N: 1024
-P: +\(N#(6.28318%N))
+P: +\(N#(p2%N))
 I: 2.5
 T: s P+(I*s P)
-M: 69
+M: n69          / MIDI note 69 = 440 Hz; assign to M so &quot;T t M D&quot; works
 D: 88200
-W: w T t (nM) D
+W: w T t M D
 </code></pre>
 <p>Monadic <code>t</code> remains <code>tan</code>.</p>
 <h3 id="oscillators">oscillators</h3>
@@ -113,7 +127,7 @@ W: w T t (nM) D
 <pre><code>/ sawtooth at 220 Hz, 1 second (via harmonic sum)
 N: 44100
 T: !N
-F: 220*(6.28318%44100)
+F: 220*(p2%p0)
 P: +\(N#F)
 H: 1 0.5 0.333 0.25 0.2 0.167
 W: w P $ H
@@ -125,8 +139,8 @@ N: 88200
 T: !N
 A: e(T*(0-3%N))
 I: 3.5*e(T*(0-40%N))
-C: 440*(6.28318%44100)
-M: 440*(6.28318%44100)
+C: 440*(p2%p0)
+M: 440*(p2%p0)
 P: +\(N#C)
 Q: +\(N#M)
 W: w A*(s P+(I*s Q))
@@ -148,7 +162,7 @@ W: w P $ A
 <pre><code>N: 88200
 T: !N
 A: e(T*(0-3%N))
-P: +\(N#(440*(6.28318%44100)))
+P: +\(N#(440*(p2%p0)))
 W: w A*s P
 </code></pre>
 <p>Adjust the <code>3</code> to taste — larger decays faster, smaller lingers longer. At <code>k=1</code> the decay is very slow; at <code>k=10</code> it's a short pluck.</p>
@@ -156,7 +170,7 @@ W: w A*s P
 <pre><code>N: 44100
 T: !N
 A: T*e(T*(0-8%N))
-P: +\(N#(180*(6.28318%44100)))
+P: +\(N#(180*(p2%p0)))
 W: w A*s P
 </code></pre>
 <p>The peak lands at sample <code>N/k</code> — here <code>44100/8</code> ≈ 5500 samples ≈ 125ms in. Good for kick and tom shapes.</p>
@@ -165,8 +179,8 @@ W: w A*s P
 T: !N
 A: e(T*(0-3%N))
 I: 3.5*e(T*(0-40%N))
-C: 440*(6.28318%44100)
-M: 440*(6.28318%44100)
+C: 440*(p2%p0)
+M: 440*(p2%p0)
 P: +\(N#C)
 Q: +\(N#M)
 W: w A*(s P+(I*s Q))
@@ -176,21 +190,37 @@ W: w A*(s P+(I*s Q))
 <pre><code>N: 44100
 T: !N
 A: T*e(T*(0-5%N))
-P: +\(N#(220*(6.28318%44100)))
+P: +\(N#(220*(p2%p0)))
 W: w d A*s P
 </code></pre>
 <h3 id="filters">filters</h3>
-<p>Two Chamberlin state-variable lowpass filters — same topology, different cutoff convention.</p>
+<p>Two Chamberlin-derived lowpass filters — same topology, different cutoff convention.</p>
 <p><strong><code>f</code> — normalised coefficient</strong></p>
-<p><code>ct f signal</code> — cutoff <code>ct</code> is a coefficient 0.0–0.95. Approximate mapping: 0.05 ≈ 350 Hz, 0.1 ≈ 700 Hz, 0.2 ≈ 1.4 kHz, 0.4 ≈ 3 kHz, 0.7 ≈ 6.5 kHz. Optional resonance as second parameter: <code>0.2 1.5 f signal</code>. Resonance 0–3.9; above ~3.5 approaches self-oscillation. A cutoff vector the same length as the signal gives a time-varying filter.</p>
-<p>Subtract the lowpass from the original for highpass. Subtract two lowpass results for bandpass.</p>
+<p><code>ct f signal</code> — cutoff <code>ct</code> is a coefficient 0.0–0.95. Approximate mapping: 0.05 ≈ 350 Hz, 0.1 ≈ 700 Hz, 0.2 ≈ 1.4 kHz, 0.4 ≈ 3 kHz, 0.7 ≈ 6.5 kHz.</p>
+<p>Optional resonance as second parameter: <code>0.2 1.5 f signal</code>. Resonance 0–3.9. Note: the resonance feedback is from the lowpass tap rather than the bandpass tap, so it produces a broad shelf boost near cutoff rather than a sharp resonant peak — stable and musical, not Moog-style self-oscillation.</p>
 <p><strong><code>g</code> — Hz input</strong></p>
 <p><code>freq_hz g signal</code> — same filter, cutoff in Hz directly. Optional resonance: <code>800 2.0 g signal</code>. Accepts a modulation vector for swept cutoff:</p>
 <pre><code>N: 44100
 T: !N
 / LFO sweeping cutoff 200–1200 Hz at 3 Hz
-L: 700+(500*s +\(N#(3*(6.28318%N))))
+L: 700+(500*s +\(N#(3*(p2%N))))
 W: w L g r T
+</code></pre>
+<p><strong>Highpass and bandpass</strong></p>
+<p>Highpass — subtract the lowpass from the signal. Clean at zero resonance. With resonance, <code>signal - L</code> develops a shelf artefact near cutoff — usable but not a true resonant highpass:</p>
+<pre><code>N: 44100
+T: !N
+R: r T
+L: 0.1 f R
+W: w R-L
+</code></pre>
+<p>Bandpass — subtract two lowpass filters at different cutoffs. Works correctly at any resonance:</p>
+<pre><code>N: 44100
+T: !N
+R: r T
+H: 0.4 f R      / lowpass ~3 kHz
+L: 0.05 f R     / lowpass ~350 Hz
+W: w H-L        / band between them
 </code></pre>
 <p>Use <code>f</code> when working with normalised coefficients. Use <code>g</code> when thinking in Hz.</p>
 <h3 id="noise-and-percussion">noise and percussion</h3>
@@ -199,7 +229,7 @@ W: w L g r T
 N: 13230
 T: !N
 F: 50+91*e(T*(0-60%N))
-P: +\(N#(F*(6.28318%44100)))
+P: +\(N#(F*(p2%p0)))
 S: (s P)*e(T*(0-6.9%N))
 R: 0.5 f r T
 E: e(T*(0-40%N))
@@ -210,9 +240,72 @@ W: w (S+(R*E))
 <pre><code>Z: K,K,S,K,K,S,K,K,S,C,C,C,O,S,S
 </code></pre>
 <h3 id="feedback-delay">feedback delay</h3>
-<p><code>[d g] y signal</code> — feedback delay of <code>d</code> samples with gain <code>g</code>. Values near 1.0 give resonant comb filtering.</p>
+<p><code>[d g] y signal</code> — feedback delay of <code>d</code> samples with gain <code>g</code>. Each output sample is <code>signal[i] + g * output[i-d]</code>. The output is the same length as the input.</p>
+<p><strong>Pitched metallic noise</strong> — white noise through a comb filter resonates strongly at the frequency matching the delay period and its harmonics. Delay of <code>SR/freq</code> samples tunes the resonance:</p>
+<pre><code>N: 44100
+T: !N
+R: r T
+W: w 100 0.9 y R      / comb resonance at ~441 Hz
+</code></pre>
+<p>Change <code>100</code> to <code>200</code> for ~220 Hz, <code>50</code> for ~882 Hz. Higher gain = stronger resonance and more metallic character.</p>
+<p><strong>Echo on a decaying sound</strong> — the echo is only audible as a distinct repeat when the source has decayed before the delayed copy arrives. A bell with a 300ms echo:</p>
+<pre><code>N: 88200
+T: !N
+C: p2%p0
+A: e(T*(0-4%N))
+I: 3.5*e(T*(0-40%N))
+P: +\(N#(440*C))
+Q: +\(N#(440*C))
+S: A*(s P+(I*s Q))
+W: w 13230 0.5 y S    / 300ms echo at 50% level
+</code></pre>
+<p><strong>Resonant frequency boost</strong> — when the delay exactly matches the period of the input frequency, each feedback cycle arrives perfectly in phase and the amplitude builds dramatically:</p>
+<pre><code>N: 44100
+T: !N
+C: p2%p0
+S: s +\(N#(220*C))
+W: w 200 0.9 y S      / delay=200 = one period of 220 Hz, strong resonance
+</code></pre>
 <h3 id="convolution">convolution</h3>
-<p><code>A z B</code> — convolves two vectors. Design FIR filters or apply impulse responses.</p>
+<p><code>A z B</code> — convolves vectors <code>A</code> and <code>B</code>. Output length is <code>A.length + B.length - 1</code>. Convolution multiplies the frequency spectra of the two inputs — useful for FIR filtering and applying impulse responses.</p>
+<p><strong>FIR lowpass</strong> — convolving with a box kernel (equal weights summing to 1) smooths the signal. Longer kernel = lower cutoff:</p>
+<pre><code>N: 44100
+T: !N
+R: r T
+B: 8#(1%8)            / 8-tap box filter, each coefficient = 1/8
+W: w R z B
+</code></pre>
+<p><strong>Convolution reverb</strong> — convolves a signal with an impulse response to apply a synthetic room character. The output is the full reverberated signal — there is no dry component. Scale the source down to avoid clipping, since convolution sums many overlapping contributions:</p>
+<pre><code>N: 44100
+T: !N
+C: p2%p0
+/ FM bell, scaled down to avoid clipping after convolution
+A: 0.3*e(T*(0-3%N))
+I: 3.5*e(T*(0-40%N))
+P: +\(N#(440*C))
+Q: +\(N#(440*C))
+S: A*(s P+(I*s Q))
+/ 0.3 second impulse response — rises then decays (more room-like than plain exp decay)
+K: 13230
+J: !K
+V: (J%K)*e(J*(0-8%K))*r J
+/ convolve — output is ~1.3 seconds of reverberated bell
+W: w S z V
+</code></pre>
+<p><strong>Spectral multiplication</strong> — convolving two periodic signals multiplies their spectra, creating a tone with the combined harmonic content of both. Keep the second signal short or the output will be very long:</p>
+<pre><code>N: 44100
+T: !N
+C: p2%p0
+/ sawtooth (rich harmonics) convolved with a short filtered tone
+P: +\(N#(220*C))
+H: 1 0.5 0.333 0.25 0.2
+S: P $ H                  / sawtooth via harmonic sum
+K: 2205                   / short second signal (50ms)
+J: !K
+/ resonant tone at 660 Hz
+Q: e(J*(0-10%K))*s +\(K#(660*C))
+W: w S z Q
+</code></pre>
 <hr>
 <h2 id="inspect-commands">inspect commands</h2>
 <p>In the editor or REPL, type and press Enter:</p>
