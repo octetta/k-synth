@@ -466,7 +466,7 @@ html, body {
 .nb-cell-header:hover .nb-del-btn { opacity: 1; }
 .nb-del-btn:hover { color: var(--error); opacity: 1; }
 
-#btn-save, #btn-load, #btn-patches, #btn-theme, #btn-guide, #btn-readme, #btn-pad, #btn-fix {
+#btn-save, #btn-load, #btn-patches, #btn-theme, #btn-guide, #btn-readme, #btn-reference, #btn-pad, #btn-fix {
   background: transparent;
   border: 1px solid var(--border2);
   border-radius: var(--radius);
@@ -478,7 +478,7 @@ html, body {
   flex-shrink: 0;
   white-space: nowrap;
 }
-#btn-save:hover, #btn-load:hover, #btn-patches:hover, #btn-theme:hover, #btn-guide:hover, #btn-readme:hover, #btn-pad:hover, #btn-fix:hover { border-color: var(--text); color: var(--text); }
+#btn-save:hover, #btn-load:hover, #btn-patches:hover, #btn-theme:hover, #btn-guide:hover, #btn-readme:hover, #btn-reference:hover, #btn-pad:hover, #btn-fix:hover { border-color: var(--text); color: var(--text); }
 #btn-pad.active { border-color: var(--accent); color: var(--accent); }
 
 #input-meta {
@@ -949,6 +949,7 @@ button, [data-pad], [data-slot] {
       <button id="btn-theme">retro</button>
       <button id="btn-guide">guide</button>
       <button id="btn-readme">readme</button>
+      <button id="btn-reference">reference</button>
     </div>
     <textarea id="editor"
       xplaceholder="N: 4410&#10;T: !N&#10;W: w s +\(N#(440*(6.28318%44100)))"
@@ -2032,6 +2033,9 @@ document.addEventListener('keydown', e => {
   });
   document.getElementById('btn-readme').addEventListener('click', () => {
     window.open('readme.html', '_blank');
+  });
+  document.getElementById('btn-reference').addEventListener('click', () => {
+    window.open('reference.html', '_blank');
   });
 }());
 

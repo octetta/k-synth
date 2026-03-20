@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ksynth — verb reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="retro"]{--bg:#0e1116;--surface:#161b22;--surface2:#1c2128;--border:#21262d;--border2:#30363d;--text:#e6edf3;--muted:#7d8590;--accent:#3fb950;--accent-dim:#1a3a1f;--error:#f85149;--error-dim:#3a1a1a;--warn:#d29922;--font:'JetBrains Mono','Cascadia Code','Fira Mono',monospace;--radius:4px}
+[data-theme="dark"]{--bg:#1a1a2e;--surface:#16213e;--surface2:#0f3460;--border:#1a2a4a;--border2:#2a3a5a;--text:#e0e0ff;--muted:#8888bb;--accent:#e94560;--accent-dim:#3a0f1a;--error:#ff6b6b;--error-dim:#3a1a1a;--warn:#ffa500;--font:'JetBrains Mono','Cascadia Code','Fira Mono',monospace;--radius:4px}
+[data-theme="light"]{--bg:#f5f5f0;--surface:#ffffff;--surface2:#ebebeb;--border:#d0d0c8;--border2:#b8b8b0;--text:#1a1a1a;--muted:#666660;--accent:#0070f3;--accent-dim:#ddeeff;--error:#cc0000;--error-dim:#ffeeee;--warn:#996600;--font:'JetBrains Mono','Cascadia Code','Fira Mono',monospace;--radius:4px}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.7;margin:0;padding:0}
+#doc-header{position:sticky;top:0;z-index:10;background:var(--surface);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:10px}
+#doc-title{font-size:12px;font-weight:600;color:var(--accent);flex:1}
+.doc-nav-btn,#btn-doc-theme{background:transparent;border:1px solid var(--border2);border-radius:4px;color:var(--muted);font-family:var(--font);font-size:11px;padding:3px 8px;cursor:pointer;text-decoration:none;display:inline-block}
+.doc-nav-btn:hover,#btn-doc-theme:hover{border-color:var(--text);color:var(--text)}
+#doc-body{max-width:800px;margin:0 auto;padding:32px 24px 64px}
+h1,h2,h3,h4{color:var(--text);font-weight:600;margin:1.8em 0 0.5em;line-height:1.3}
+h1{font-size:1.6em;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:1.2em;border-bottom:1px solid var(--border);padding-bottom:.2em}
+h3{font-size:1.05em;color:var(--accent)}
+h4{font-size:1em;color:var(--muted)}
+p{margin:.6em 0}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+code{background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:.9em;color:var(--text)}
+pre{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:14px 16px;overflow-x:auto;margin:1em 0;position:relative}
+pre code{background:none;border:none;padding:0;font-size:.88em;line-height:1.6}
+.copy-btn{position:absolute;top:6px;right:6px;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;color:var(--muted);font-family:var(--font);font-size:10px;padding:2px 7px;cursor:pointer;opacity:0;transition:opacity 100ms,color 100ms,border-color 100ms}
+pre:hover .copy-btn{opacity:1}.copy-btn:hover{color:var(--text);border-color:var(--text)}.copy-btn.copied{color:var(--accent);border-color:var(--accent)}
+blockquote{border-left:3px solid var(--accent);margin:1em 0;padding:.2em 1em;color:var(--muted)}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:.9em}
+th,td{border:1px solid var(--border);padding:6px 12px;text-align:left}
+th{background:var(--surface);color:var(--accent);font-weight:600}
+tr:nth-child(even) td{background:var(--surface2)}
+ul,ol{padding-left:1.5em;margin:.5em 0}li{margin:.2em 0}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+</style>
+</head>
+<body>
+<div id="doc-header">
+  <span id="doc-title">ksynth — verb reference</span>
+  <a class="doc-nav-btn" href="index.html">&#8592; app</a><a class="doc-nav-btn" href="guide.html">guide</a><a class="doc-nav-btn" href="readme.html">readme</a>
+  <button id="btn-doc-theme">retro</button>
+</div>
+<div id="doc-body">
+<h1 id="ksynth-verb-reference">ksynth verb reference</h1>
+<p>All verbs operate on vectors of doubles. Every variable is a single uppercase letter <code>A</code>–<code>Z</code>. Right-associativity applies throughout — use parentheses to control evaluation order. Constants <code>p0</code>=44100 (sample rate), <code>pN</code>=N×π for N≥1.</p>
+<hr>
+<h2 id="assignment-and-functions">assignment and functions</h2>
+<table>
+<thead>
+<tr>
+<th>Syntax</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>A: expr</code></td>
+<td>Assign result of <code>expr</code> to variable <code>A</code></td>
+</tr>
+<tr>
+<td><code>F: { expr }</code></td>
+<td>Define function <code>F</code>; <code>x</code> = first arg, <code>y</code> = second arg</td>
+</tr>
+<tr>
+<td><code>F arg</code></td>
+<td>Call <code>F</code> with one argument (<code>x</code>=arg)</td>
+</tr>
+<tr>
+<td><code>a F b</code></td>
+<td>Call <code>F</code> with two arguments (<code>x</code>=a, <code>y</code>=b)</td>
+</tr>
+</tbody>
+</table>
+<pre><code>/ phase accumulator as reusable function
+C: p2%p0
+X: { +\(x#(y*C)) }   / x=length, y=freq_hz
+P: N X 440            / phase ramp for 440 Hz over N samples
+</code></pre>
+<hr>
+<h2 id="monadic-verbs-one-argument">monadic verbs (one argument)</h2>
+<h3 id="iota-and-ramps">iota and ramps</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Input</th>
+<th>Output</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>!N</code></td>
+<td>scalar N</td>
+<td>[0,1,...,N-1]</td>
+<td>Integer index ramp</td>
+</tr>
+<tr>
+<td><code>~N</code></td>
+<td>scalar N</td>
+<td>[0, 2π/N, ..., 2π*(N-1)/N]</td>
+<td>Phase ramp 0 to ~2π</td>
+</tr>
+</tbody>
+</table>
+<pre><code>T: !44100             / time index 0..44099
+P: ~1024              / phase ramp for one cycle, 1024 samples
+</code></pre>
+<p><code>~N</code> is shorthand for <code>+\(N#(p2%N))</code> — use it when building wavetables.</p>
+<h3 id="reductions-return-scalar">reductions (return scalar)</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>+V</code></td>
+<td>Sum all elements</td>
+</tr>
+<tr>
+<td><code>&gt;V</code></td>
+<td>Peak absolute value (max of abs)</td>
+</tr>
+</tbody>
+</table>
+<pre><code>S: s ~44100
+E: +S                 / sum of all samples
+P: &gt;S                 / peak amplitude (should be ~1.0)
+</code></pre>
+<h3 id="output">output</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>w V</code></td>
+<td>Peak-normalize <code>V</code> to ±1.0 and write as output</td>
+</tr>
+</tbody>
+</table>
+<p><code>w</code> is always used to produce <code>W</code>. It normalizes so the peak is exactly 1.0.</p>
+<pre><code>W: w s ~44100
+</code></pre>
+<h3 id="math">math</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>s V</code></td>
+<td>sin(V) element-wise</td>
+</tr>
+<tr>
+<td><code>c V</code></td>
+<td>cos(V) element-wise</td>
+</tr>
+<tr>
+<td><code>t V</code></td>
+<td>tan(V) element-wise</td>
+</tr>
+<tr>
+<td><code>h V</code></td>
+<td>tanh(V) — soft saturation</td>
+</tr>
+<tr>
+<td><code>d V</code></td>
+<td>tanh(3V) — soft clip, more aggressive than <code>h</code></td>
+</tr>
+<tr>
+<td><code>a V</code></td>
+<td>abs(V) element-wise</td>
+</tr>
+<tr>
+<td><code>q V</code></td>
+<td>sqrt(abs(V)) element-wise</td>
+</tr>
+<tr>
+<td><code>l V</code></td>
+<td>log(abs(V)+ε) element-wise (natural log)</td>
+</tr>
+<tr>
+<td><code>e V</code></td>
+<td>exp(V), clamped to [-100,100] input range</td>
+</tr>
+<tr>
+<td><code>x V</code></td>
+<td>exp(-5V) — fast exponential decay shape</td>
+</tr>
+<tr>
+<td><code>_ V</code></td>
+<td>floor(V) element-wise</td>
+</tr>
+<tr>
+<td><code>p V</code></td>
+<td><code>p0</code>=44100 if V=0, else π×V element-wise</td>
+</tr>
+</tbody>
+</table>
+<pre><code>A: e(T*(0-3%N))       / exponential decay envelope
+D: d 2*s P            / driven sine into soft clip
+F: p 2                / 2π (= 6.28318...)
+</code></pre>
+<h3 id="noise-and-special-waveforms">noise and special waveforms</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>r V</code></td>
+<td>White noise: uniform random [-1,1], one per element of V</td>
+</tr>
+<tr>
+<td><code>m V</code></td>
+<td>1-bit metallic noise: deterministic ±0.7 pattern, good for cymbals</td>
+</tr>
+<tr>
+<td><code>b V</code></td>
+<td>Band-limited buzz: sum of 6 phase-shifted square waves, organ-like</td>
+</tr>
+<tr>
+<td><code>u V</code></td>
+<td>Ramp up: 0→1 over first 10 samples then stays at 1.0 (anti-click)</td>
+</tr>
+</tbody>
+</table>
+<pre><code>R: r T                / white noise, N samples
+C: m T                / metallic noise (hi-hat character)
+O: b T                / organ buzz
+</code></pre>
+<p><code>r</code> ignores the values in V and only uses its length. <code>m</code> is deterministic — same input gives same output, useful for reproducible percussion.</p>
+<h3 id="midi-and-pitch">MIDI and pitch</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>n V</code></td>
+<td>MIDI note number to Hz: <code>440 * 2^((V-69)/12)</code></td>
+</tr>
+</tbody>
+</table>
+<pre><code>M: n69                / 440.0 Hz (concert A)
+M: n60                / 261.63 Hz (middle C)
+M: n +\(4#2)          / chord: four notes stepped by 2 semitones
+</code></pre>
+<h3 id="reverse-and-stereo-extraction">reverse and stereo extraction</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>i V</code></td>
+<td>Reverse vector V</td>
+</tr>
+<tr>
+<td><code>j V</code></td>
+<td>Extract left channel from interleaved stereo (even samples)</td>
+</tr>
+<tr>
+<td><code>k V</code></td>
+<td>Extract right channel from interleaved stereo (odd samples)</td>
+</tr>
+</tbody>
+</table>
+<pre><code>B: i A                / reverse of A
+L: j W                / left channel of stereo W
+R: k W                / right channel of stereo W
+</code></pre>
+<h3 id="quantize-monadic-form">quantize (monadic form)</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>v V</code></td>
+<td>Quantize to 4 levels (floor to nearest 0.25)</td>
+</tr>
+</tbody>
+</table>
+<pre><code>Q: v s P              / 4-level quantized sine — lo-fi effect
+</code></pre>
+<hr>
+<h2 id="scan-adverb">scan adverb (<code>\</code>)</h2>
+<p><code>op\V</code> applies <code>op</code> as a running accumulation over V. Produces a vector the same length as V.</p>
+<table>
+<thead>
+<tr>
+<th>Scan</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>+\V</code></td>
+<td>Running sum (cumulative sum)</td>
+</tr>
+<tr>
+<td><code>*\V</code></td>
+<td>Running product</td>
+</tr>
+<tr>
+<td><code>-\V</code></td>
+<td>Running subtraction</td>
+</tr>
+<tr>
+<td><code>%\V</code></td>
+<td>Running division</td>
+</tr>
+<tr>
+<td><code>&amp;\V</code></td>
+<td>Running minimum</td>
+</tr>
+<tr>
+<td><code>|\V</code></td>
+<td>Running maximum</td>
+</tr>
+</tbody>
+</table>
+<pre><code>/ phase accumulator — the core oscillator primitive
+P: +\(N#(440*C))      / running sum of N copies of phase increment
+
+/ cumulative maximum — envelope follower shape
+E: |\A
+</code></pre>
+<p><code>+\</code> is by far the most used scan — it turns a constant phase increment into a phase ramp, which is the standard oscillator pattern in ksynth.</p>
+<hr>
+<h2 id="dyadic-verbs-two-arguments">dyadic verbs (two arguments)</h2>
+<h3 id="arithmetic-element-wise-length-max-of-inputs-shorter-cycles">arithmetic (element-wise, length = max of inputs, shorter cycles)</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>A + B</code></td>
+<td>Addition</td>
+</tr>
+<tr>
+<td><code>A - B</code></td>
+<td>Subtraction</td>
+</tr>
+<tr>
+<td><code>A * B</code></td>
+<td>Multiplication</td>
+</tr>
+<tr>
+<td><code>A % B</code></td>
+<td>Division (not modulo — ksynth uses <code>%</code> for divide)</td>
+</tr>
+<tr>
+<td><code>A ^ B</code></td>
+<td>Power: <code>abs(A)^B</code></td>
+</tr>
+<tr>
+<td><code>A &amp; B</code></td>
+<td>Min element-wise (also: hard clip lower bound)</td>
+</tr>
+<tr>
+<td><code>A \| B</code></td>
+<td>Max element-wise (also: hard clip upper bound)</td>
+</tr>
+<tr>
+<td><code>A &lt; B</code></td>
+<td>1.0 if A&lt;B else 0.0</td>
+</tr>
+<tr>
+<td><code>A &gt; B</code></td>
+<td>1.0 if A&gt;B else 0.0</td>
+</tr>
+<tr>
+<td><code>A = B</code></td>
+<td>1.0 if A=B else 0.0</td>
+</tr>
+</tbody>
+</table>
+<pre><code>/ hard clip to [-0.5, 0.5]
+C: S &amp; -0.5 | 0.5
+
+/ silence second half of buffer
+G: S * (T &lt; (N%2))
+</code></pre>
+<p>Note: <code>%</code> is <strong>division</strong>, not modulo. To get the fractional part of X: <code>X - _(X)</code>.</p>
+<h3 id="vector-construction">vector construction</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>N # V</code></td>
+<td>Tile V to length N (repeat V cyclically)</td>
+</tr>
+<tr>
+<td><code>A , B</code></td>
+<td>Concatenate A and B</td>
+</tr>
+</tbody>
+</table>
+<pre><code>/ 44100-sample constant at 440 Hz phase increment
+F: 44100#(440*C)
+
+/ drum pattern: kick, kick, snare, kick
+Z: K,K,S,K
+</code></pre>
+<h3 id="filters">filters</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Usage</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>f</code></td>
+<td><code>ct f signal</code></td>
+<td>Two-pole lowpass, <code>ct</code>=normalised coefficient 0–0.95</td>
+</tr>
+<tr>
+<td><code>f</code></td>
+<td><code>ct rs f signal</code></td>
+<td>Two-pole lowpass with resonance <code>rs</code> (0–3.9)</td>
+</tr>
+<tr>
+<td><code>g</code></td>
+<td><code>hz g signal</code></td>
+<td>Two-pole lowpass, cutoff in Hz</td>
+</tr>
+<tr>
+<td><code>g</code></td>
+<td><code>hz q g signal</code></td>
+<td>Two-pole lowpass in Hz with Q (0.01–3.9)</td>
+</tr>
+</tbody>
+</table>
+<pre><code>L: 0.1 f R            / lowpass ~700 Hz
+H: R - L              / highpass (zero resonance only)
+B: (0.4 f R)-(0.05 f R) / bandpass
+
+L: 800 g R            / same filter, cutoff in Hz
+</code></pre>
+<p>See <a href="readme.html">readme</a> for resonance character notes.</p>
+<h3 id="feedback-delay">feedback delay</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Usage</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>y</code></td>
+<td><code>d g y signal</code></td>
+<td>Feedback delay: <code>out[i] = signal[i] + g*out[i-d]</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>d</code> and <code>g</code> are passed as a two-element vector. Output is the same length as signal.</p>
+<pre><code>W: w 100 0.9 y R      / comb filter on noise, resonance at ~441 Hz
+W: w 200 0.98 y R     / comb at ~220 Hz, longer sustain
+</code></pre>
+<h3 id="additive-synthesis">additive synthesis</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Usage</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>o</code></td>
+<td><code>P o H</code></td>
+<td>Sum sin(P×h) for each harmonic h in H, equal amplitudes</td>
+</tr>
+<tr>
+<td><code>$</code></td>
+<td><code>P $ A</code></td>
+<td>Sum A[j]×sin(P×(j+1)) — weighted harmonic series</td>
+</tr>
+</tbody>
+</table>
+<pre><code>H: 1 3 5 7
+W: w P o H            / odd harmonics = hollow square-ish tone
+
+A: 1 0.5 0.333 0.25
+W: w P $ A            / weighted harmonics = sawtooth approximation
+</code></pre>
+<p><code>P</code> should be a phase ramp (from <code>+\</code>). <code>o</code> and <code>$</code> are the main tools for additive synthesis.</p>
+<h3 id="wavetable-oscillator">wavetable oscillator</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Usage</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>t</code></td>
+<td><code>T t freq dur</code></td>
+<td>Play table T as DDS oscillator at freq Hz for dur samples</td>
+</tr>
+</tbody>
+</table>
+<p><code>freq</code> and <code>dur</code> form a two-element vector. Scalar variables absorb into the vector naturally: <code>T t 440 D</code> where D=88200 gives a two-second output.</p>
+<pre><code>N: 1024
+P: ~N                 / one-cycle phase ramp
+T: s P                / sine wavetable
+D: 88200
+W: w T t 440 D        / 440 Hz sine from table, 2 seconds
+
+/ any waveform works as a table
+T: (2*(P&lt;p1%p2))-1    / square wave table (P &lt; π)
+W: w T t 220 D
+</code></pre>
+<p>Monadic <code>t</code> is <code>tan</code>.</p>
+<h3 id="quantize-dyadic-form">quantize (dyadic form)</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Usage</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>v</code></td>
+<td><code>N v signal</code></td>
+<td>Quantize signal to N levels</td>
+</tr>
+</tbody>
+</table>
+<pre><code>Q: 8 v s P            / 8-level quantized sine — bit-crush effect
+</code></pre>
+<h3 id="stereo">stereo</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Usage</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>z</code></td>
+<td><code>L z R</code></td>
+<td>Interleave L and R into stereo stream [l0,r0,l1,r1,...]</td>
+</tr>
+</tbody>
+</table>
+<p>Output length is <code>min(L,R) * 2</code>. Use <code>j</code> and <code>k</code> to extract channels.</p>
+<pre><code>W: w L z R            / stereo output
+</code></pre>
+<hr>
+<h2 id="special-syntax">special syntax</h2>
+<h3 id="vectors-literals">vectors literals</h3>
+<p>Space-separated numbers form a vector. A scalar variable following a number (with space) is absorbed into the vector:</p>
+<pre><code>V: 1 2 3 4            / four-element vector
+V: 440 D              / [440, value-of-D] if D is scalar
+</code></pre>
+<h3 id="negative-numbers-in-vectors">negative numbers in vectors</h3>
+<p>A minus sign with preceding space is negation (continues the vector). Flush minus is subtraction (ends the vector):</p>
+<pre><code>V: 1 -2 3             / [1, -2, 3]
+V: A-1                / A minus 1 (subtraction)
+</code></pre>
+<h3 id="comments">comments</h3>
+<pre><code>/ this is a comment — everything after / to end of line
+</code></pre>
+<h3 id="semicolons">semicolons</h3>
+<p><code>;</code> separates expressions on one line; only the last value is used:</p>
+<pre><code>A: 1; B: 2; A+B       / evaluates all three, returns 3
+</code></pre>
+<hr>
+<h2 id="quick-patterns">quick patterns</h2>
+<pre><code>/ oscillator
+C: p2%p0              / 2π/44100 — per-sample increment for 1 Hz
+P: +\(N#(440*C))      / 440 Hz phase ramp over N samples
+W: w s P              / sine wave output
+
+/ envelope + oscillator
+T: !N
+A: e(T*(0-3%N))       / exponential decay
+W: w A*s P            / enveloped sine
+
+/ reusable oscillator function
+X: { +\(x#(y*C)) }    / x=length, y=freq
+P: N X 440
+Q: N X 660
+W: w (s P)+(s Q)      / two-voice chord
+
+/ filtered noise
+R: r T
+W: w 0.05 f R         / lowpass filtered white noise
+
+/ FM synthesis
+I: 3.5*e(T*(0-40%N))  / fast-decaying modulation index
+W: w A*(s P+(I*s P))  / self-FM bell tone
+</code></pre>
+</div>
+<script>
+(function(){var THEMES=['retro','dark','light'];var btn=document.getElementById('btn-doc-theme');function applyTheme(t){document.documentElement.setAttribute('data-theme',t);btn.textContent=t;localStorage.setItem('ks-theme',t)}var saved=localStorage.getItem('ks-theme');applyTheme(THEMES.includes(saved)?saved:'retro');btn.addEventListener('click',function(){var cur=document.documentElement.getAttribute('data-theme')||'retro';var next=THEMES[(THEMES.indexOf(cur)+1)%THEMES.length];applyTheme(next)});}());
+document.querySelectorAll('pre').forEach(function(pre){var btn=document.createElement('button');btn.className='copy-btn';btn.textContent='copy';btn.addEventListener('click',function(){var code=pre.querySelector('code');var text=code?code.innerText:pre.innerText;navigator.clipboard.writeText(text).then(function(){btn.textContent='copied';btn.classList.add('copied');setTimeout(function(){btn.textContent='copy';btn.classList.remove('copied')},1500)})});pre.appendChild(btn)});
+</script>
+</body>
+</html>

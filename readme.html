@@ -41,7 +41,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <body>
 <div id="doc-header">
   <span id="doc-title">ksynth — readme</span>
-  <a class="doc-nav-btn" href="index.html">&#8592; app</a><a class="doc-nav-btn" href="guide.html">guide</a>
+  <a class="doc-nav-btn" href="index.html">&#8592; app</a><a class="doc-nav-btn" href="guide.html">guide</a><a class="doc-nav-btn" href="reference.html">reference</a>
   <button id="btn-doc-theme">retro</button>
 </div>
 <div id="doc-body">
@@ -266,46 +266,28 @@ C: p2%p0
 S: s +\(N#(220*C))
 W: w 200 0.9 y S      / delay=200 = one period of 220 Hz, strong resonance
 </code></pre>
-<h3 id="convolution">convolution</h3>
-<p><code>A z B</code> — convolves vectors <code>A</code> and <code>B</code>. Output length is <code>A.length + B.length - 1</code>. Convolution multiplies the frequency spectra of the two inputs — useful for FIR filtering and applying impulse responses.</p>
-<p><strong>FIR lowpass</strong> — convolving with a box kernel (equal weights summing to 1) smooths the signal. Longer kernel = lower cutoff:</p>
-<pre><code>N: 44100
-T: !N
-R: r T
-B: 8#(1%8)            / 8-tap box filter, each coefficient = 1/8
-W: w R z B
-</code></pre>
-<p><strong>Convolution reverb</strong> — convolves a signal with an impulse response to apply a synthetic room character. The output is the full reverberated signal — there is no dry component. Scale the source down to avoid clipping, since convolution sums many overlapping contributions:</p>
+<h3 id="stereo-interleave">stereo interleave</h3>
+<p><code>A z B</code> — interleaves two vectors into a stereo stream: <code>[a0, b0, a1, b1, ...]</code>. Output length is <code>min(A.length, B.length) * 2</code>. Useful for producing stereo output from two separately synthesised channels.</p>
+<p><strong>Two voices panned left and right:</strong></p>
 <pre><code>N: 44100
 T: !N
 C: p2%p0
-/ FM bell, scaled down to avoid clipping after convolution
-A: 0.3*e(T*(0-3%N))
+/ left: bell at 440 Hz
+A: e(T*(0-3%N))
 I: 3.5*e(T*(0-40%N))
 P: +\(N#(440*C))
 Q: +\(N#(440*C))
-S: A*(s P+(I*s Q))
-/ 0.3 second impulse response — rises then decays (more room-like than plain exp decay)
-K: 13230
-J: !K
-V: (J%K)*e(J*(0-8%K))*r J
-/ convolve — output is ~1.3 seconds of reverberated bell
-W: w S z V
+L: A*(s P+(I*s Q))
+/ right: bell at 445 Hz (slight detune for stereo width)
+B: e(T*(0-3%N))
+J: 3.5*e(T*(0-40%N))
+U: +\(N#(445*C))
+V: +\(N#(445*C))
+R: B*(s U+(J*s V))
+/ interleave into stereo
+W: w L z R
 </code></pre>
-<p><strong>Spectral multiplication</strong> — convolving two periodic signals multiplies their spectra, creating a tone with the combined harmonic content of both. Keep the second signal short or the output will be very long:</p>
-<pre><code>N: 44100
-T: !N
-C: p2%p0
-/ sawtooth (rich harmonics) convolved with a short filtered tone
-P: +\(N#(220*C))
-H: 1 0.5 0.333 0.25 0.2
-S: P $ H                  / sawtooth via harmonic sum
-K: 2205                   / short second signal (50ms)
-J: !K
-/ resonant tone at 660 Hz
-Q: e(J*(0-10%K))*s +\(K#(660*C))
-W: w S z Q
-</code></pre>
+<p>The resulting buffer has stereo sample pairs. Whether it plays back correctly as stereo depends on the player — the ksynth web app plays mono, so both channels will be summed.</p>
 <hr>
 <h2 id="inspect-commands">inspect commands</h2>
 <p>In the editor or REPL, type and press Enter:</p>

@@ -324,56 +324,33 @@ S: s +\(N#(220*C))
 W: w 200 0.9 y S      / delay=200 = one period of 220 Hz, strong resonance
 ```
 
-### convolution
+### stereo interleave
 
-`A z B` — convolves vectors `A` and `B`. Output length is `A.length + B.length - 1`. Convolution multiplies the frequency spectra of the two inputs — useful for FIR filtering and applying impulse responses.
+`A z B` — interleaves two vectors into a stereo stream: `[a0, b0, a1, b1, ...]`. Output length is `min(A.length, B.length) * 2`. Useful for producing stereo output from two separately synthesised channels.
 
-**FIR lowpass** — convolving with a box kernel (equal weights summing to 1) smooths the signal. Longer kernel = lower cutoff:
-
-```
-N: 44100
-T: !N
-R: r T
-B: 8#(1%8)            / 8-tap box filter, each coefficient = 1/8
-W: w R z B
-```
-
-**Convolution reverb** — convolves a signal with an impulse response to apply a synthetic room character. The output is the full reverberated signal — there is no dry component. Scale the source down to avoid clipping, since convolution sums many overlapping contributions:
+**Two voices panned left and right:**
 
 ```
 N: 44100
 T: !N
 C: p2%p0
-/ FM bell, scaled down to avoid clipping after convolution
-A: 0.3*e(T*(0-3%N))
+/ left: bell at 440 Hz
+A: e(T*(0-3%N))
 I: 3.5*e(T*(0-40%N))
 P: +\(N#(440*C))
 Q: +\(N#(440*C))
-S: A*(s P+(I*s Q))
-/ 0.3 second impulse response — rises then decays (more room-like than plain exp decay)
-K: 13230
-J: !K
-V: (J%K)*e(J*(0-8%K))*r J
-/ convolve — output is ~1.3 seconds of reverberated bell
-W: w S z V
+L: A*(s P+(I*s Q))
+/ right: bell at 445 Hz (slight detune for stereo width)
+B: e(T*(0-3%N))
+J: 3.5*e(T*(0-40%N))
+U: +\(N#(445*C))
+V: +\(N#(445*C))
+R: B*(s U+(J*s V))
+/ interleave into stereo
+W: w L z R
 ```
 
-**Spectral multiplication** — convolving two periodic signals multiplies their spectra, creating a tone with the combined harmonic content of both. Keep the second signal short or the output will be very long:
-
-```
-N: 44100
-T: !N
-C: p2%p0
-/ sawtooth (rich harmonics) convolved with a short filtered tone
-P: +\(N#(220*C))
-H: 1 0.5 0.333 0.25 0.2
-S: P $ H                  / sawtooth via harmonic sum
-K: 2205                   / short second signal (50ms)
-J: !K
-/ resonant tone at 660 Hz
-Q: e(J*(0-10%K))*s +\(K#(660*C))
-W: w S z Q
-```
+The resulting buffer has stereo sample pairs. Whether it plays back correctly as stereo depends on the player — the ksynth web app plays mono, so both channels will be summed.
 
 ---
 
