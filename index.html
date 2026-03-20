@@ -868,6 +868,16 @@ button, [data-pad], [data-slot] {
   max-width: 700px;
   width: 50vw;
 }
+@media (max-width: 600px) {
+  #vec-popup {
+    min-width: 0;
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    left: 8px !important;
+    right: 8px !important;
+    transform: translateY(-50%) !important;
+  }
+}
 #vec-popup.open { display: flex; flex-direction: column; }
 #vec-popup-header {
   display: flex;
@@ -898,11 +908,39 @@ button, [data-pad], [data-slot] {
   line-height: 1;
 }
 #vec-popup-close:hover { color: var(--text); }
+#vec-popup-zoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--border);
+}
+#vec-popup-zoom-label {
+  font-family: var(--font);
+  font-size: 10px;
+  color: var(--muted);
+  flex: 1;
+}
+.vec-zoom-btn {
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  color: var(--muted);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 1px 7px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.vec-zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
 #vec-popup-canvas {
   width: 100%;
   height: 160px;
   display: block;
+  cursor: grab;
+  touch-action: none;
 }
+#vec-popup-canvas.grabbing { cursor: grabbing; }
 #vec-popup-stats {
   font-family: var(--font);
   font-size: 10px;
@@ -1034,6 +1072,12 @@ button, [data-pad], [data-slot] {
     <span id="vec-popup-title"></span>
     <span id="vec-popup-meta"></span>
     <button id="vec-popup-close">✕</button>
+  </div>
+  <div id="vec-popup-zoom">
+    <span id="vec-popup-zoom-label">zoom 1×</span>
+    <button class="vec-zoom-btn" id="vec-zoom-out">−</button>
+    <button class="vec-zoom-btn" id="vec-zoom-in">+</button>
+    <button class="vec-zoom-btn" id="vec-zoom-reset">reset</button>
   </div>
   <canvas id="vec-popup-canvas"></canvas>
   <div id="vec-popup-stats">
@@ -2354,9 +2398,15 @@ function downloadWav(f32, filename) {
 
   /* Centre popup on screen */
   function positionPopup() {
-    popup.style.left = '50%';
-    popup.style.top  = '50%';
-    popup.style.transform = 'translate(-50%, -50%)';
+    if (window.innerWidth <= 600) {
+      popup.style.left      = '8px';
+      popup.style.top       = '50%';
+      popup.style.transform = 'translateY(-50%)';
+    } else {
+      popup.style.left      = '50%';
+      popup.style.top       = '50%';
+      popup.style.transform = 'translate(-50%, -50%)';
+    }
   }
 
   function getVar(name) {
@@ -2365,46 +2415,172 @@ function downloadWav(f32, filename) {
     const n = ks_get_var(upper);
     if (n <= 0) return null;
     const ptr = ks_get_var_buf();
-    /* ks_get_var_buf returns a float* — use HEAPF32 */
     return new Float32Array(KS.HEAPF32.buffer, ptr, n).slice();
   }
 
-  function drawGraph(f32, varName) {
-    titleEl.textContent = varName;
-    const n  = f32.length;
-    const sr = 44100;
-    const ms = (n / sr * 1000).toFixed(1);
-    metaEl.textContent  = `${n} samples  ·  ${ms} ms`;
+  /* ── zoom / scroll state ──────────────────────────────────────── */
+  let currentF32   = null;   // last graphed data
+  let currentName  = '';
+  let zoomLevel    = 1;      // 1 = full view, 2 = 2× zoom, etc.
+  let scrollOffset = 0;      // fraction 0..1 of start position
 
-    let mn = Infinity, mx = -Infinity;
-    for (let i = 0; i < n; i++) {
-      if (f32[i] < mn) mn = f32[i];
-      if (f32[i] > mx) mx = f32[i];
+  const zoomLabel = document.getElementById('vec-popup-zoom-label');
+  const zoomIn    = document.getElementById('vec-zoom-in');
+  const zoomOut   = document.getElementById('vec-zoom-out');
+  const zoomReset = document.getElementById('vec-zoom-reset');
+
+  function clampScroll() {
+    const maxOffset = 1 - 1 / zoomLevel;
+    scrollOffset = Math.max(0, Math.min(maxOffset, scrollOffset));
+  }
+
+  function updateZoomLabel() {
+    zoomLabel.textContent = `zoom ${zoomLevel}×`;
+  }
+
+  function redraw() {
+    if (!currentF32) return;
+    drawGraph(currentF32, currentName, false); // false = don't reopen/reposition
+  }
+
+  zoomIn.addEventListener('click', () => {
+    zoomLevel = Math.min(zoomLevel * 2, 512);
+    clampScroll();
+    updateZoomLabel();
+    redraw();
+  });
+
+  zoomOut.addEventListener('click', () => {
+    zoomLevel = Math.max(zoomLevel / 2, 1);
+    clampScroll();
+    updateZoomLabel();
+    redraw();
+  });
+
+  zoomReset.addEventListener('click', () => {
+    zoomLevel = 1; scrollOffset = 0;
+    updateZoomLabel();
+    redraw();
+  });
+
+  /* mouse wheel zoom (desktop) */
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect   = canvas.getBoundingClientRect();
+    const frac   = (e.clientX - rect.left) / rect.width; // cursor position 0..1
+    const before = scrollOffset + frac / zoomLevel;       // data position under cursor
+    if (e.deltaY < 0) zoomLevel = Math.min(zoomLevel * 2, 512);
+    else              zoomLevel = Math.max(zoomLevel / 2, 1);
+    scrollOffset = before - frac / zoomLevel;             // keep cursor over same data
+    clampScroll();
+    updateZoomLabel();
+    redraw();
+  }, { passive: false });
+
+  /* drag to scroll (mouse) */
+  let dragStartX   = null;
+  let dragStartOff = 0;
+  canvas.addEventListener('pointerdown', e => {
+    if (zoomLevel <= 1) return;
+    dragStartX   = e.clientX;
+    dragStartOff = scrollOffset;
+    canvas.classList.add('grabbing');
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (dragStartX === null) return;
+    const dx   = e.clientX - dragStartX;
+    const W    = canvas.offsetWidth;
+    scrollOffset = dragStartOff - dx / W / zoomLevel;
+    clampScroll();
+    redraw();
+  });
+  canvas.addEventListener('pointerup', () => {
+    dragStartX = null;
+    canvas.classList.remove('grabbing');
+  });
+
+  /* pinch-to-zoom (touch) */
+  let lastPinchDist = null;
+  canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) lastPinchDist = null;
+  }, { passive: true });
+  canvas.addEventListener('touchmove', e => {
+    if (e.touches.length !== 2) return;
+    e.preventDefault();
+    const dx   = e.touches[0].clientX - e.touches[1].clientX;
+    const dy   = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (lastPinchDist !== null) {
+      const ratio = dist / lastPinchDist;
+      const midX  = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const rect  = canvas.getBoundingClientRect();
+      const frac  = (midX - rect.left) / rect.width;
+      const before = scrollOffset + frac / zoomLevel;
+      zoomLevel = Math.max(1, Math.min(512, zoomLevel * ratio));
+      scrollOffset = before - frac / zoomLevel;
+      clampScroll();
+      updateZoomLabel();
+      redraw();
+    }
+    lastPinchDist = dist;
+  }, { passive: false });
+  canvas.addEventListener('touchend', () => { lastPinchDist = null; }, { passive: true });
+
+  /* ── draw ─────────────────────────────────────────────────────── */
+  function drawGraph(f32, varName, reopen = true) {
+    if (reopen) {
+      currentF32   = f32;
+      currentName  = varName;
+      zoomLevel    = 1;
+      scrollOffset = 0;
+      updateZoomLabel();
+
+      const n  = f32.length;
+      const ms = (n / 44100 * 1000).toFixed(1);
+      titleEl.textContent = varName;
+      metaEl.textContent  = `${n} samples  ·  ${ms} ms`;
+
+      let mn = Infinity, mx = -Infinity;
+      for (let i = 0; i < n; i++) {
+        if (f32[i] < mn) mn = f32[i];
+        if (f32[i] > mx) mx = f32[i];
+      }
+      const hasZero = mn <= 0 && mx >= 0;
+      minmaxEl.textContent = `min ${mn.toPrecision(4)}  ·  max ${mx.toPrecision(4)}`;
+      zeroEl.textContent   = hasZero ? 'zero crossing present' : 'no zero crossing';
+
+      positionPopup();
+      popup.classList.add('open');
     }
 
-    const hasZero = mn <= 0 && mx >= 0;
-    minmaxEl.textContent = `min ${mn.toPrecision(4)}  ·  max ${mx.toPrecision(4)}`;
-    zeroEl.textContent   = hasZero ? 'zero crossing present' : 'no zero crossing';
-
-    /* Draw */
-    positionPopup();
-    popup.classList.add('open');
-
     requestAnimationFrame(() => {
-      const W = canvas.offsetWidth;
-      const H = canvas.offsetHeight;
+      const f32d = currentF32;
+      const n    = f32d.length;
+      const W    = canvas.offsetWidth;
+      const H    = canvas.offsetHeight;
       canvas.width  = W;
       canvas.height = H;
-      const ctx = canvas.getContext('2d');
+      const ctx  = canvas.getContext('2d');
 
-      /* Background */
+      /* visible window into data */
+      const winStart = Math.floor(scrollOffset * n);
+      const winLen   = Math.max(1, Math.floor(n / zoomLevel));
+      const winEnd   = Math.min(n, winStart + winLen);
+
+      /* full-data amplitude range (unchanged by zoom) */
+      let mn = Infinity, mx = -Infinity;
+      for (let i = 0; i < n; i++) {
+        if (f32d[i] < mn) mn = f32d[i];
+        if (f32d[i] > mx) mx = f32d[i];
+      }
+
       const bg = getComputedStyle(document.documentElement)
         .getPropertyValue('--bg').trim() || '#111';
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, W, H);
 
-      /* Determine scale: use full range if non-audio, else ±1 */
-      const isAudio = mx <= 1.05 && mn >= -1.05;
+      const isAudio  = mx <= 1.05 && mn >= -1.05;
       const scaleMax = isAudio ? 1.0 : Math.max(Math.abs(mn), Math.abs(mx), 1e-9);
       const scaleMin = isAudio ? -1.0 : -scaleMax;
       const range    = scaleMax - scaleMin;
@@ -2413,73 +2589,81 @@ function downloadWav(f32, filename) {
         return H - ((v - scaleMin) / range) * H;
       }
 
-      /* Zero line */
       const accent = getComputedStyle(document.documentElement)
         .getPropertyValue('--border2').trim() || '#333';
-      ctx.strokeStyle = accent;
-      ctx.lineWidth   = 1;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
+
+      /* Zero line */
       const y0 = yFor(0);
-      ctx.moveTo(0, y0); ctx.lineTo(W, y0);
-      ctx.stroke();
+      ctx.strokeStyle = accent; ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(W, y0); ctx.stroke();
       ctx.setLineDash([]);
 
       /* Min/max guide lines */
-      ctx.strokeStyle = accent;
-      ctx.lineWidth = 0.5;
-      ctx.setLineDash([2, 6]);
+      ctx.lineWidth = 0.5; ctx.setLineDash([2, 6]);
       [mn, mx].forEach(v => {
         ctx.beginPath();
         const y = yFor(v);
-        ctx.moveTo(0, y); ctx.lineTo(W, y);
-        ctx.stroke();
+        ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
       });
       ctx.setLineDash([]);
 
-      /* Waveform */
+      /* Waveform — draw only the visible window */
       const wave = getComputedStyle(document.documentElement)
         .getPropertyValue('--accent').trim() || '#3fb854';
-      ctx.strokeStyle = wave;
-      ctx.lineWidth   = 1.5;
+      ctx.strokeStyle = wave; ctx.lineWidth = 1.5;
       ctx.beginPath();
       for (let px = 0; px < W; px++) {
-        const si = Math.floor(px / W * n);
-        const y  = yFor(f32[Math.min(si, n - 1)]);
+        const si = winStart + Math.floor(px / W * winLen);
+        const y  = yFor(f32d[Math.min(si, n - 1)]);
         if (px === 0) ctx.moveTo(px, y);
         else          ctx.lineTo(px, y);
       }
       ctx.stroke();
 
-      /* Min/max labels */
-      ctx.fillStyle = accent;
-      ctx.font = '9px monospace';
+      /* Labels */
+      ctx.fillStyle = accent; ctx.font = '9px monospace';
       ctx.fillText(mx.toPrecision(3), 4, yFor(mx) - 3);
       ctx.fillText(mn.toPrecision(3), 4, yFor(mn) + 11);
       ctx.fillText('0', 4, y0 - 3);
+
+      /* Scroll indicator — thin bar at bottom when zoomed */
+      if (zoomLevel > 1) {
+        const barH = 3;
+        const barW = W / zoomLevel;
+        const barX = scrollOffset * zoomLevel * barW;
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(0, H - barH, W, barH);
+        ctx.fillStyle = getComputedStyle(document.documentElement)
+          .getPropertyValue('--accent').trim() || '#3fb854';
+        ctx.fillRect(barX, H - barH, barW, barH);
+      }
     });
   }
 
   function playVar(varName, f32) {
     ensureAudio();
-    /* Scale to ±1 if needed */
     let mx = 0;
     for (let i = 0; i < f32.length; i++) if (Math.abs(f32[i]) > mx) mx = Math.abs(f32[i]);
     const scale = (mx > 1e-9 && mx > 1.0) ? 1.0 / mx : 1.0;
-
     const abuf  = audioCtx.createBuffer(1, f32.length, SR);
     const ch    = abuf.getChannelData(0);
     for (let i = 0; i < f32.length; i++) ch[i] = f32[i] * scale;
-
     const src2 = audioCtx.createBufferSource();
     src2.buffer = abuf;
     src2.connect(limiter._input);
     src2.start();
   }
 
-  closeBtn.addEventListener('click', () => popup.classList.remove('open'));
+  closeBtn.addEventListener('click', () => {
+    popup.classList.remove('open');
+    zoomLevel = 1; scrollOffset = 0; updateZoomLabel();
+  });
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') popup.classList.remove('open');
+    if (e.key === 'Escape') {
+      popup.classList.remove('open');
+      zoomLevel = 1; scrollOffset = 0; updateZoomLabel();
+    }
   });
 
   /* Expose to runEditor's \pV / \vV dispatch */
