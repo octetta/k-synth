@@ -303,6 +303,13 @@ html, body {
   color: var(--muted);
   flex: 1;
 }
+.nb-patch-name {
+  font-size: 10px;
+  color: var(--accent);
+  font-family: var(--font);
+  opacity: 0.8;
+  flex-shrink: 0;
+}
 
 .nb-bank-row {
   display: flex;
@@ -991,7 +998,8 @@ const pads = Array.from({length: NUM_PADS}, (_, i) => ({
 // REPL history
 const history  = [];   // array of { code, success, samples, error, floatData }
 let histIdx    = -1;   // current history navigation position
-let lastResult = null; // Float32Array of last successful run
+let lastResult      = null; // Float32Array of last successful run
+let pendingPatchName = null; // set when a patch is loaded from browser
 
 // Wasm handles
 let KS        = null;
@@ -1433,6 +1441,14 @@ function addNotebookCell(entry) {
   status.textContent = entry.success ? '✓' : '✗';
   hdr.appendChild(status);
 
+  // patch name badge (shown when loaded from browser)
+  if (entry.patchName) {
+    const badge = document.createElement('span');
+    badge.className = 'nb-patch-name';
+    badge.textContent = entry.patchName;
+    hdr.appendChild(badge);
+  }
+
   const meta = document.createElement('span');
   meta.className = 'nb-meta';
   meta.textContent = entry.success
@@ -1566,7 +1582,8 @@ function runEditor() {
 
   ensureAudio();
   const result = evalScript(code);
-  const entry  = { code, ...result };
+  const entry  = { code, ...result, patchName: pendingPatchName };
+  pendingPatchName = null;   // consume — only applies to the next run after a patch load
 
   history.unshift(entry);  // prepend so index 0 = most recent
   histIdx = -1;
@@ -2186,6 +2203,7 @@ function downloadWav(f32, filename) {
       if (!res.ok) throw new Error(`fetch ${res.status}`);
       const text = await res.text();
       editor.value = text;
+      pendingPatchName = p.name;
       close();
       editor.focus();
     } catch (e) {
