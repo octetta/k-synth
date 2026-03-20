@@ -35,17 +35,59 @@ Press `Ctrl+Enter` to run. A cell appears in the notebook with a waveform. Click
 
 ## what it can do
 
+### wavetable oscillator
+
+`table t [freq_hz  n_samples]` — plays `table` as a DDS oscillator at `freq_hz` Hz for `n_samples` samples, with linear interpolation between table entries. The table should contain exactly one cycle of the desired waveform.
+
+Build tables using the phase accumulator pattern — `+\(N#F)` accumulates `F` radians per step over `N` steps:
+
+```
+/ sine wavetable — one cycle in 1024 samples
+N: 1024
+P: +\(N#(6.28318%N))
+T: s P
+W: w T t 440 88200
+```
+
+```
+/ sawtooth — ramp from -1 to +1
+N: 1024
+P: +\(N#(1%N))
+T: (2*P)-1
+W: w T t 220 44100
+```
+
+```
+/ triangle — 0 → +1 → 0 → -1 → 0
+N: 1024
+P: +\(N#(1%N))
+T: (2*a((2*P)-1))-1
+W: w T t 330 44100
+```
+
+```
+/ custom FM wavetable, then play at 440 Hz for 2 seconds
+N: 1024
+P: +\(N#(6.28318%N))
+I: 2.5
+T: s P+(I*s P)
+W: w T t 440 88200
+```
+
+Any vector works as a table — recorded samples, computed shapes, whatever. Monadic `t` remains `tan`.
+
 ### oscillators
 
 The phase accumulator pattern `+\(N#F)` where `F` is a per-sample phase increment gives a clean oscillator at any frequency. Apply `s` for sine, `c` for cosine, or do math on the raw ramp for triangle and sawtooth.
 
 ```
-/ sawtooth at 220 Hz, 1 second
+/ sawtooth at 220 Hz, 1 second (via harmonic sum)
 N: 44100
 T: !N
-F: 220%44100
+F: 220*(6.28318%44100)
 P: +\(N#F)
-W: w (P*2)-1
+H: 1 0.5 0.333 0.25 0.2 0.167
+W: w P $ H
 ```
 
 ### FM synthesis

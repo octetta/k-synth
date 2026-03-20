@@ -189,6 +189,8 @@ Session files are compatible with ksynth-desktop.
 
 **`W` is the output** — every script must set `W`. No `W` → error cell.
 
+**Wavetable oscillator** — `T t [freq n_samples]` plays vector `T` as a DDS oscillator. See readme for examples.
+
 **Literal arrays** — every number after the first must start with a digit `0`–`9`. Use `0.5` not `.5`.
 
 **Sample rate** — fixed at 44100 Hz.

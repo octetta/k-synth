@@ -67,14 +67,44 @@ W: w s +\(N#(440*(6.28318%44100)))
 <p>Press <code>Ctrl+Enter</code> to run. A cell appears in the notebook with a waveform. Click <code>→0</code> to bank to slot 0. Click the slot to play it.</p>
 <hr>
 <h2 id="what-it-can-do">what it can do</h2>
+<h3 id="wavetable-oscillator">wavetable oscillator</h3>
+<p><code>table t [freq_hz  n_samples]</code> — plays <code>table</code> as a DDS oscillator at <code>freq_hz</code> Hz for <code>n_samples</code> samples, with linear interpolation between table entries. The table should contain exactly one cycle of the desired waveform.</p>
+<p>Build tables using the phase accumulator pattern — <code>+\(N#F)</code> accumulates <code>F</code> radians per step over <code>N</code> steps:</p>
+<pre><code>/ sine wavetable — one cycle in 1024 samples
+N: 1024
+P: +\(N#(6.28318%N))
+T: s P
+W: w T t 440 88200
+</code></pre>
+<pre><code>/ sawtooth — ramp from -1 to +1
+N: 1024
+P: +\(N#(1%N))
+T: (2*P)-1
+W: w T t 220 44100
+</code></pre>
+<pre><code>/ triangle — 0 → +1 → 0 → -1 → 0
+N: 1024
+P: +\(N#(1%N))
+T: (2*a((2*P)-1))-1
+W: w T t 330 44100
+</code></pre>
+<pre><code>/ custom FM wavetable, then play at 440 Hz for 2 seconds
+N: 1024
+P: +\(N#(6.28318%N))
+I: 2.5
+T: s P+(I*s P)
+W: w T t 440 88200
+</code></pre>
+<p>Any vector works as a table — recorded samples, computed shapes, whatever. Monadic <code>t</code> remains <code>tan</code>.</p>
 <h3 id="oscillators">oscillators</h3>
 <p>The phase accumulator pattern <code>+\(N#F)</code> where <code>F</code> is a per-sample phase increment gives a clean oscillator at any frequency. Apply <code>s</code> for sine, <code>c</code> for cosine, or do math on the raw ramp for triangle and sawtooth.</p>
-<pre><code>/ sawtooth at 220 Hz, 1 second
+<pre><code>/ sawtooth at 220 Hz, 1 second (via harmonic sum)
 N: 44100
 T: !N
-F: 220%44100
+F: 220*(6.28318%44100)
 P: +\(N#F)
-W: w (P*2)-1
+H: 1 0.5 0.333 0.25 0.2 0.167
+W: w P $ H
 </code></pre>
 <h3 id="fm-synthesis">FM synthesis</h3>
 <p>Right-associativity makes FM natural. <code>s P + Q</code> parses as <code>s(P + s(Q))</code> — carrier phase plus modulator sine.</p>

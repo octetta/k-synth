@@ -374,6 +374,43 @@ K dy(char c, K a, K b) {
         k_free(a); k_free(b); return x;
     }
 
+    /* t : wavetable DDS oscillator
+     * a = wavetable vector (any length, one cycle)
+     * b = [freq_hz  n_samples]  (two-element vector)
+     * result = n_samples of the wavetable played at freq_hz via linear interpolation
+     *
+     * Example:
+     *   T: s !1024            / one sine cycle in 1024 samples
+     *   W: w T t 440 88200   / play at 440 Hz for 2 seconds
+     */
+    if (c == 't') {
+        if (a->n < 1 || b->n < 2) { k_free(a); k_free(b); return k_new(0); }
+        double freq_hz  = b->f[0];
+        int    n_out    = (int)b->f[1];
+        int    tbl_len  = a->n;
+        if (n_out < 1)   n_out = 1;
+        if (tbl_len < 1) { k_free(a); k_free(b); return k_new(0); }
+
+        double phase_inc = freq_hz * (double)tbl_len / 44100.0;
+        double phase     = 0.0;
+        x = k_new(n_out);
+
+        for (int i = 0; i < n_out; i++) {
+            /* Wrap phase into [0, tbl_len) */
+            while (phase >= tbl_len) phase -= tbl_len;
+            while (phase <  0.0)    phase += tbl_len;
+
+            /* Linear interpolation */
+            int    idx  = (int)phase;
+            double frac = phase - idx;
+            int    idx2 = (idx + 1) % tbl_len;
+            x->f[i] = a->f[idx] * (1.0 - frac) + a->f[idx2] * frac;
+
+            phase += phase_inc;
+        }
+        k_free(a); k_free(b); return x;
+    }
+
     /* v : quantize b to N levels, a = number of levels */
     if (c == 'v') {
         double levels = (a->n > 0 && a->f[0] > 0) ? a->f[0] : 4.0;
