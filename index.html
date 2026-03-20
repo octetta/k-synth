@@ -1,4 +1,3 @@
-```text
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -289,6 +288,8 @@ html, body {
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
+  cursor: pointer;
+  user-select: none;
 }
 .nb-status {
   font-size: 11px;
@@ -341,6 +342,19 @@ html, body {
   color: var(--text);
   background: var(--surface2);
 }
+.nb-code.collapsed {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 1.6em;
+  cursor: pointer;
+  user-select: none;
+}
+.nb-code:not(.collapsed) {
+  cursor: text;
+  user-select: text;
+}
+
 
 .nb-wave-wrap {
   margin-top: 6px;
@@ -412,6 +426,21 @@ html, body {
 }
 .nb-cell-header:hover .nb-dl-btn { opacity: 1; }
 .nb-dl-btn:hover { color: var(--accent); opacity: 1; }
+
+.nb-edit-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 10px;
+  padding: 0 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 100ms, color 100ms;
+  line-height: 1;
+  font-family: var(--font);
+}
+.nb-cell-header:hover .nb-edit-btn { opacity: 1; }
+.nb-edit-btn:hover { color: var(--accent); opacity: 1; }
 
 .nb-del-btn {
   background: transparent;
@@ -1426,6 +1455,20 @@ function addNotebookCell(entry) {
     hdr.appendChild(dl);
   }
 
+  // edit button — copies code back to editor
+  const edit = document.createElement('button');
+  edit.className = 'nb-edit-btn';
+  edit.textContent = '→ edit';
+  edit.title = 'copy to editor';
+  edit.addEventListener('click', e => {
+    e.stopPropagation();
+    const ed = document.getElementById('editor');
+    ed.value = entry.code;
+    ed.focus();
+    histIdx = -1;
+  });
+  hdr.appendChild(edit);
+
   // delete button
   const del = document.createElement('button');
   del.className = 'nb-del-btn';
@@ -1436,23 +1479,21 @@ function addNotebookCell(entry) {
 
   cell.appendChild(hdr);
 
-  // code — click to copy back to editor
+  // code — collapsed by default; click header to toggle; click → edit to copy
+  const firstLine = entry.code.split('\n')
+    .find(l => l.trim() && !l.trim().startsWith('/')) || entry.code.split('\n')[0];
+
   const code = document.createElement('div');
-  code.className = 'nb-code';
+  code.className = 'nb-code collapsed';
   code.textContent = entry.code;
-  code.title = 'click to copy to editor';
-  code.style.cursor = 'pointer';
-  code.addEventListener('click', () => {
-    const editor = document.getElementById('editor');
-    editor.value = entry.code;
-    editor.focus();
-    // flash the code div briefly
-    code.style.color = 'var(--accent)';
-    setTimeout(() => { code.style.color = ''; }, 200);
-    // reset history navigation
-    histIdx = -1;
-  });
   cell.appendChild(code);
+
+  // header click: toggle collapsed/expanded; show first line as preview
+  hdr.title = firstLine;
+  hdr.addEventListener('click', e => {
+    if (e.target.closest('button')) return;  // don't intercept del/dl buttons
+    code.classList.toggle('collapsed');
+  });
 
   // waveform + bank row (success only)
   if (entry.success && entry.floatData) {
