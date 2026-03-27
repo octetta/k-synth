@@ -3,10 +3,10 @@
 #include <string.h>
 #include "ksynth.h"
 
-/* Internal state */
-static float  *ks_buf    = NULL;
-static int     ks_len    = 0;
-static char    ks_err[256] = {0};
+/* Internal state managed by API */
+static ks_ctx *global_ctx = NULL;
+static float  *ks_buf     = NULL;
+static int     ks_len     = 0;
 
 /* REPL result buffer — separate from ks_buf */
 static double *repl_vals = NULL;
@@ -15,74 +15,55 @@ static char    repl_str[1024] = {0};
 
 /* ── helpers ─────────────────────────────────────────────────────────── */
 
-static void clear_vars(void) {
-    for (int i = 0; i < 26; i++) {
-        if (vars[i]) { k_free(vars[i]); vars[i] = NULL; }
+static void ensure_ctx(void) {
+    if (!global_ctx) {
+        /* Default limits: 1GB memory, 1B operations */
+        global_ctx = ks_create(1024 * 1024 * 1024, 1000000000LL);
     }
-    for (int i = 0; i < 2; i++) {
-        if (args[i]) { k_free(args[i]); args[i] = NULL; }
-    }
-}
-
-static K run_line(const char *line) {
-    char buf[8192];
-    strncpy(buf, line, sizeof(buf)-1);
-    buf[sizeof(buf)-1] = 0;
-    char *s = buf;
-    return e(&s);
 }
 
 /* ── public API ──────────────────────────────────────────────────────── */
 
-/* Call once at startup */
 void ks_init(void) {
-    clear_vars();
+    if (global_ctx) ks_destroy(global_ctx);
+    /* Set default limits for safety (can be tuned) */
+    global_ctx = ks_create(512 * 1024 * 1024, 500000000LL);
     ks_buf = NULL;
     ks_len = 0;
-    ks_err[0] = 0;
 }
 
-/*
- * Run a complete ksynth script (newline-separated lines).
- * Returns number of samples in W on success, -1 on error.
- * Clears all variables before running — each script is self-contained.
- */
 int ks_run(const char *script) {
-    ks_err[0] = 0;
+    ensure_ctx();
+    ks_clear_vars(global_ctx);
 
     if (ks_buf) { free(ks_buf); ks_buf = NULL; ks_len = 0; }
 
-    clear_vars();
-
     const char *p = script;
-    char line[8192];
     while (*p) {
         const char *nl = strchr(p, '\n');
         int len = nl ? (int)(nl - p) : (int)strlen(p);
-        if (len >= (int)sizeof(line)) len = (int)sizeof(line) - 1;
-        memcpy(line, p, len);
-        line[len] = 0;
+        
+        if (len > 0 && p[0] != '/') {
+            K result = ks_eval(global_ctx, p, len);
+            if (result) k_free(global_ctx, result);
+            
+            if (global_ctx->last_status != KS_OK) {
+                return -1;
+            }
+        }
         p = nl ? nl + 1 : p + len;
-
-        if (line[0] == 0 || line[0] == '/') continue;
-
-        K result = run_line(line);
-        if (result) k_free(result);
     }
 
-    K w = k_get('W');
+    K w = k_get(global_ctx, 'W');
     if (!w || w->n <= 0) {
-        snprintf(ks_err, sizeof(ks_err),
-                 w ? "W is empty" : "no W variable set");
-        if (w) k_free(w);
+        if (w) k_free(global_ctx, w);
         return -1;
     }
 
     ks_len = w->n;
     ks_buf = (float*)malloc(ks_len * sizeof(float));
     if (!ks_buf) {
-        snprintf(ks_err, sizeof(ks_err), "out of memory");
-        k_free(w);
+        k_free(global_ctx, w);
         ks_len = 0;
         return -1;
     }
@@ -92,89 +73,67 @@ int ks_run(const char *script) {
         if (v < -1.0) v = -1.0;
         ks_buf[i] = (float)v;
     }
-    k_free(w);
+    k_free(global_ctx, w);
     return ks_len;
 }
 
-/*
- * Evaluate one expression WITHOUT clearing variables.
- * State (a-z) persists between calls — this is the REPL entry point.
- *
- * Returns 0 on success, -1 on error.
- * After success: ks_repl_str() returns a human-readable result summary.
- * After error:   ks_get_error() returns the error message.
- */
 int ks_repl(const char *expr) {
-    ks_err[0]   = 0;
+    ensure_ctx();
     repl_str[0] = 0;
     if (repl_vals) { free(repl_vals); repl_vals = NULL; repl_n = 0; }
 
-    if (!expr || !*expr) {
-        repl_str[0] = 0;
-        return 0;
-    }
+    if (!expr || !*expr) return 0;
 
-    /* Run the expression — do NOT clear vars */
-    char buf[8192];
-    strncpy(buf, expr, sizeof(buf)-1);
-    buf[sizeof(buf)-1] = 0;
-    char *s = buf;
-    K result = e(&s);
+    K result = ks_eval(global_ctx, expr, strlen(expr));
+
+    if (global_ctx->last_status != KS_OK) {
+        snprintf(repl_str, sizeof(repl_str), "Error: %s", ks_strerror(global_ctx->last_status));
+        return -1;
+    }
 
     if (!result) {
         snprintf(repl_str, sizeof(repl_str), "nil");
         return 0;
     }
 
-    /* Check whether result is owned by vars[] — if so don't free it */
-    int in_vars = 0;
-    for (int i = 0; i < 26; i++)
-        if (vars[i] == result) { in_vars = 1; break; }
-
-    /* Copy result values into repl_vals buffer for JS retrieval */
+    /* Copy result values */
     repl_n    = result->n;
     repl_vals = (double*)malloc((size_t)repl_n * sizeof(double));
     if (repl_vals)
         for (int i = 0; i < repl_n; i++) repl_vals[i] = result->f[i];
 
-    /* Format result into repl_str */
+    /* Format result summary */
     if (result->n == 1) {
         snprintf(repl_str, sizeof(repl_str), "%g", result->f[0]);
     } else {
         int show = result->n < 6 ? result->n : 6;
         int pos = 0;
         pos += snprintf(repl_str + pos, sizeof(repl_str) - pos, "[");
-        for (int i = 0; i < show && pos < (int)sizeof(repl_str) - 20; i++) {
+        for (int i = 0; i < show && pos < (int)sizeof(repl_str) - 30; i++) {
             if (i > 0) pos += snprintf(repl_str + pos, sizeof(repl_str) - pos, "  ");
             pos += snprintf(repl_str + pos, sizeof(repl_str) - pos, "%g", result->f[i]);
         }
         if (result->n > 6)
-            snprintf(repl_str + pos, sizeof(repl_str) - pos,
-                     " ...]  len=%d", result->n);
+            snprintf(repl_str + pos, sizeof(repl_str) - pos, " ...]  len=%d", result->n);
         else
             snprintf(repl_str + pos, sizeof(repl_str) - pos, "]");
     }
 
-    if (!in_vars) k_free(result);
+    /* Free result (unless it was just assigned to a var - but we k_get it if needed anyway) */
+    k_free(global_ctx, result);
     return 0;
 }
 
-/* Result string from last ks_repl call */
 const char *ks_repl_str(void) { return repl_str; }
 
-/*
- * Copy a named variable (A-Z) into a float buffer for JS inspection.
- * Returns the number of elements, or 0 if not set.
- * Call ks_get_var_buf() immediately after to get a pointer to the
- * float copy (valid until the next ks_get_var call).
- */
 static float *get_var_fbuf = NULL;
 static int    get_var_flen = 0;
 
 int ks_get_var(int letter_upper) {
+    ensure_ctx();
     free(get_var_fbuf); get_var_fbuf = NULL; get_var_flen = 0;
     if (letter_upper < 'A' || letter_upper > 'Z') return 0;
-    K v = vars[letter_upper - 'A'];
+    K v = global_ctx->vars[letter_upper - 'A'];
     if (!v || v->n <= 0) return 0;
     get_var_fbuf = (float*)malloc((size_t)v->n * sizeof(float));
     if (!get_var_fbuf) return 0;
@@ -184,23 +143,18 @@ int ks_get_var(int letter_upper) {
 }
 
 float *ks_get_var_buf(void) { return get_var_fbuf; }
-
-/* Number of values from last ks_repl call */
 int ks_repl_length(void) { return repl_n; }
 
-/* Copy repl values as floats into a caller-allocated buffer.
-   Returns number of values written. */
 int ks_repl_get_floats(float *out, int max_n) {
     int n = repl_n < max_n ? repl_n : max_n;
-    for (int i = 0; i < n; i++) out[i] = (float)repl_vals[i];
+    if (repl_vals) for (int i = 0; i < n; i++) out[i] = (float)repl_vals[i];
     return n;
 }
 
-/* Pointer to the float output buffer (valid until next ks_run call) */
 float *ks_get_buffer(void) { return ks_buf; }
-
-/* Number of samples in the buffer */
 int ks_get_length(void) { return ks_len; }
-
-/* Last error string (empty string if no error) */
-const char *ks_get_error(void) { return ks_err; }
+const char *ks_get_error(void) { 
+    if (global_ctx && global_ctx->last_status != KS_OK)
+        return ks_strerror(global_ctx->last_status);
+    return "";
+}

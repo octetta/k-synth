@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# Configuration
+PROCESS_NAME=$1
+REFRESH_RATE=1  # tiptop works best at 1s intervals for hardware counters
+
+if [ -z "$PROCESS_NAME" ]; then
+    echo "Usage: $0 <process_name>"
+    exit 1
+fi
+
+while true; do
+V=$(pgrep $PROCESS_NAME | head -1)
+
+#echo "$PROCESS_NAME $V"
+
+if [ "$V" == "" ]; then
+
+#echo "NO PID"
+
+sleep 1
+
+else
+
+break
+
+fi
+
+done
+
+tiptop -H -p $V
