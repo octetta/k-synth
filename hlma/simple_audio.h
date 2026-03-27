@@ -1,11 +1,3 @@
-/*
- * Updated simple_audio.h - Now supports BOTH:
- *   1. Fixed one-shot buffers (plays once, then stops)
- *   2. Wrapping buffers (wavetable / looping oscillator style)
- *
- * Everything else (volume, pan, pitch/frequency, real-time control) works exactly the same.
- */
-
 #ifndef SIMPLE_AUDIO_H
 #define SIMPLE_AUDIO_H
 
@@ -19,147 +11,74 @@ typedef struct {
     ma_audio_buffer audio_buffer;
     ma_sound       sound;
     bool           is_initialized;
-    bool           is_looping;          // for convenience
+    bool           is_looping;
+    float          base_frequency;
+    float          base_volume;
+    float          base_pan;
 } SimpleAudioVoice;
 
-/* Initialize the audio engine */
-ma_result simple_audio_init(SimpleAudioContext* ctx);
+/* LFO target */
+typedef enum {
+    LFO_TARGET_PITCH,   /* vibrato / frequency modulation */
+    LFO_TARGET_VOLUME,  /* tremolo */
+    LFO_TARGET_PAN      /* pan modulation */
+} SimpleAudioLFOTarget;
 
-/* Shut down */
+typedef struct {
+    const float* wavetable;   /* user-owned mono float wavetable, values -1..1 recommended */
+    ma_uint64    tableSize;
+    float        phase;
+    float        frequency;   /* LFO rate in Hz (can be high for "audio-rate" feel) */
+    float        depth;       /* modulation amount */
+    SimpleAudioLFOTarget target;
+    bool         active;
+} SimpleAudioLFO;
+
+/* Engine functions */
+ma_result simple_audio_init(SimpleAudioContext* ctx, float masterGain);  /* masterGain 0.4-0.6 recommended to avoid clipping */
 void simple_audio_uninit(SimpleAudioContext* ctx);
+void simple_audio_set_master_volume(SimpleAudioContext* ctx, float volume);
 
-/* Create a voice from a raw float32 PCM buffer.
- *   looping = false  → one-shot (plays once)
- *   looping = true   → wrapping / wavetable (loops forever, perfect for oscillators)
- *
- * The buffer you pass MUST stay alive until simple_audio_voice_uninit().
- */
+/* Voice functions - fixed buffer (one-shot) or wrapping wavetable (looping) */
 ma_result simple_audio_create_voice(SimpleAudioContext* ctx,
-                                    const float* pPCMData,
+                                    const float* pPCMData,      /* must remain valid until uninit */
                                     ma_uint64 frameCount,
                                     ma_uint32 channels,
                                     float initialVolume,
-                                    ma_bool32 looping,               // NEW: one-shot vs wrapping
+                                    ma_bool32 looping,          /* false = one-shot, true = looping wavetable */
+                                    float baseFrequency,
                                     SimpleAudioVoice* voice);
 
-/* Start playing (works for both one-shot and looping) */
 void simple_audio_voice_play(SimpleAudioVoice* voice);
-
-/* Stop immediately */
 void simple_audio_voice_stop(SimpleAudioVoice* voice);
-
-/* Real-time controls (all thread-safe) */
 void simple_audio_voice_set_volume(SimpleAudioVoice* voice, float volume);
 void simple_audio_voice_set_pan(SimpleAudioVoice* voice, float pan);
-
-/* Real-time pitch/frequency control (works beautifully on looping voices) */
 void simple_audio_voice_set_frequency(SimpleAudioVoice* voice, float newFrequency);
+void simple_audio_voice_reset_phase(SimpleAudioVoice* voice);   /* restart from start of buffer (useful for looping voices) */
 
-/* Toggle looping at runtime if you want (rarely needed) */
-void simple_audio_voice_set_looping(SimpleAudioVoice* voice, ma_bool32 looping);
+/* Switch to a new wavetable at runtime (for looping voices) */
+ma_result simple_audio_voice_switch_wavetable(SimpleAudioVoice* voice,
+                                              const float* pNewPCMData,
+                                              ma_uint64 newFrameCount,
+                                              float newBaseFrequency);
 
-/* Clean up */
 void simple_audio_voice_uninit(SimpleAudioVoice* voice);
 
-#endif // SIMPLE_AUDIO_H
+/* LFO functions - arbitrary wavetable LFO */
+ma_result simple_audio_lfo_init(SimpleAudioLFO* lfo,
+                                const float* pWavetable,
+                                ma_uint64 tableSize,
+                                float frequencyHz,
+                                float depth,
+                                SimpleAudioLFOTarget target);
 
-/* ======================== IMPLEMENTATION ======================== */
-#ifdef SIMPLE_AUDIO_IMPLEMENTATION
+void simple_audio_lfo_set_frequency(SimpleAudioLFO* lfo, float frequencyHz);
+void simple_audio_lfo_set_depth(SimpleAudioLFO* lfo, float depth);
+void simple_audio_lfo_set_active(SimpleAudioLFO* lfo, bool active);
 
-ma_result simple_audio_init(SimpleAudioContext* ctx)
-{
-    ma_result result = ma_engine_init(NULL, &ctx->engine);
-    return result;
-}
+/* Update LFO - call regularly in your main loop (deltaTime in seconds) */
+void simple_audio_lfo_update(SimpleAudioLFO* lfo, SimpleAudioVoice* voice, float deltaTimeSeconds);
 
-void simple_audio_uninit(SimpleAudioContext* ctx)
-{
-    ma_engine_uninit(&ctx->engine);
-}
+void simple_audio_lfo_deinit(SimpleAudioLFO* lfo);  /* no-op, wavetable is user-owned */
 
-ma_result simple_audio_create_voice(SimpleAudioContext* ctx,
-                                    const float* pPCMData,
-                                    ma_uint64 frameCount,
-                                    ma_uint32 channels,
-                                    float initialVolume,
-                                    ma_bool32 looping,
-                                    SimpleAudioVoice* voice)
-{
-    if (!ctx || !pPCMData || frameCount == 0 || channels == 0 || !voice) {
-        return MA_INVALID_ARGS;
-    }
-
-    ma_audio_buffer_config bufferConfig = ma_audio_buffer_config_init(
-        ma_format_f32, channels, frameCount, pPCMData, NULL);
-
-    ma_result result = ma_audio_buffer_init(&bufferConfig, &voice->audio_buffer);
-    if (result != MA_SUCCESS) return result;
-
-    result = ma_sound_init_from_data_source(
-        &ctx->engine,
-        (ma_data_source*)&voice->audio_buffer,
-        0,
-        NULL,
-        &voice->sound);
-
-    if (result != MA_SUCCESS) {
-        ma_audio_buffer_uninit(&voice->audio_buffer);
-        return result;
-    }
-
-    ma_sound_set_volume(&voice->sound, initialVolume);
-    ma_sound_set_looping(&voice->sound, looping);   // ← this is the key line
-
-    voice->is_initialized = true;
-    voice->is_looping = looping;
-    return MA_SUCCESS;
-}
-
-void simple_audio_voice_play(SimpleAudioVoice* voice)
-{
-    if (voice && voice->is_initialized) ma_sound_start(&voice->sound);
-}
-
-void simple_audio_voice_stop(SimpleAudioVoice* voice)
-{
-    if (voice && voice->is_initialized) ma_sound_stop(&voice->sound);
-}
-
-void simple_audio_voice_set_volume(SimpleAudioVoice* voice, float volume)
-{
-    if (voice && voice->is_initialized) ma_sound_set_volume(&voice->sound, volume);
-}
-
-void simple_audio_voice_set_pan(SimpleAudioVoice* voice, float pan)
-{
-    if (voice && voice->is_initialized) ma_sound_set_pan(&voice->sound, pan);
-}
-
-void simple_audio_voice_set_frequency(SimpleAudioVoice* voice, float newFrequency)
-{
-    if (!voice || !voice->is_initialized) return;
-
-    /* We assume the buffer was generated at BASE_FREQ (you pass this when creating the buffer).
-     * For wavetable voices this gives perfect frequency control. */
-    float pitch = newFrequency / 220.0f;   // BASE_FREQ = 220 Hz by convention in the example below
-    ma_sound_set_pitch(&voice->sound, pitch);
-}
-
-void simple_audio_voice_set_looping(SimpleAudioVoice* voice, ma_bool32 looping)
-{
-    if (voice && voice->is_initialized) {
-        ma_sound_set_looping(&voice->sound, looping);
-        voice->is_looping = looping;
-    }
-}
-
-void simple_audio_voice_uninit(SimpleAudioVoice* voice)
-{
-    if (voice && voice->is_initialized) {
-        ma_sound_uninit(&voice->sound);
-        ma_audio_buffer_uninit(&voice->audio_buffer);
-        voice->is_initialized = false;
-    }
-}
-
-#endif // SIMPLE_AUDIO_IMPLEMENTATION
+#endif /* SIMPLE_AUDIO_H */
