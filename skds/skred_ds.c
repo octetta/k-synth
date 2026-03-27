@@ -187,3 +187,32 @@ void skred_voice_set_buffer(skred_voice_t* p_voice, float* p_new_buffer, ma_uint
     p_voice->loop_end = new_end;
     p_voice->base_hz = new_base_hz;
 }
+
+void skred_voice_set_sample(skred_voice_t* p_voice, float* p_new_buffer, ma_uint32 new_frames, int is_oneshot) {
+    /* 1. Safety Bounds (Shrink-First) */
+    double new_end = (double)new_frames - 1.0;
+    if (new_frames < p_voice->buffer_frames) {
+        p_voice->loop_end = new_end;
+        p_voice->buffer_frames = new_frames;
+    }
+
+    /* 2. Atomic Pointer Swap */
+    p_voice->p_buffer = p_new_buffer;
+
+    /* 3. Metadata & Expansion */
+    p_voice->buffer_frames = new_frames;
+    p_voice->loop_end = new_end;
+    p_voice->loop_start = 0.0;
+    
+    /* 4. One-Shot Specific Logic */
+    if (is_oneshot) {
+        p_voice->loop_mode = skred_loop_oneshot_t;
+        p_voice->base_hz = 1.0f;     /* 1.0 means 'natural speed' */
+        p_voice->target_freq = 1.0f; /* Reset pitch to original */
+        p_voice->read_index = 0.0;   /* Reset to start of sample */
+        p_voice->is_playing = 1;     /* Arm the voice */
+    } else {
+        p_voice->loop_mode = skred_loop_forward_t;
+        p_voice->base_hz = (float)p_voice->buffer_sample_rate / (float)new_frames;
+    }
+}

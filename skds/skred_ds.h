@@ -61,5 +61,5 @@ void skred_voice_set_loop(skred_voice_t* p_voice, double start_idx, double end_i
 void skred_voice_play(skred_voice_t* p_voice);
 void skred_voice_stop(skred_voice_t* p_voice);
 void skred_voice_set_buffer(skred_voice_t* p_voice, float* p_new_buffer, ma_uint32 new_frames);
-
+void skred_voice_set_sample(skred_voice_t* p_voice, float* p_new_buffer, ma_uint32 new_frames, int is_oneshot);
 #endif /* SKRED_DS_H */
