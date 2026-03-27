@@ -1,13 +1,13 @@
 #define SIMPLE_AUDIO_IMPLEMENTATION
 #include "simple_audio.h"
+#include <math.h>
 
-#include <math.h>   /* for fmodf */
-
+/* Engine */
 ma_result simple_audio_init(SimpleAudioContext* ctx, float masterGain)
 {
     ma_result result = ma_engine_init(NULL, &ctx->engine);
     if (result == MA_SUCCESS) {
-        ma_engine_set_volume(&ctx->engine, masterGain);   /* conservative gain to prevent clipping with many voices */
+        ma_engine_set_volume(&ctx->engine, masterGain);
     }
     return result;
 }
@@ -19,60 +19,121 @@ void simple_audio_uninit(SimpleAudioContext* ctx)
 
 void simple_audio_set_master_volume(SimpleAudioContext* ctx, float volume)
 {
-    if (ctx) {
-        ma_engine_set_volume(&ctx->engine, volume);
-    }
+    if (ctx) ma_engine_set_volume(&ctx->engine, volume);
 }
 
-ma_result simple_audio_create_voice(SimpleAudioContext* ctx,
-                                    const float* pPCMData,
-                                    ma_uint64 frameCount,
-                                    ma_uint32 channels,
-                                    float initialVolume,
-                                    ma_bool32 looping,
-                                    float baseFrequency,
-                                    SimpleAudioVoice* voice)
+/* Custom Wavetable Data Source */
+static ma_result wavetable_ds_read(ma_data_source* pDataSource, void* pFramesOut, ma_uint64 frameCount, ma_uint64* pFramesRead)
 {
-    if (!ctx || !pPCMData || frameCount == 0 || channels == 0 || !voice) {
-        return MA_INVALID_ARGS;
+    SimpleWavetableDataSource* ds = (SimpleWavetableDataSource*)pDataSource;
+    if (!ds || !ds->pTable || ds->tableSize == 0) {
+        if (pFramesRead) *pFramesRead = 0;
+        return MA_SUCCESS;
     }
 
-    ma_audio_buffer_config cfg = ma_audio_buffer_config_init(ma_format_f32, channels, frameCount, pPCMData, NULL);
-    ma_result result = ma_audio_buffer_init(&cfg, &voice->audio_buffer);
+    float* out = (float*)pFramesOut;
+    ma_uint64 framesDone = 0;
+
+    while (framesDone < frameCount) {
+        ma_uint64 remaining = frameCount - framesDone;
+        ma_uint64 toCopy = ds->tableSize - ds->cursor;
+        if (toCopy > remaining) toCopy = remaining;
+
+        for (ma_uint64 i = 0; i < toCopy; ++i) {
+            float s = ds->pTable[ds->cursor + i];
+            out[(framesDone + i) * ds->channels + 0] = s;
+            if (ds->channels == 2) out[(framesDone + i) * 2 + 1] = s;
+        }
+
+        ds->cursor += toCopy;
+        if (ds->cursor >= ds->tableSize) ds->cursor = 0;
+        framesDone += toCopy;
+    }
+
+    if (pFramesRead) *pFramesRead = framesDone;
+    return MA_SUCCESS;
+}
+
+static ma_result wavetable_ds_seek(ma_data_source* pDataSource, ma_uint64 frameIndex)
+{
+    SimpleWavetableDataSource* ds = (SimpleWavetableDataSource*)pDataSource;
+    if (ds) ds->cursor = frameIndex % ds->tableSize;
+    return MA_SUCCESS;
+}
+
+static ma_result wavetable_ds_get_format(ma_data_source* pDataSource, ma_format* pFormat, ma_uint32* pChannels, ma_uint32* pSampleRate, ma_channel* pChannelMap, size_t channelMapCap)
+{
+    SimpleWavetableDataSource* ds = (SimpleWavetableDataSource*)pDataSource;
+    if (pFormat) *pFormat = ma_format_f32;
+    if (pChannels) *pChannels = ds->channels;
+    if (pSampleRate) *pSampleRate = 48000;
+    return MA_SUCCESS;
+}
+
+static ma_data_source_vtable g_wavetableVTable = {
+    wavetable_ds_read,
+    wavetable_ds_seek,
+    wavetable_ds_get_format,
+    NULL,
+    NULL
+};
+
+/* Wavetable Voice */
+ma_result simple_wavetable_create(SimpleAudioContext* ctx,
+                                  const float* pInitialTable,
+                                  ma_uint64 tableSize,
+                                  float initialVolume,
+                                  float baseFrequency,
+                                  SimpleWavetableVoice* voice)
+{
+    if (!ctx || !pInitialTable || tableSize == 0 || !voice) return MA_INVALID_ARGS;
+
+    ma_data_source_config dsConfig = ma_data_source_config_init();
+    dsConfig.vtable = &g_wavetableVTable;
+
+    ma_result result = ma_data_source_init(&dsConfig, &voice->ds);
     if (result != MA_SUCCESS) return result;
 
-    result = ma_sound_init_from_data_source(&ctx->engine, (ma_data_source*)&voice->audio_buffer, 0, NULL, &voice->sound);
+    voice->ds.pTable    = pInitialTable;
+    voice->ds.tableSize = tableSize;
+    voice->ds.cursor    = 0;
+    voice->ds.channels  = 2;
+
+    result = ma_sound_init_from_data_source(&ctx->engine, &voice->ds, 0, NULL, &voice->sound);
     if (result != MA_SUCCESS) {
-        ma_audio_buffer_uninit(&voice->audio_buffer);
+        ma_data_source_uninit(&voice->ds);
         return result;
     }
 
     ma_sound_set_volume(&voice->sound, initialVolume);
-    ma_sound_set_looping(&voice->sound, looping);
+    ma_sound_set_looping(&voice->sound, MA_TRUE);
 
     voice->base_frequency = (baseFrequency > 0.0f) ? baseFrequency : 220.0f;
     voice->base_volume    = initialVolume;
     voice->base_pan       = 0.0f;
     voice->is_initialized = true;
-    voice->is_looping     = looping;
     return MA_SUCCESS;
 }
 
-void simple_audio_voice_play(SimpleAudioVoice* voice)
+void simple_wavetable_set_table(SimpleWavetableVoice* voice, const float* pNewTable, ma_uint64 newSize)
 {
-    if (voice && voice->is_initialized) {
-        ma_sound_start(&voice->sound);
+    if (voice && voice->is_initialized && pNewTable && newSize > 0) {
+        voice->ds.pTable = pNewTable;
+        voice->ds.tableSize = newSize;
     }
 }
 
-void simple_audio_voice_stop(SimpleAudioVoice* voice)
+void simple_wavetable_play(SimpleWavetableVoice* voice)
 {
-    if (voice && voice->is_initialized) {
-        ma_sound_stop(&voice->sound);
-    }
+    if (voice && voice->is_initialized) ma_sound_start(&voice->sound);
 }
 
-void simple_audio_voice_set_volume(SimpleAudioVoice* voice, float volume)
+void simple_wavetable_stop(SimpleWavetableVoice* voice)
+{
+    if (voice && voice->is_initialized) ma_sound_stop(&voice->sound);
+}
+
+void simple_wavetable_set_volume(SimpleWavetableVoice* voice, float volume)
 {
     if (voice && voice->is_initialized) {
         ma_sound_set_volume(&voice->sound, volume);
@@ -80,7 +141,7 @@ void simple_audio_voice_set_volume(SimpleAudioVoice* voice, float volume)
     }
 }
 
-void simple_audio_voice_set_pan(SimpleAudioVoice* voice, float pan)
+void simple_wavetable_set_pan(SimpleWavetableVoice* voice, float pan)
 {
     if (voice && voice->is_initialized) {
         ma_sound_set_pan(&voice->sound, pan);
@@ -88,60 +149,28 @@ void simple_audio_voice_set_pan(SimpleAudioVoice* voice, float pan)
     }
 }
 
-void simple_audio_voice_set_frequency(SimpleAudioVoice* voice, float newFrequency)
+void simple_wavetable_set_frequency(SimpleWavetableVoice* voice, float newFrequency)
 {
-    if (!voice || !voice->is_initialized || voice->base_frequency <= 0.0f) return;
-    float pitch = newFrequency / voice->base_frequency;
-    ma_sound_set_pitch(&voice->sound, pitch);
-}
-
-void simple_audio_voice_reset_phase(SimpleAudioVoice* voice)
-{
-    if (voice && voice->is_initialized) {
-        ma_sound_seek_to_pcm_frame(&voice->sound, 0);
+    if (voice && voice->is_initialized && voice->base_frequency > 0.0f) {
+        ma_sound_set_pitch(&voice->sound, newFrequency / voice->base_frequency);
     }
 }
 
-ma_result simple_audio_voice_switch_wavetable(SimpleAudioVoice* voice,
-                                              const float* pNewPCMData,
-                                              ma_uint64 newFrameCount,
-                                              float newBaseFrequency)
+void simple_wavetable_reset_phase(SimpleWavetableVoice* voice)
 {
-    if (!voice || !voice->is_initialized || !pNewPCMData || newFrameCount == 0) {
-        return MA_INVALID_ARGS;
-    }
-
-    ma_bool32 wasPlaying = ma_sound_is_playing(&voice->sound);
-    if (wasPlaying) ma_sound_stop(&voice->sound);
-
-    ma_audio_buffer_uninit(&voice->audio_buffer);
-
-    ma_audio_buffer_config cfg = ma_audio_buffer_config_init(ma_format_f32, 2, newFrameCount, pNewPCMData, NULL);
-    ma_result result = ma_audio_buffer_init(&cfg, &voice->audio_buffer);
-    if (result != MA_SUCCESS) return result;
-
-    ma_sound_uninit(&voice->sound);
-    result = ma_sound_init_from_data_source(ma_sound_get_engine(&voice->sound),
-                                            (ma_data_source*)&voice->audio_buffer, 0, NULL, &voice->sound);
-
-    if (result == MA_SUCCESS) {
-        voice->base_frequency = newBaseFrequency;
-        ma_sound_set_looping(&voice->sound, voice->is_looping);
-        if (wasPlaying) ma_sound_start(&voice->sound);
-    }
-    return result;
+    if (voice && voice->is_initialized) ma_sound_seek_to_pcm_frame(&voice->sound, 0);
 }
 
-void simple_audio_voice_uninit(SimpleAudioVoice* voice)
+void simple_wavetable_uninit(SimpleWavetableVoice* voice)
 {
     if (voice && voice->is_initialized) {
         ma_sound_uninit(&voice->sound);
-        ma_audio_buffer_uninit(&voice->audio_buffer);
+        ma_data_source_uninit(&voice->ds);
         voice->is_initialized = false;
     }
 }
 
-/* LFO */
+/* LFO - Fixed for continuous repeating tremolo */
 ma_result simple_audio_lfo_init(SimpleAudioLFO* lfo,
                                 const float* pWavetable,
                                 ma_uint64 tableSize,
@@ -175,27 +204,30 @@ void simple_audio_lfo_set_active(SimpleAudioLFO* lfo, bool active)
     if (lfo) lfo->active = active;
 }
 
-void simple_audio_lfo_update(SimpleAudioLFO* lfo, SimpleAudioVoice* voice, float deltaTimeSeconds)
+void simple_audio_lfo_update(SimpleAudioLFO* lfo, SimpleWavetableVoice* voice, float deltaTimeSeconds)
 {
     if (!lfo || !voice || !voice->is_initialized || !lfo->active || lfo->depth <= 0.0f) return;
 
     lfo->phase += lfo->frequency * deltaTimeSeconds;
-    lfo->phase -= (float)(int)lfo->phase;   /* keep in [0,1) */
+    while (lfo->phase >= 1.0f) lfo->phase -= 1.0f;
 
     float frac = lfo->phase * (float)lfo->tableSize;
     ma_uint64 i0 = (ma_uint64)frac;
     ma_uint64 i1 = (i0 + 1) % lfo->tableSize;
-    float s = lfo->wavetable[i0] + (frac - (float)i0) * (lfo->wavetable[i1] - lfo->wavetable[i0]);
+    float modSample = lfo->wavetable[i0] + (frac - (float)i0) * (lfo->wavetable[i1] - lfo->wavetable[i0]);
 
     if (lfo->target == LFO_TARGET_PITCH) {
-        float modulated = voice->base_frequency * (1.0f + s * lfo->depth);
-        simple_audio_voice_set_frequency(voice, modulated);
-    } else if (lfo->target == LFO_TARGET_VOLUME) {
-        float modulated = voice->base_volume * (1.0f + s * lfo->depth * 0.5f);  /* reduced sensitivity */
-        simple_audio_voice_set_volume(voice, fmaxf(0.0f, modulated));
-    } else if (lfo->target == LFO_TARGET_PAN) {
-        float modulated = voice->base_pan + s * lfo->depth * 0.7f;
-        simple_audio_voice_set_pan(voice, fmaxf(-1.0f, fminf(1.0f, modulated)));
+        float modulated = voice->base_frequency * (1.0f + modSample * lfo->depth * 1.2f);
+        simple_wavetable_set_frequency(voice, modulated);
+    }
+    else if (lfo->target == LFO_TARGET_VOLUME) {
+        /* Continuous tremolo - always based on original base_volume */
+        float modulated = voice->base_volume * (1.0f + modSample * lfo->depth * 0.9f);
+        simple_wavetable_set_volume(voice, fmaxf(0.08f, modulated));
+    }
+    else if (lfo->target == LFO_TARGET_PAN) {
+        float modulated = voice->base_pan + modSample * lfo->depth * 0.8f;
+        simple_wavetable_set_pan(voice, fmaxf(-1.0f, fminf(1.0f, modulated)));
     }
 }
 

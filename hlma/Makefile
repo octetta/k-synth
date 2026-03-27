@@ -1,7 +1,8 @@
 EXE = \
-  rtex1 \
-  rtex2 \
-  rtex3 \
+  rtex4 \
+  # rtex3 \
+  # rtex2 \
+  # rtex1 \
   # rt \
   # 16 \
   #
@@ -11,6 +12,9 @@ all: $(EXE)
 OBJ = \
   simple_audio.o
   
+rtex4: rtex4.c $(OBJ)
+	$(CC) $(CFLAGS) -o $@ $< $(OBJ) -lm
+
 rtex1: rtex1.c
 	$(CC) $(CFLAGS) -o $@ $^ $(OBJ) -lm
 
