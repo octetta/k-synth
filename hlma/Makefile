@@ -1,5 +1,10 @@
+CC = zig cc
+
 EXE = \
-  rtex4 \
+  gex1 \
+  gex2 \
+  gex3 \
+  # rtex4 \
   # rtex3 \
   # rtex2 \
   # rtex1 \
@@ -12,6 +17,21 @@ all: $(EXE)
 OBJ = \
   simple_audio.o
   
+miniaudio.o : miniaudio.c
+	$(CC) -c miniaudio.c -o miniaudio.o
+
+gex3: gex3.c miniaudio.o
+	$(CC) $(CFLAGS) -o $@ $< miniaudio.o -lm
+	# $(CC) $(CFLAGS) -o $@ $< $(OBJ) -lm
+
+gex2: gex2.c miniaudio.o
+	$(CC) $(CFLAGS) -o $@ $< -lm
+	# $(CC) $(CFLAGS) -o $@ $< $(OBJ) -lm
+
+gex1: gex1.c # $(OBJ)
+	$(CC) $(CFLAGS) -o $@ $< -lm
+	# $(CC) $(CFLAGS) -o $@ $< $(OBJ) -lm
+
 rtex4: rtex4.c $(OBJ)
 	$(CC) $(CFLAGS) -o $@ $< $(OBJ) -lm
 

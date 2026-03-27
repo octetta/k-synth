@@ -4,7 +4,7 @@ CFLAGS = -Wall -Wextra -Ofast -march=native -ffast-math -Wno-stringop-overflow -
 LDFLAGS = -lm -lpthread -ldl
 
 TARGET = skred_demo
-OBJS = main.o skred_ds.o
+OBJS = main.o skred_ds.o miniaudio.o
 
 all: $(TARGET)
 
@@ -16,6 +16,9 @@ main.o: main.c skred_ds.h miniaudio.h
 
 skred_ds.o: skred_ds.c skred_ds.h miniaudio.h
 	$(CC) $(CFLAGS) -c skred_ds.c
+
+miniaudio.o: miniaudio.c miniaudio.h
+	$(CC) $(CFLAGS) -c miniaudio.c
 
 clean:
 	rm -f $(OBJS) $(TARGET)

@@ -158,3 +158,32 @@ void skred_voice_set_loop(skred_voice_t* p_voice, double start_idx, double end_i
 void skred_voice_play(skred_voice_t* p_voice) {
     p_voice->is_playing = 1;
 }
+
+void skred_voice_stop(skred_voice_t* p_voice) {
+    p_voice->is_playing = 0;
+    p_voice->read_index = 0.0;
+}
+
+void skred_voice_set_buffer(skred_voice_t* p_voice, float* p_new_buffer, ma_uint32 new_frames) {
+    /* 1. Calculate the new base frequency for this buffer size.
+       Formula: Base Hz = Sample Rate / Buffer Length */
+    float new_base_hz = (float)p_voice->buffer_sample_rate / (float)new_frames;
+
+    /* 2. Handle bounds safely (Shrink-First approach) */
+    double new_end = (double)new_frames - 1.0;
+    
+    if (new_frames < p_voice->buffer_frames) {
+        p_voice->loop_end = new_end;
+        if (p_voice->read_index >= new_end) {
+            p_voice->read_index = 0.0;
+        }
+    }
+
+    /* 3. Atomic Pointer Swap */
+    p_voice->p_buffer = p_new_buffer;
+
+    /* 4. Update metadata and Expand bounds if necessary */
+    p_voice->buffer_frames = new_frames;
+    p_voice->loop_end = new_end;
+    p_voice->base_hz = new_base_hz;
+}

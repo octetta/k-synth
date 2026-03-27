@@ -59,5 +59,7 @@ void skred_voice_set_pan(skred_voice_t* p_voice, float pan, float ease_ms);
 void skred_voice_set_dir(skred_voice_t* p_voice, float dir, float ease_ms);
 void skred_voice_set_loop(skred_voice_t* p_voice, double start_idx, double end_idx, skred_loop_mode_t mode);
 void skred_voice_play(skred_voice_t* p_voice);
+void skred_voice_stop(skred_voice_t* p_voice);
+void skred_voice_set_buffer(skred_voice_t* p_voice, float* p_new_buffer, ma_uint32 new_frames);
 
 #endif /* SKRED_DS_H */
