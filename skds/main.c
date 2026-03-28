@@ -6,173 +6,185 @@
 #include <string.h>
 #include <math.h>
 
-#define WT_SIZE 4096
+#include "uedit.h"
 
+#define WT_SIZE 4096
 #define VMAX 4
 #define WMAX 4
+#define WZED WMAX
+
+#define PI (3.14159265358979323846)
 
 int main() {
     ma_engine engine;
-
-    if (ma_engine_init(NULL, &engine) != MA_SUCCESS) {
-        printf("Failed to init engine.\n");
+#if 1
+    ma_engine_config engineConfig = ma_engine_config_init();
+    engine.sampleRate = 44100;
+    if (ma_engine_init(&engineConfig, &engine) != MA_SUCCESS) {
+        printf("# Failed to init engine.\n");
         return -1;
     }
+    ma_uint32 actual_sr = 44100;
+#else
+    if (ma_engine_init(NULL, &engine) != MA_SUCCESS) {
+        printf("# Failed to init engine.\n");
+        return -1;
+    }
+    ma_uint32 actual_sr = ma_engine_get_sample_rate(&engine);
+#endif
 
-    float *wd[WMAX];
-    ma_uint32 ws[WMAX];
-    char wm[WMAX];
+    printf("# hardware sample rate %u Hz\n", actual_sr);
 
-    /* Generate a simple Sine Wavetable */
-#define PI (3.14159265358979323846)
-#define TAU (2.0 * PI)
-    float *p_wavetable;
-    for (int n = 0; n < WMAX-1; n++) {
-      p_wavetable = (float*)malloc(WT_SIZE * sizeof(float));
-      for (int i = 0; i < WT_SIZE; i++) {
-          float y = 0.0;
-          float t = (float)i / WT_SIZE;
-          switch (n) {
-            default:
-            case 0: // sine
-              y = (float)sin(((double)i / WT_SIZE) * 2.0 * 3.14159265358979323846);
-              //y = (float)sin(((double)i / WT_SIZE) * TAU);
-              break;
-            case 1: // square
-              y = (t < 0.5) ? 1.0 : -1.0;
-              break;
-            case 2: // saw
-              y = 2.0 * t - 1.0;
-              break;
-          }
-          p_wavetable[i] = y;
-      }
-      wd[n] = p_wavetable;
-      ws[n] = WT_SIZE;
-      wm[n] = skred_loop_forward_t;
+    float *wd[WMAX+1];
+    ma_uint32 ws[WMAX+1];
+    //char wm[WMAX+1];
+
+    /* Generate Simple Wavetables (0: Sine, 1: Square, 2: Saw) */
+    for (int n = 0; n < 3; n++) {
+        float* p_wavetable = (float*)malloc(WT_SIZE * sizeof(float));
+        for (int i = 0; i < WT_SIZE; i++) {
+            float y = 0.0;
+            float t = (float)i / WT_SIZE;
+            switch (n) {
+                case 0: y = (float)sin(t * 2.0 * PI); break;
+                case 1: y = (t < 0.5) ? 1.0 : -1.0; break;
+                case 2: y = 2.0 * t - 1.0; break;
+            }
+            p_wavetable[i] = y;
+        }
+        wd[n] = p_wavetable;
+        ws[n] = WT_SIZE;
+        //wm[n] = skred_loop_forward_t;
     }
 
+    // make hidden empty wavetable
+    {
+        float* p_wavetable = (float*)malloc(WT_SIZE * sizeof(float));
+        for (int i = 0; i < WT_SIZE; i++) p_wavetable[i] = 0.0;
+        wd[WMAX] = p_wavetable;
+        ws[WMAX] = WT_SIZE;
+        //wm[WMAX] = skred_loop_forward_t;
+    }
 
-    /* * If the wavetable represents 1 cycle, its base_hz is Engine_SR / WT_SIZE.
-     * e.g., at 48000Hz, a 2048 buffer is naturally ~23.43Hz.
-     */
+    /* Generate Drum Sample for Slot 3 */
+    #define DRUM 3
+    ma_uint64 drum_frames = engine.sampleRate * 2;
+    float* p_drum = (float*)calloc(drum_frames, sizeof(float));
+    double p = 0.0;
+    for (ma_uint64 i = 0; i < drum_frames; i++) {
+        double t = (double)i / engine.sampleRate;
+        p_drum[i] = (float)(sin(p * 2.0 * PI) * exp(-t * 5.0));
+        p += (60.0 + (100.0 * exp(-t * 10.0))) / engine.sampleRate;
+    }
+    wd[DRUM] = p_drum;
+    ws[DRUM] = drum_frames;
+    //wm[DRUM] = skred_loop_oneshot_t;
+
+
+#if 1
+    float natural_hz = (float)((double)actual_sr / (double)WT_SIZE);
+#else
     float natural_hz = (float)engine.sampleRate / (float)WT_SIZE;
+#endif
 
     skred_voice_t v[VMAX];
     ma_sound sound[VMAX];
     int wave[VMAX] = {0};
-    for (int i=0; i<VMAX-1; i++) {
-      skred_voice_init(engine.sampleRate, p_wavetable, WT_SIZE, engine.sampleRate, natural_hz, &v[i]);
-      /* Wrap our custom source in a standard ma_sound so it plays through the engine */
-      ma_sound_init_from_data_source(&engine, &v[i], 0, NULL, &sound[i]);
 
-      v[i].is_playing = 0;
-      wave[i] = 0;
-      skred_voice_set_buffer(&v[i], wd[wave[i]], ws[wave[i]]);
-      skred_voice_set_freq(&v[i], 440.0f, 0.0f); /* Set starting freq */
-      ma_sound_start(&sound[i]);
-    }
-
-    {
-#define DRUM 3
-      /* Init Drum (2 second buffer) */
-      ma_uint64 drum_frames = engine.sampleRate * 2;
-      p_wavetable = (float*)calloc(drum_frames, sizeof(float));
-      double p = 0.0;
-      for (ma_uint64 i = 0; i < drum_frames; i++) {
-          double t = (double)i / engine.sampleRate;
-          p_wavetable[i] = (float)(sin(p * 2.0 * PI) * exp(-t * 5.0));
-          p += (60.0 + (100.0 * exp(-t * 10.0))) / engine.sampleRate;
-      }
-      skred_voice_init(engine.sampleRate, p_wavetable, drum_frames, engine.sampleRate, natural_hz, &v[DRUM]);
-      skred_voice_set_loop(&v[DRUM], 0.0, drum_frames - 1.0, skred_loop_oneshot_t);
-      ma_sound_init_from_data_source(&engine, &v[DRUM], 0, NULL, &sound[DRUM]);
-      wd[DRUM] = p_wavetable;
-      ws[DRUM] = drum_frames;
-      wm[DRUM] = skred_loop_oneshot_t;
+    for (int i = 0; i < VMAX; i++) {
+#if 1
+        skred_voice_init(engine.sampleRate, wd[WZED], ws[WZED], actual_sr, natural_hz, &v[i]);
+#else
+        skred_voice_init(engine.sampleRate, wd[WZED], ws[WZED], engine.sampleRate, natural_hz, &v[i]);
+#endif
+        ma_sound_init_from_data_source(&engine, &v[i], 0, NULL, &sound[i]);
+        
+        /* Apply reasonable ADSR so notes don't click instantly */
+        skred_voice_set_adsr(&v[i], 10.0f, 100.0f, 0.7f, 300.0f);
+        wave[i] = WZED;
     }
 
     printf("Skred Universal Voice Engine Running.\n");
     printf("Commands:\n");
-    printf("  v <voice>\n");
-    printf("  play\n");
-    printf("  stop\n");
-    printf("  wave <wave index>\n");
-    printf("  freq <hz> <ease_ms>\n");
-    printf("  vol <db> <ease_ms> (0 is max before offset, -96 is silence)\n");
-    printf("  pan <val> <ease_ms> (-1.0 to 1.0)\n");
-    printf("  dir <val> <ease_ms> (1.0 fwd, -1.0 rev, 0.0 stop)\n");
-    printf("  mode <0|1|2> (0:oneshot, 1:forward, 2:pingpong)\n");
+    printf("  v <id>              (Select active voice 0-%d)\n", VMAX-1);
+    printf("  on / off            (Trigger ADSR Note On/Off)\n");
+    printf("  wave <0-3>          (0:Sine, 1:Square, 2:Saw, 3:Drum)\n");
+    printf("  freq <hz> <ms>      (Base frequency)\n");
+    printf("  vol <db> <ms>       (Base volume)\n");
+    printf("  pan <val> <ms>      (-1.0 left to 1.0 right)\n");
+    printf("  dir <val>           (1.0 fwd, -1.0 rev)\n");
+    printf("  adsr <a> <d> <s> <r>\n");
+    printf("  lfo <hz> <f_dpth> <v_dpth> <p_dpth>\n");
     printf("  quit\n\n");
 
+    char line[256];
     char cmd[32];
-    float val1, val2;
-    int mode_val;
-    int voice = 0;
+    float f1, f2, f3, f4;
     int tmp;
+    int voice = 0;
 
     while (1) {
-        printf("v%d/%d> ", voice, v[0].is_playing);
-        if (scanf("%s", cmd) <= 0) break;
+#if 1
+        char ps[256];
+        sprintf(ps, "v%d (State: %d) > ", voice, v[voice].adsr_state);
+        int r = uedit(ps, line, sizeof(line));
+        if (r < 0) break;
+        if (r == 0) continue;
+#else
+        printf("v%d (State: %d) > ", voice, v[voice].adsr_state);
+        if (!fgets(line, sizeof(line), stdin)) break;
+#endif
+        
+        if (sscanf(line, "%31s", cmd) != 1) continue;
         if (strcmp(cmd, "quit") == 0) break;
 
-        if (strcmp(cmd, "v") == 0) {
-            scanf("%d", &tmp);
+        if (strcmp(cmd, "v") == 0 && sscanf(line, "%*s %d", &tmp) == 1) {
             if (tmp >= 0 && tmp < VMAX) voice = tmp;
-        } else if (strcmp(cmd, "wave") == 0) {
-            scanf("%d", &tmp);
-            printf("# %d (%d) to %d (%d)\n", wave[voice], wm[wave[voice]], tmp, wm[tmp]);
-            wave[voice] = tmp;
-            if (tmp >= 0 && tmp < WMAX) {
-              if (tmp == 3) {
-                skred_voice_set_sample(&v[voice], wd[tmp], ws[tmp], wm[tmp] == skred_loop_forward_t);
-              } else {
-                skred_voice_set_buffer(&v[voice], wd[tmp], ws[tmp]);
-              }
-            }
-        } else if (strcmp(cmd, "stop") == 0) {
-            skred_voice_stop(&v[voice]);
-        } else if (strcmp(cmd, "?") == 0) {
-            printf("loop_mode %d\n", v[voice].loop_mode);
-            printf("p_buffer %p\n", v[voice].p_buffer);
-            printf("buffer_frames %d\n", v[voice].buffer_frames);
-        } else if (strcmp(cmd, "play") == 0) {
-          if (tmp == 3) {
-            //skred_voice_set_sample(&v[voice], wd[wave[voice]], ws[wave[voice]], wm[wave[voice]]==);
-            skred_voice_set_sample(&v[voice], wd[tmp], ws[tmp], wm[tmp] == skred_loop_forward_t);
-            v[voice].is_playing = 1;
-            v[voice].read_index = 0.0;
-          } else {
-            skred_voice_play(&v[voice]);
+        } 
+        else if (strcmp(cmd, "on") == 0) {
+            skred_voice_note_on(&v[voice]);
             ma_sound_start(&sound[voice]);
-          }
-        } else if (strcmp(cmd, "freq") == 0) {
-            scanf("%f %f", &val1, &val2);
-            skred_voice_set_freq(&v[voice], val1, val2);
-        } else if (strcmp(cmd, "vol") == 0) {
-            scanf("%f %f", &val1, &val2);
-            skred_voice_set_vol(&v[voice], val1, val2);
-        } else if (strcmp(cmd, "pan") == 0) {
-            scanf("%f %f", &val1, &val2);
-            skred_voice_set_pan(&v[voice], val1, val2);
-        } else if (strcmp(cmd, "dir") == 0) {
-            scanf("%f %f", &val1, &val2);
-            skred_voice_set_dir(&v[voice], val1, val2);
-        } else if (strcmp(cmd, "mode") == 0) {
-            scanf("%d", &mode_val);
-            if (mode_val >= 0 && mode_val <= 2) {
-                skred_voice_set_loop(&v[voice], 0.0, (double)WT_SIZE - 1.0, (skred_loop_mode_t)mode_val);
-                if (mode_val == 0) skred_voice_play(&v[voice]); /* retrigger if oneshot */
+        } 
+        else if (strcmp(cmd, "off") == 0) {
+            skred_voice_note_off(&v[voice]);
+        }
+        else if (strcmp(cmd, "stop") == 0) {
+            skred_voice_stop(&v[voice]);
+        }
+        else if (strcmp(cmd, "wave") == 0 && sscanf(line, "%*s %d", &tmp) == 1) {
+            if (tmp >= 0 && tmp < WMAX) {
+                if (tmp == wave[voice]) {
+                  printf("# same wave, don't do anything\n");
+                } else {
+                  wave[voice] = tmp;
+                  if (tmp == DRUM) skred_voice_set_sample(&v[voice], wd[tmp], ws[tmp], 1);
+                  else skred_voice_set_sample(&v[voice], wd[tmp], ws[tmp], 0);
+                }
             }
+        } 
+        else if (strcmp(cmd, "freq") == 0 && sscanf(line, "%*s %f %f", &f1, &f2) == 2) {
+            skred_voice_set_freq(&v[voice], f1, f2);
+        } 
+        else if (strcmp(cmd, "vol") == 0 && sscanf(line, "%*s %f %f", &f1, &f2) == 2) {
+            skred_voice_set_vol(&v[voice], f1, f2);
+        } 
+        else if (strcmp(cmd, "pan") == 0 && sscanf(line, "%*s %f %f", &f1, &f2) == 2) {
+            skred_voice_set_pan(&v[voice], f1, f2);
+        } 
+        else if (strcmp(cmd, "dir") == 0 && sscanf(line, "%*s %f %f", &f1, &f2) == 2) {
+            skred_voice_set_dir(&v[voice], f1, f2);
+        } 
+        else if (strcmp(cmd, "adsr") == 0 && sscanf(line, "%*s %f %f %f %f", &f1, &f2, &f3, &f4) == 4) {
+            skred_voice_set_adsr(&v[voice], f1, f2, f3, f4);
+        }
+        else if (strcmp(cmd, "lfo") == 0 && sscanf(line, "%*s %f %f %f %f", &f1, &f2, &f3, &f4) == 4) {
+            skred_voice_set_lfo(&v[voice], f1, f2, f3, f4);
         }
     }
 
-    for (int i=0; i<VMAX; i++) {
-      ma_sound_uninit(&sound[i]);
-    }
+    for (int i=0; i<VMAX; i++) ma_sound_uninit(&sound[i]);
     ma_engine_uninit(&engine);
-    for (int i=0; i<VMAX; i++) {
-      free(wd[i]);
-    }
+    for (int i=0; i<WMAX; i++) free(wd[i]);
+    
     return 0;
 }
