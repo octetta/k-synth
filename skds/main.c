@@ -60,12 +60,15 @@ int main() {
 
     skred_voice_t v[VMAX];
     ma_sound sound[VMAX];
+    int wave[VMAX] = {0};
     for (int i=0; i<VMAX-1; i++) {
       skred_voice_init(engine.sampleRate, p_wavetable, WT_SIZE, engine.sampleRate, natural_hz, &v[i]);
       /* Wrap our custom source in a standard ma_sound so it plays through the engine */
       ma_sound_init_from_data_source(&engine, &v[i], 0, NULL, &sound[i]);
 
       v[i].is_playing = 0;
+      wave[i] = 0;
+      skred_voice_set_buffer(&v[i], wd[wave[i]], ws[wave[i]]);
       skred_voice_set_freq(&v[i], 440.0f, 0.0f); /* Set starting freq */
       ma_sound_start(&sound[i]);
     }
@@ -106,7 +109,6 @@ int main() {
     float val1, val2;
     int mode_val;
     int voice = 0;
-    int wave[VMAX] = {0};
     int tmp;
 
     while (1) {
@@ -119,6 +121,8 @@ int main() {
             if (tmp >= 0 && tmp < VMAX) voice = tmp;
         } else if (strcmp(cmd, "wave") == 0) {
             scanf("%d", &tmp);
+            printf("# %d (%d) to %d (%d)\n", wave[voice], wm[wave[voice]], tmp, wm[tmp]);
+            wave[voice] = tmp;
             if (tmp >= 0 && tmp < WMAX) {
               if (tmp == 3) {
                 skred_voice_set_sample(&v[voice], wd[tmp], ws[tmp], wm[tmp] == skred_loop_forward_t);
