@@ -4,11 +4,12 @@
 
 #define SKRED_HEADROOM_DB -12.0
 #define SKRED_PI 3.14159265358979323846
-#define SKRED_TAU (2.0 * SKRED_PI)
 
+/* 99% target precision one-pole filter coefficient */
 static double calculate_alpha(float ease_ms, ma_uint32 sample_rate) {
-    if (ease_ms <= 0.0f) return 1.0;
-    return 1.0 - exp(-1.0 / ((double)sample_rate * ((double)ease_ms / 1000.0)));
+    if (ease_ms <= 1.0f) return 1.0; 
+    double time_in_seconds = (double)ease_ms / 1000.0;
+    return 1.0 - exp(-4.605 / ((double)sample_rate * time_in_seconds));
 }
 
 static double db_to_linear(float db) {
@@ -34,7 +35,6 @@ static ma_result skred_voice_read(ma_data_source* p_data_source, void* p_frames_
     double start = p_voice->loop_start;
     double end = p_voice->loop_end;
     double sr_ratio = (double)p_voice->buffer_sample_rate / (double)p_voice->engine_sample_rate;
-    double lfo_inc = p_voice->lfo_freq / (double)p_voice->engine_sample_rate;
 
     for (ma_uint64 i = 0; i < frame_count; ++i) {
         if (!p_voice->is_playing || p_voice->adsr_state == SKRED_ADSR_IDLE) break;
@@ -64,36 +64,41 @@ static ma_result skred_voice_read(ma_data_source* p_data_source, void* p_frames_
                     p_voice->env_val = 0.0;
                     p_voice->adsr_state = SKRED_ADSR_IDLE;
                     p_voice->is_playing = 0;
-                    continue; /* Voice is dead, skip output calc */
+                    continue; 
                 }
                 break;
             default: break;
         }
 
-        /* LFO Processing */
-        p_voice->lfo_phase += lfo_inc;
-        if (p_voice->lfo_phase >= 1.0) p_voice->lfo_phase -= 1.0;
-        double lfo_val = sin(p_voice->lfo_phase * SKRED_TAU);
+        /* Parameter Smoothing: Linear Ramp for Freq */
+        if (p_voice->freq_step != 0.0) {
+            p_voice->current_freq += p_voice->freq_step;
+            if ((p_voice->freq_step > 0.0 && p_voice->current_freq >= p_voice->target_freq) ||
+                (p_voice->freq_step < 0.0 && p_voice->current_freq <= p_voice->target_freq)) {
+                p_voice->current_freq = p_voice->target_freq;
+                p_voice->freq_step = 0.0;
+            }
+        }
 
-        /* Parameter Smoothing */
-#if 1
-      /* Inside the sample generation loop */
-      if (p_voice->freq_step != 0.0) {
-          p_voice->current_freq += p_voice->freq_step;
-
-          /* Check if we crossed or hit the target */
-          if ((p_voice->freq_step > 0.0 && p_voice->current_freq >= p_voice->target_freq) ||
-              (p_voice->freq_step < 0.0 && p_voice->current_freq <= p_voice->target_freq)) {
-              p_voice->current_freq = p_voice->target_freq;
-              p_voice->freq_step = 0.0; // Stop the ramp
-          }
-      }
-#else
-        p_voice->current_freq += p_voice->alpha_freq * (p_voice->target_freq - p_voice->current_freq);
-#endif
+        /* Parameter Smoothing: Exponential for Vol, Pan, Dir */
         p_voice->current_vol  += p_voice->alpha_vol  * (p_voice->target_vol  - p_voice->current_vol);
         p_voice->current_pan  += p_voice->alpha_pan  * (p_voice->target_pan  - p_voice->current_pan);
         p_voice->current_dir  += p_voice->alpha_dir  * (p_voice->target_dir  - p_voice->current_dir);
+
+        /* LFO Processing (Wavetable Interpolation) */
+        float lfo_val = 0.0f;
+        if (p_voice->p_lfo_buffer && p_voice->lfo_frames > 0 && p_voice->lfo_freq > 0.0) {
+            double lfo_inc = (p_voice->lfo_freq * (double)p_voice->lfo_frames) / (double)p_voice->engine_sample_rate;
+            p_voice->lfo_read_index += lfo_inc;
+            while (p_voice->lfo_read_index >= p_voice->lfo_frames) {
+                p_voice->lfo_read_index -= p_voice->lfo_frames;
+            }
+            
+            ma_uint32 l0 = (ma_uint32)p_voice->lfo_read_index;
+            ma_uint32 l1 = (l0 + 1 >= p_voice->lfo_frames) ? 0 : l0 + 1;
+            float l_frac = (float)(p_voice->lfo_read_index - l0);
+            lfo_val = (1.0f - l_frac) * p_voice->p_lfo_buffer[l0] + l_frac * p_voice->p_lfo_buffer[l1];
+        }
 
         /* Apply Modulations */
         double mod_freq = p_voice->current_freq + (lfo_val * p_voice->mod_depth_freq);
@@ -101,7 +106,7 @@ static ma_result skred_voice_read(ma_data_source* p_data_source, void* p_frames_
         double mod_pan  = p_voice->current_pan  + (lfo_val * p_voice->mod_depth_pan);
         if (mod_vol < 0.0) mod_vol = 0.0;
 
-        /* Panning Math */
+        /* Panning Math (Equal Power) */
         double p_norm = (mod_pan + 1.0) * 0.5;
         if (p_norm < 0.0) p_norm = 0.0;
         if (p_norm > 1.0) p_norm = 1.0;
@@ -109,7 +114,7 @@ static ma_result skred_voice_read(ma_data_source* p_data_source, void* p_frames_
         double gain_l = cos(theta);
         double gain_r = sin(theta);
 
-        /* Buffer Interpolation */
+        /* Main Audio Buffer Interpolation */
         ma_uint32 idx0 = (ma_uint32)p_voice->read_index;
         ma_uint32 idx1 = idx0 + 1;
 
@@ -123,7 +128,7 @@ static ma_result skred_voice_read(ma_data_source* p_data_source, void* p_frames_
         float s1 = p_voice->p_buffer[idx1];
         float sample = (float)((1.0 - frac) * s0 + frac * s1);
 
-        /* Output with ADSR Envelope applied */
+        /* Output with ADSR Envelope */
         double final_gain = mod_vol * p_voice->env_val;
         p_out[frames_generated * 2]     = sample * (float)(gain_l * final_gain);
         p_out[frames_generated * 2 + 1] = sample * (float)(gain_r * final_gain);
@@ -133,16 +138,14 @@ static ma_result skred_voice_read(ma_data_source* p_data_source, void* p_frames_
         double increment = (mod_freq / p_voice->base_hz) * sr_ratio;
         p_voice->read_index += increment * p_voice->current_dir;
 
-        /* Loop / Bounds Logic */
+        /* Loop / Bounds Logic with OneShot Safety Clamp */
         if (p_voice->loop_mode == skred_loop_oneshot_t) {
             if ((p_voice->current_dir > 0 && p_voice->read_index >= end) || 
                 (p_voice->current_dir < 0 && p_voice->read_index <= start)) {
                 
-                /* Trigger the fade out */
                 skred_voice_note_off(p_voice); 
                 
-                /* CRITICAL FIX: Clamp the index so it doesn't drift into negative 
-                   or out-of-bounds territory while the release tail finishes. */
+                /* Clamp index to prevent unsigned integer underflow wrap on next iteration */
                 if (p_voice->read_index >= end) p_voice->read_index = end;
                 if (p_voice->read_index <= start) p_voice->read_index = start;
             }
@@ -170,7 +173,7 @@ static ma_data_source_vtable g_skred_voice_vtable = {
     skred_voice_read, NULL, skred_voice_get_data_format, NULL, NULL, NULL, 0
 };
 
-ma_result skred_voice_init(ma_uint32 engine_sample_rate, float* p_buffer, ma_uint32 buffer_frames, ma_uint32 buffer_sample_rate, float base_hz, skred_voice_t* p_voice) {
+ma_result skred_voice_init(ma_uint32 engine_sample_rate, float* p_buffer, ma_uint32 buffer_frames, ma_uint32 buffer_sample_rate, double base_hz, skred_voice_t* p_voice) {
     ma_data_source_config base_config = ma_data_source_config_init();
     base_config.vtable = &g_skred_voice_vtable;
     ma_result result = ma_data_source_init(&base_config, &p_voice->base);
@@ -190,7 +193,7 @@ ma_result skred_voice_init(ma_uint32 engine_sample_rate, float* p_buffer, ma_uin
 
     p_voice->current_freq = base_hz;
     p_voice->target_freq = base_hz;
-    p_voice->alpha_freq = 1.0;
+    p_voice->freq_step = 0.0;
     
     p_voice->current_vol = db_to_linear(0.0f);
     p_voice->target_vol = p_voice->current_vol;
@@ -206,14 +209,18 @@ ma_result skred_voice_init(ma_uint32 engine_sample_rate, float* p_buffer, ma_uin
 
     p_voice->adsr_state = SKRED_ADSR_IDLE;
     p_voice->env_val = 0.0;
-    skred_voice_set_adsr(p_voice, 5.0f, 100.0f, 0.8f, 50.0f); // Sensible default
-    skred_voice_set_lfo(p_voice, 0.0f, 0.0f, 0.0f, 0.0f);     // LFO off by default
+    skred_voice_set_adsr(p_voice, 5.0f, 100.0f, 0.8f, 50.0f); 
+
+    p_voice->p_lfo_buffer = NULL;
+    p_voice->lfo_frames = 0;
+    p_voice->lfo_read_index = 0.0;
+    skred_voice_set_lfo(p_voice, 0.0f, 0.0f, 0.0f, 0.0f);
 
     return MA_SUCCESS;
 }
 
 void skred_voice_set_buffer(skred_voice_t* p_voice, float* p_new_buffer, ma_uint32 new_frames) {
-    float new_base_hz = (float)p_voice->buffer_sample_rate / (float)new_frames;
+    double new_base_hz = (double)p_voice->buffer_sample_rate / (double)new_frames;
     double new_end = (double)new_frames - 1.0;
     
     if (new_frames < p_voice->buffer_frames) {
@@ -230,15 +237,15 @@ void skred_voice_set_sample(skred_voice_t* p_voice, float* p_new_buffer, ma_uint
     skred_voice_set_buffer(p_voice, p_new_buffer, new_frames);
     if (is_oneshot) {
         p_voice->loop_mode = skred_loop_oneshot_t;
-        p_voice->base_hz = 1.0f;     
-        p_voice->target_freq = 1.0f; 
-        p_voice->current_freq = 1.0f;
+        p_voice->base_hz = 1.0;     
+        p_voice->target_freq = 1.0; 
+        p_voice->current_freq = 1.0;
+        p_voice->freq_step = 0.0;
     } else {
         p_voice->loop_mode = skred_loop_forward_t;
     }
 }
 
-#if 1
 void skred_voice_set_freq(skred_voice_t* p_voice, float hz, float ease_ms) {
     p_voice->target_freq = (double)hz;
     
@@ -246,16 +253,10 @@ void skred_voice_set_freq(skred_voice_t* p_voice, float hz, float ease_ms) {
         p_voice->current_freq = p_voice->target_freq;
         p_voice->freq_step = 0.0;
     } else {
-        double frames = (p_voice->engine_sample_rate * (double)ease_ms) / 1000.0;
+        double frames = ((double)p_voice->engine_sample_rate * (double)ease_ms) / 1000.0;
         p_voice->freq_step = (p_voice->target_freq - p_voice->current_freq) / frames;
     }
 }
-#else
-void skred_voice_set_freq(skred_voice_t* p_voice, float hz, float ease_ms) {
-    p_voice->target_freq = (double)hz;
-    p_voice->alpha_freq = calculate_alpha(ease_ms, p_voice->engine_sample_rate);
-}
-#endif
 
 void skred_voice_set_vol(skred_voice_t* p_voice, float db, float ease_ms) {
     p_voice->target_vol = db_to_linear(db);
@@ -286,6 +287,12 @@ void skred_voice_set_adsr(skred_voice_t* p_voice, float a_ms, float d_ms, float 
     p_voice->release_inc = (r_ms > 0.0f) ? 1.0 / (sr * (r_ms / 1000.0)) : 1.0;
 }
 
+void skred_voice_set_lfo_wave(skred_voice_t* p_voice, float* p_buf, ma_uint32 frames) {
+    p_voice->p_lfo_buffer = p_buf;
+    p_voice->lfo_frames = frames;
+    p_voice->lfo_read_index = 0.0; /* Reset phase on wave change */
+}
+
 void skred_voice_set_lfo(skred_voice_t* p_voice, float lfo_hz, float depth_freq, float depth_vol, float depth_pan) {
     p_voice->lfo_freq = (double)lfo_hz;
     p_voice->mod_depth_freq = (double)depth_freq;
@@ -296,12 +303,14 @@ void skred_voice_set_lfo(skred_voice_t* p_voice, float lfo_hz, float depth_freq,
 void skred_voice_note_on(skred_voice_t* p_voice) {
     p_voice->is_playing = 1;
     p_voice->adsr_state = SKRED_ADSR_ATTACK;
-    p_voice->env_val = 0.0; // Prevent clicking on re-trigger
+    p_voice->env_val = 0.0; 
+    
+    /* Snap current volume to target to avoid lag on fast transients */
+    p_voice->current_vol = p_voice->target_vol; 
 
-    /* Snap current_vol to target_vol so we don't wait for a fade-in */
-    p_voice->current_vol = p_voice->target_vol;
+    /* Sync LFO phase on note start */
+    p_voice->lfo_read_index = 0.0;
 
-    /* Reverse One-Shot Logic: Start at the end if playing backward */
     if (p_voice->loop_mode == skred_loop_oneshot_t && p_voice->target_dir < 0.0) {
         p_voice->read_index = p_voice->loop_end;
     } else {
@@ -312,10 +321,6 @@ void skred_voice_note_on(skred_voice_t* p_voice) {
 void skred_voice_note_off(skred_voice_t* p_voice) {
     if (p_voice->adsr_state != SKRED_ADSR_IDLE) {
         p_voice->adsr_state = SKRED_ADSR_RELEASE;
-        /* Recalculate release delta based on current env_val to prevent sudden drop */
-        double sr = (double)p_voice->engine_sample_rate;
-        double r_frames = sr * (0.05); // using a hardcoded 50ms fallback if release_inc is missing, but we rely on release_inc.
-        // The safe way: we just let the release_inc subtract from env_val until 0.
     }
 }
 
@@ -323,4 +328,13 @@ void skred_voice_stop(skred_voice_t* p_voice) {
     p_voice->is_playing = 0;
     p_voice->adsr_state = SKRED_ADSR_IDLE;
     p_voice->env_val = 0.0;
+}
+
+void skred_voice_trig(skred_voice_t* p_voice) {
+    /* Hard-slam the ADSR for instantaneous drum triggering */
+    p_voice->attack_inc = 1.0; 
+    p_voice->decay_inc = 0.0;
+    p_voice->sustain_level = 1.0;
+    p_voice->release_inc = 1.0;
+    skred_voice_note_on(p_voice);
 }
