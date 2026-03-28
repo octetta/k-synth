@@ -161,6 +161,7 @@ int main() {
         else if (strcmp(cmd, "lfo") == 0 && sscanf(line, "%*s %f %f %f %f", &f1, &f2, &f3, &f4)) skred_voice_set_lfo(&v[voice], f1, f2, f3, f4);
         else if (strcmp(cmd, "lfo_wave") == 0 && sscanf(line, "%*s %d", &tmp)) { if(tmp>=0 && tmp<WMAX) skred_voice_set_lfo_wave(&v[voice], wd[tmp], ws[tmp]); }
         else if (strcmp(cmd, "cut") == 0 && sscanf(line, "%*s %f", &f1)) { f_node.cutoff = f1; update_filter(&f_node, (float)sr); }
+        else if (strcmp(cmd, "res") == 0 && sscanf(line, "%*s %f", &f1)) { f_node.resonance = f1; update_filter(&f_node, (float)sr); }
         else if (strcmp(cmd, "feed") == 0 && sscanf(line, "%*s %f", &f1)) { d_node.feedback = f1; }
         else if (strcmp(cmd, "route") == 0) {
             char target[32]; sscanf(line, "%*s %31s", target);
