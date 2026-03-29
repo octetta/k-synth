@@ -13,9 +13,32 @@
 #
 # Serve with: python3 -m http.server 8080
 
-set -e
+set -euo pipefail
+
+if ! command -v emcc >/dev/null 2>&1; then
+  echo "error: emcc not found in PATH."
+  echo "hint: activate Emscripten first (emsdk_env.sh or mise shell)."
+  echo "example (mise): eval \"\$(mise activate bash)\""
+  exit 1
+fi
+
+EMCC_VERSION="$(emcc -dumpversion 2>/dev/null || true)"
+if [ -z "$EMCC_VERSION" ]; then
+  EMCC_VERSION="$(emcc -v 2>&1 | sed -n '1s/.*) //p')"
+fi
+echo "Using emcc: ${EMCC_VERSION:-unknown}"
 
 EXPORTED_FUNCTIONS='[
+  "_ks_ctx_create",
+  "_ks_ctx_destroy",
+  "_ks_ctx_run",
+  "_ks_ctx_repl",
+  "_ks_ctx_repl_str",
+  "_ks_ctx_get_var",
+  "_ks_ctx_get_var_buf",
+  "_ks_ctx_get_buffer",
+  "_ks_ctx_get_length",
+  "_ks_ctx_get_error",
   "_ks_init",
   "_ks_run",
   "_ks_repl",
@@ -24,7 +47,9 @@ EXPORTED_FUNCTIONS='[
   "_ks_get_var_buf",
   "_ks_get_buffer",
   "_ks_get_length",
-  "_ks_get_error"
+  "_ks_get_error",
+  "_malloc",
+  "_free"
 ]'
 
 EXPORTED_RUNTIME='[
@@ -33,10 +58,7 @@ EXPORTED_RUNTIME='[
   "UTF8ToString",
   "stringToUTF8",
   "lengthBytesUTF8",
-  "allocate",
-  "ALLOC_NORMAL",
-  "_malloc",
-  "_free"
+  "HEAPF32"
 ]'
 
 emcc \

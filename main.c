@@ -86,12 +86,11 @@ void k_gnuplot(K x, const char *name, const char *path);
 
 void usage(int f);
 
-void handle_line(char* line) {
+void handle_line(ks_ctx *ctx, char* line, size_t len) {
   while (*line == ' ') line++;
 
   if (line[0] == '\0' || line[0] == '/') return;
 
-  int len = strlen(line);
   for (int i=0; i<len; i++) {
     if (line[i] == '/') {
       line[i] = '\0';
@@ -137,7 +136,7 @@ void handle_line(char* line) {
       
       char v_name = get_var(arg);
       if (v_name) {
-        K v = vars[v_name - 'A'];
+        K v = ctx->vars[v_name - 'A'];
         if (v) {
           // Find empty voice slot
           int slot = -1;
@@ -155,7 +154,7 @@ void handle_line(char* line) {
           
           // Free old buffer if any
           if (voices[slot].buffer) {
-            k_free((K)voices[slot].buffer);
+            k_free(ctx, (K)voices[slot].buffer);
           }
           
           // Start new voice
@@ -171,12 +170,13 @@ void handle_line(char* line) {
       
     } else if (line[1] == 'l') { 
       char *fn = line + 2; while (*fn == ' ') fn++;
+      printf("/ \\l (load) %p : %s\n", ctx, fn);
       FILE *f = fopen(fn, "r");
-      if (!f) { printf("Error: %s\n", fn); return; }
+      if (!f) { printf("/ Error: %s\n", fn); return; }
       char buf[1024];
       while (fgets(buf, sizeof(buf), f)) {
         buf[strcspn(buf, "\n")] = 0;
-        handle_line(buf);
+        handle_line(ctx, buf, strlen(buf));
       }
       fclose(f);
 
@@ -198,7 +198,7 @@ void handle_line(char* line) {
       
       char v_name = get_var(arg);
       if (v_name) {
-        K v = vars[v_name - 'A'];
+        K v = ctx->vars[v_name - 'A'];
         if (v) {
           char name[1024];
           struct timeval tv;
@@ -220,16 +220,19 @@ void handle_line(char* line) {
     } else if (line[1] == 'v') {
       if (line[2] == '\0') {
         for (int v_name='A'; v_name<='Z'; v_name++) {
-          K v = vars[v_name - 'A'];
+          K v = ctx->vars[v_name - 'A'];
           if (v) {
             printf("%c ", v_name);
-            p_view(v, opts);
+            //p_view(v, opts);
+            printf("[%d] ", v->n);
+            printf("/ %gms ", (double)v->n / 44100.0 * 1000.0);
+            puts("");
           }
         }
       } else {
         char v_name = get_var(line + 2);
         if (v_name) {
-          K v = vars[v_name - 'A'];
+          K v = ctx->vars[v_name - 'A'];
           if (v) {
             printf("%c ", v_name);
             p_view(v, opts);
@@ -257,7 +260,7 @@ void handle_line(char* line) {
       // \q - stop all playback
       for (int i = 0; i < MAX_VOICES; i++) {
         if (voices[i].buffer) {
-          k_free((K)voices[i].buffer);
+          k_free(ctx, (K)voices[i].buffer);
           voices[i].buffer = NULL;
         }
         voices[i].active = 0;
@@ -267,7 +270,7 @@ void handle_line(char* line) {
 
         char v_name = get_var(line + 2);
         if (v_name) {
-          K v = vars[v_name - 'A'];
+          K v = ctx->vars[v_name - 'A'];
           if (v) {
             char s[2];
             sprintf(s, "%c", v_name);
@@ -280,7 +283,14 @@ void handle_line(char* line) {
     }
   } else {
     char *ptr = line;
-    K r = e(&ptr);
+    K r = ks_eval(ctx, ptr, strlen(ptr));
+    if (ctx->last_status != KS_OK) {
+      ks_status status = ctx->last_status;
+      char *err_msg = (char *)ks_strerror(status);
+      printf("/ %d : %s\n", status, err_msg);
+    } else {
+      ctx->gas_used = 0;
+    }
     if (show && r) {
       p_view(r, 1);
     }
@@ -366,19 +376,21 @@ void usage(int f) {
   }
 }
 
-void doit(char *name) {
+void doit(ks_ctx *ctx, char *name) {
+  printf("/ doit %p %s\n", ctx, name);
   FILE *fp;
   char line[1024];
   fp = fopen(name, "r");
   if (fp == NULL) return;
   while (fgets(line, sizeof(line), fp)) {
     char *token = line;
-    handle_line(token);
+    handle_line(ctx, token, strlen(line));
   }
   fclose(fp);
 }
 
-void repl(int f) {
+void repl(ks_ctx *ctx, int f) {
+  printf("/ repl %p %d\n", ctx, f);
   bestlineHistoryLoad("history.txt");
   char* line;
   while ((line = bestline("> ")) != NULL) {
@@ -389,7 +401,7 @@ void repl(int f) {
       if (!strcmp(token, "exit")) { free(line); goto done; }
       if (token[0] != '\0') {
         bestlineHistoryAdd(token);
-        handle_line(token);
+        handle_line(ctx, token, strlen(token));
         token = strtok_r(NULL, "\n", &saveptr);
       }
     }
@@ -415,11 +427,11 @@ int audio_start(void) {
   return 0;
 }
 
-int audio_end(void) {
+int audio_end(ks_ctx *ctx) {
   // Cleanup voices
   for (int i = 0; i < MAX_VOICES; i++) {
     if (voices[i].buffer) {
-      k_free((K)voices[i].buffer);
+      k_free(ctx, (K)voices[i].buffer);
     }
   }
   ma_device_uninit(&dev);
@@ -431,6 +443,8 @@ int main(int argc, char *argv[]) {
   int graph = 0;
   int i16 = 0;
   int f32 = 0;
+  //                      mem           gas
+  ks_ctx *ctx = ks_create(16*1024*1024, 1000000); // guessing at limits???
   audio_start();
   if (argc > 1) {
     char gs[] = "W.gnuplot";
@@ -446,8 +460,8 @@ int main(int argc, char *argv[]) {
           case 't': show = (show == 0) ? 1 : 0; break;
         }
       } else {
-        doit(argv[i]);
-        K v = vars['W' - 'A'];
+        doit(ctx, argv[i]);
+        K v = ctx->vars['W' - 'A'];
         if (v) {
           if (graph) k_gnuplot(v, "W", gs);
           if (i16) {
@@ -470,9 +484,9 @@ int main(int argc, char *argv[]) {
       }
     }
   } else {
-    repl(0);
+    repl(ctx, 0);
   }
-  audio_end();
+  audio_end(ctx);
   return 0;
 }
 
@@ -645,8 +659,11 @@ void print_scope(double *data, int len, int width, int height) {
         prev_y = y;
     }
 
+    double dur_ms = (double)len / 44100.0 * 1000.0;
+
     // 3. Header: Show Max Value and Frame
     printf("\n  " CLR_TEXT "MAX: %-10.4f" CLR_RESET, max_y);
+    printf("  " CLR_TEXT "DUR: %0.4fms (@44100Hz) / %d samples" CLR_RESET, dur_ms, len);
     printf("\n  ┌" CLR_GRID);
     for(int i = 0; i < canvas_w / 2; i++) printf("─");
     printf(CLR_RESET "┐\n");

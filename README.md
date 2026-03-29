@@ -59,9 +59,10 @@ gcc -O2 ksynth.c -lm -o ksynth
 ```
 
 The engine is a single C file with no dependencies beyond libc and libm.
-It can also be embedded as a library: include `ksynth.h` and call `ks_run()`
-per script line from any C program. It compiles to WebAssembly via Emscripten
-for browser use.
+It can also be embedded as a library: include `ksynth.h` and use the
+context API (`ks_create`/`ks_eval`) directly, or the wrapper-handle API
+(`ks_ctx_create`/`ks_ctx_run`) when you want a stable C ABI (including WebAssembly).
+Legacy singleton wrappers like `ks_run()` are still available for compatibility.
 
 ---
 
@@ -312,6 +313,9 @@ live-coding notebook. The web interface provides:
 - A **notebook** that logs every script run with waveform display and one-click replay
 - **16 sample slots** in a 2×8 grid to hold synthesized buffers
 - A **pad panel** — a 4×4 trigger grid with per-pad pitch control
+- A **drum-grid sequencer** (4 rows × up to 16 steps) with live edit while running
+- **Mode-separated patterns** — drum and melodic modes keep independent sequencer patterns
+- **Pad-referenced rows** — each sequencer row selects a pad (`0..F`) and inherits that pad's slot/pitch setup
 - **Melodic mode** — all 16 pads play one slot at different semitone offsets, turning any synthesized patch into a playable instrument
 - A **patches browser** that fetches `.ks` files directly from this repo
 

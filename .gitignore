@@ -1,3 +1,15 @@
+*.gch
+hlma/gex1
+hlma/gex2
+hlma/gex3
+hlma/rtex1
+hlma/rtex2
+hlma/rtex3
+hlma/rtex4
+hlma/rtex5
+hlma/rtex6
+hlma/rt
+hlma/16
 .venv
 tmp
 tmp/*
