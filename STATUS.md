@@ -7,13 +7,15 @@ Last updated: 2026-03-29
 - Pad overlay includes:
   - 4x4 playable pad grid (`0..F`)
   - Drum-grid sequencer (4 rows x up to 16 steps)
-  - Transport: `start`, `pause`, `resume`, `stop`
+  - Transport: `start`, `pause/resume` toggle, `stop`
   - Tempo control in quarter-note BPM
   - Step-count control (`1..16`)
 
 - Sequencer rows are pad-referenced:
   - Each row selects a pad id (`0..F`)
   - Playback uses that pad's current slot and semitone configuration
+  - Pad config now includes per-pad volume offset (`dB`)
+  - Pad pitch supports floating-point semitone values (integers still work as semitone steps)
 
 - Pattern state is mode-separated:
   - Drum mode has independent sequencer pattern data

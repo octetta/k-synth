@@ -669,31 +669,27 @@ html, body {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
-  color: var(--muted);
 }
 #pattern-steps-wrap {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
-  color: var(--muted);
 }
 #pattern-rows-wrap {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
-  color: var(--muted);
 }
 #pattern-bpm {
-  width: 68px;
+  width: 72px;
+  min-width: 72px;
   background: var(--bg);
   border: 1px solid var(--border2);
   border-radius: var(--radius);
   color: var(--text);
   font-family: var(--font);
   font-size: 11px;
+  line-height: 1.2;
   padding: 2px 6px;
   outline: none;
 }
@@ -722,6 +718,58 @@ html, body {
   outline: none;
 }
 #pattern-rows-count:focus { border-color: var(--accent); }
+
+@media (max-width: 767px) {
+  #pattern-transport {
+    gap: 4px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 2px;
+    align-items: center;
+  }
+  .pattern-btn {
+    min-width: 36px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    border-radius: 6px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(0,0,0,0);
+  }
+  .pattern-btn:active {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: translateY(1px);
+  }
+  #pattern-bpm-wrap,
+  #pattern-steps-wrap,
+  #pattern-rows-wrap {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    gap: 4px;
+    justify-content: flex-start;
+  }
+  #pattern-bpm,
+  #pattern-steps-count,
+  #pattern-rows-count {
+    height: 28px;
+    font-size: 12px;
+    padding: 3px 6px;
+  }
+  #pattern-bpm {
+    width: 72px;
+    min-width: 72px;
+  }
+  #pattern-steps-count,
+  #pattern-rows-count {
+    width: 56px;
+  }
+}
 #pattern-grid-ui {
   display: none;
   border: 1px solid var(--border);
@@ -752,7 +800,6 @@ html, body {
   align-items: center;
   justify-content: center;
 }
-.pattern-grid-head { color: var(--border2); font-size: 8px; }
 .pattern-grid-rowlbl {
   justify-content: center;
   padding: 0 2px;
@@ -1299,21 +1346,17 @@ button, [data-pad], [data-slot] {
     <div id="pad-grid"></div>
     <div id="pattern-panel" class="open">
       <div id="pattern-transport">
-        <button class="pattern-btn" id="pattern-start" title="start" aria-label="start">▶</button>
-        <button class="pattern-btn" id="pattern-pause" title="pause" aria-label="pause" disabled>⏸</button>
-        <button class="pattern-btn" id="pattern-resume" title="resume" aria-label="resume" disabled>▷</button>
-        <button class="pattern-btn" id="pattern-stop" title="stop" aria-label="stop" disabled>■</button>
+        <button class="pattern-btn" id="pattern-start" title="start" aria-label="start">GO</button>
+        <button class="pattern-btn" id="pattern-pause" title="pause/resume" aria-label="pause or resume" disabled>PA</button>
+        <button class="pattern-btn" id="pattern-stop" title="stop" aria-label="stop" disabled>ST</button>
         <label id="pattern-rows-wrap">
-          rows
-          <input id="pattern-rows-count" type="number" min="4" max="12" step="1" value="8">
+          <input id="pattern-rows-count" type="number" min="4" max="12" step="1" value="8" title="rows" aria-label="rows">
         </label>
         <label id="pattern-steps-wrap">
-          steps
-          <input id="pattern-steps-count" type="number" min="1" max="16" step="1" value="16">
+          <input id="pattern-steps-count" type="number" min="1" max="16" step="1" value="16" title="steps" aria-label="steps">
         </label>
         <label id="pattern-bpm-wrap">
-          bpm
-          <input id="pattern-bpm" type="number" min="20" max="300" step="1" value="120">
+          <input id="pattern-bpm" type="number" min="20" max="300" step="1" value="120" title="BPM" aria-label="BPM">
         </label>
       </div>
       <div id="pattern-grid-ui" class="open">
@@ -1340,8 +1383,13 @@ button, [data-pad], [data-slot] {
   </div>
   <div class="pc-row">
     <span class="pc-label">pitch</span>
-    <input id="pc-rate" class="pc-input" type="number" min="-24" max="24" value="0">
+    <input id="pc-rate" class="pc-input" type="number" min="-24" max="24" step="0.01" value="0">
     <span style="font-size:10px;color:var(--muted)">st</span>
+  </div>
+  <div class="pc-row">
+    <span class="pc-label">volume</span>
+    <input id="pc-gain" class="pc-input" type="number" min="-48" max="24" step="0.1" value="0">
+    <span style="font-size:10px;color:var(--muted)">dB</span>
   </div>
   <div class="pc-btns">
     <button class="pc-btn" id="pc-cancel">cancel</button>
@@ -1393,11 +1441,12 @@ const slots = Array.from({length: NUM_SLOTS}, (_, i) => ({
   baseRate: 1.0,
 }));
 
-// 16 pad assignments: { slot: int, semitones: int }
+// 16 pad assignments: { slot: int, semitones: float, gainDb: float }
 // semitones is the BUTTON's pitch offset; slot.baseRate is the slot's base
 const pads = Array.from({length: NUM_PADS}, (_, i) => ({
   slot:      i,      // drum default: pad N → slot N
   semitones: 0,
+  gainDb:    0,
 }));
 
 const pattern = {
@@ -1537,15 +1586,19 @@ function floatArrayToAudioBuffer(f32) {
   return buf;
 }
 
-function playSlot(slotIdx, extraSemitones = 0) {
+function playSlot(slotIdx, extraSemitones = 0, gainDb = 0) {
   const s = slots[slotIdx];
   if (!s.buffer) return;
   ensureAudio();
   const src = audioCtx.createBufferSource();
+  const gain = audioCtx.createGain();
   src.buffer = s.buffer;
   const totalSt = extraSemitones;  // slot.baseRate already baked in
   src.playbackRate.value = s.baseRate * Math.pow(2, totalSt / 12);
-  src.connect(limiter._input);
+  const lin = Math.pow(10, (Number.isFinite(gainDb) ? gainDb : 0) / 20);
+  gain.gain.value = lin;
+  src.connect(gain);
+  gain.connect(limiter._input);
   src.start();
 }
 
@@ -2204,8 +2257,9 @@ function renderPadGrid() {
 
       const rate = document.createElement('div');
       rate.className = 'pad-btn-rate';
-      const st = pd.semitones;
-      rate.textContent = (st >= 0 ? '+' : '') + st + 'st';
+      const st = Number(pd.semitones) || 0;
+      const gd = Number(pd.gainDb) || 0;
+      rate.textContent = `${st >= 0 ? '+' : ''}${st.toFixed(2)}st · ${gd >= 0 ? '+' : ''}${gd.toFixed(1)}dB`;
       btn.appendChild(rate);
     } else {
       const empty = document.createElement('div');
@@ -2221,7 +2275,7 @@ function renderPadGrid() {
       ensureAudio();
       flashPadButton(i, 120);
       // play: slot baseRate * button semitones
-      playSlot(pd.slot, pd.semitones);
+      playSlot(pd.slot, pd.semitones, pd.gainDb);
     });
 
     // right-click or long-press → pad config (pointer-based, no conflict with pointerdown play)
@@ -2270,18 +2324,6 @@ function renderPatternGrid() {
   const stepsN = mode.maxSteps;
   const rowsN = mode.rowCount;
   table.style.gridTemplateColumns = `40px repeat(${stepsN}, minmax(0, 1fr))`;
-
-  const corner = document.createElement('div');
-  corner.className = 'pattern-grid-cell pattern-grid-head';
-  corner.textContent = '';
-  table.appendChild(corner);
-
-  for (let st = 0; st < stepsN; st++) {
-    const h = document.createElement('div');
-    h.className = 'pattern-grid-cell pattern-grid-head';
-    h.textContent = String(st + 1);
-    table.appendChild(h);
-  }
 
   for (let r = 0; r < rowsN; r++) {
     const lbl = document.createElement('div');
@@ -2346,21 +2388,38 @@ function patternVisibleStepsFromInput() {
 function updatePatternTransportUi() {
   const start = document.getElementById('pattern-start');
   const pause = document.getElementById('pattern-pause');
-  const resume = document.getElementById('pattern-resume');
   const stop = document.getElementById('pattern-stop');
-  if (!start || !pause || !resume || !stop) return;
+  if (!start || !pause || !stop) return;
   start.disabled = pattern.running && !pattern.paused;
-  pause.disabled = !pattern.running || pattern.paused;
-  resume.disabled = !pattern.paused;
+  pause.disabled = !pattern.running && !pattern.paused;
+  pause.textContent = pattern.paused ? 'RE' : 'PA';
+  pause.title = pattern.paused ? 'resume' : 'pause';
+  pause.setAttribute('aria-label', pattern.paused ? 'resume' : 'pause');
   stop.disabled = !pattern.running && !pattern.paused;
+}
+
+function updatePatternStepHighlight(prevStep, nextStep) {
+  const table = document.getElementById('pattern-grid-table');
+  if (!table) return;
+  if (Number.isInteger(prevStep) && prevStep >= 0) {
+    table.querySelectorAll(`.pattern-grid-toggle[data-step="${prevStep}"]`).forEach(el => {
+      el.classList.remove('active-step');
+    });
+  }
+  if (Number.isInteger(nextStep) && nextStep >= 0) {
+    table.querySelectorAll(`.pattern-grid-toggle[data-step="${nextStep}"]`).forEach(el => {
+      el.classList.add('active-step');
+    });
+  }
 }
 
 function patternTick() {
   const mode = patternModeData();
   const stepsN = mode.maxSteps;
   const rowsN = mode.rowCount;
+  const prevStep = pattern.currentStep;
   pattern.currentStep = (pattern.currentStep + 1) % stepsN;
-  renderPatternGrid();
+  updatePatternStepHighlight(prevStep, pattern.currentStep);
   for (let r = 0; r < rowsN; r++) {
     if (!mode.grid[r][pattern.currentStep]) continue;
     const padIdx = mode.gridPads[r];
@@ -2368,7 +2427,7 @@ function patternTick() {
     const pd = pads[padIdx];
     if (!pd) continue;
     if (!slots[pd.slot] || !slots[pd.slot].buffer) continue;
-    playSlot(pd.slot, pd.semitones);
+    playSlot(pd.slot, pd.semitones, pd.gainDb);
     flashPadButton(padIdx, 140);
   }
 }
@@ -2405,6 +2464,11 @@ function patternResume() {
   updatePatternTransportUi();
 }
 
+function patternPauseResume() {
+  if (pattern.paused) patternResume();
+  else patternPause();
+}
+
 function patternStop() {
   if (pattern.timer) clearInterval(pattern.timer);
   pattern.timer = null;
@@ -2432,6 +2496,7 @@ function applyDrumPreset() {
   for (let i = 0; i < NUM_PADS; i++) {
     pads[i].slot      = i;
     pads[i].semitones = 0;
+    pads[i].gainDb    = 0;
   }
   setPadMode('drum');
 }
@@ -2451,6 +2516,7 @@ function applyMelodicPreset() {
   for (let i = 0; i < NUM_PADS; i++) {
     pads[i].slot      = 0;
     pads[i].semitones = semitones[i];
+    pads[i].gainDb    = 0;
   }
   setPadMode('melodic');
 }
@@ -2458,10 +2524,18 @@ function applyMelodicPreset() {
 document.getElementById('preset-drum').addEventListener('click', applyDrumPreset);
 document.getElementById('preset-melodic').addEventListener('click', applyMelodicPreset);
 
-document.getElementById('pattern-start').addEventListener('click', patternStart);
-document.getElementById('pattern-pause').addEventListener('click', patternPause);
-document.getElementById('pattern-resume').addEventListener('click', patternResume);
-document.getElementById('pattern-stop').addEventListener('click', patternStop);
+document.getElementById('pattern-start').addEventListener('pointerdown', e => {
+  e.preventDefault();
+  patternStart();
+});
+document.getElementById('pattern-pause').addEventListener('pointerdown', e => {
+  e.preventDefault();
+  patternPauseResume();
+});
+document.getElementById('pattern-stop').addEventListener('pointerdown', e => {
+  e.preventDefault();
+  patternStop();
+});
 document.getElementById('pattern-rows-count').addEventListener('change', () => {
   patternVisibleRowsFromInput();
   renderPatternGrid();
@@ -2543,6 +2617,7 @@ function showPadConfig(padIdx, rect) {
   sel.value = pads[padIdx].slot;
 
   document.getElementById('pc-rate').value = pads[padIdx].semitones;
+  document.getElementById('pc-gain').value = pads[padIdx].gainDb ?? 0;
 
   // position near the pad button
   popup.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
@@ -2553,7 +2628,12 @@ function showPadConfig(padIdx, rect) {
 document.getElementById('pc-ok').addEventListener('click', () => {
   if (configPad < 0) return;
   pads[configPad].slot      = parseInt(document.getElementById('pc-slot').value, 10);
-  pads[configPad].semitones = parseInt(document.getElementById('pc-rate').value, 10) || 0;
+  {
+    const st = parseFloat(document.getElementById('pc-rate').value);
+    const gd = parseFloat(document.getElementById('pc-gain').value);
+    pads[configPad].semitones = Number.isFinite(st) ? Math.max(-24, Math.min(24, st)) : 0;
+    pads[configPad].gainDb = Number.isFinite(gd) ? Math.max(-48, Math.min(24, gd)) : 0;
+  }
   document.getElementById('pad-config').classList.remove('open');
   configPad = -1;
   renderPadGrid();
@@ -2589,7 +2669,7 @@ document.addEventListener('keydown', e => {
     if (n >= 0 && n < 16) {
       const pd = pads[n];
       if (slots[pd.slot].buffer) {
-        playSlot(pd.slot, pd.semitones);
+        playSlot(pd.slot, pd.semitones, pd.gainDb);
         flashPadButton(n, 120);
       }
     }
@@ -2731,7 +2811,7 @@ function downloadWav(f32, filename) {
         baseRate: s.baseRate,
         audio:    s._f32 ? f32ToB64(s._f32) : null,
       })),
-      pads: pads.map(p => ({ slot: p.slot, semitones: p.semitones })),
+      pads: pads.map(p => ({ slot: p.slot, semitones: p.semitones, gainDb: p.gainDb ?? 0 })),
       pattern: {
         bpm: pattern.bpm,
         mode: padMode,
@@ -2954,7 +3034,8 @@ function downloadWav(f32, filename) {
     // restore pads
     session.pads.forEach((pd, i) => {
       pads[i].slot      = pd.slot;
-      pads[i].semitones = pd.semitones;
+      pads[i].semitones = Number.isFinite(Number(pd.semitones)) ? Number(pd.semitones) : 0;
+      pads[i].gainDb    = Number.isFinite(Number(pd.gainDb)) ? Number(pd.gainDb) : 0;
     });
 
     if (session.pattern) {
