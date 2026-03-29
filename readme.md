@@ -385,6 +385,9 @@ Serve with `python3 -m http.server 8080` and open `http://localhost:8080`.
 - **16 slots** — bank any evaluated buffer to a slot; click to play; right-click for tuning and WAV export
 - **notebook** — append-only run log with waveforms; collapse/expand; `→ edit` copies back to editor
 - **pad panel** — 4×4 grid, drum or melodic preset, per-pad slot and pitch assignment
+- **drum-grid sequencer** — 4 rows × up to 16 steps, editable while running
+- **separate mode patterns** — drum and melodic each keep independent sequencer state
+- **pad-referenced rows** — each sequencer row selects pad `0..F` and follows that pad's slot + semitone setup
 - **REPL strip** — persistent single-line calculator below the editor
 - **session save/load** — `.json` format compatible with ksynth-desktop
 - **patches browser** — load `.ks` files directly from this repo
