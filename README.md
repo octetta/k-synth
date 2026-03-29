@@ -59,9 +59,10 @@ gcc -O2 ksynth.c -lm -o ksynth
 ```
 
 The engine is a single C file with no dependencies beyond libc and libm.
-It can also be embedded as a library: include `ksynth.h` and call `ks_run()`
-per script line from any C program. It compiles to WebAssembly via Emscripten
-for browser use.
+It can also be embedded as a library: include `ksynth.h` and use the
+context API (`ks_create`/`ks_eval`) directly, or the wrapper-handle API
+(`ks_ctx_create`/`ks_ctx_run`) when you want a stable C ABI (including WebAssembly).
+Legacy singleton wrappers like `ks_run()` are still available for compatibility.
 
 ---
 

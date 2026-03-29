@@ -46,10 +46,18 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 </div>
 <div id="doc-body">
 <h1 id="ksynth-verb-reference">ksynth verb reference</h1>
-<p>All verbs operate on vectors of doubles. Every variable is a single uppercase letter <code>A</code>–<code>Z</code>. Right-associativity applies throughout — use parentheses to control evaluation order. Constants <code>p0</code>=44100 (sample rate), <code>pN</code>=N×π for N≥1.</p>
-<hr>
+<p>All verbs operate on vectors of doubles. Every variable is a single
+uppercase letter <code>A</code>–<code>Z</code>. Right-associativity
+applies throughout — use parentheses to control evaluation order.
+Constants <code>p0</code>=44100 (sample rate), <code>pN</code>=N×π for
+N≥1.</p>
+<hr />
 <h2 id="assignment-and-functions">assignment and functions</h2>
 <table>
+<colgroup>
+<col style="width: 47%" />
+<col style="width: 52%" />
+</colgroup>
 <thead>
 <tr>
 <th>Syntax</th>
@@ -63,7 +71,8 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 </tr>
 <tr>
 <td><code>F: { expr }</code></td>
-<td>Define function <code>F</code>; <code>x</code> = first arg, <code>y</code> = second arg</td>
+<td>Define function <code>F</code>; <code>x</code> = first arg,
+<code>y</code> = second arg</td>
 </tr>
 <tr>
 <td><code>F arg</code></td>
@@ -71,16 +80,16 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 </tr>
 <tr>
 <td><code>a F b</code></td>
-<td>Call <code>F</code> with two arguments (<code>x</code>=a, <code>y</code>=b)</td>
+<td>Call <code>F</code> with two arguments (<code>x</code>=a,
+<code>y</code>=b)</td>
 </tr>
 </tbody>
 </table>
 <pre><code>/ phase accumulator as reusable function
 C: p2%p0
 X: { +\(x#(y*C)) }   / x=length, y=freq_hz
-P: N X 440            / phase ramp for 440 Hz over N samples
-</code></pre>
-<hr>
+P: N X 440            / phase ramp for 440 Hz over N samples</code></pre>
+<hr />
 <h2 id="monadic-verbs-one-argument">monadic verbs (one argument)</h2>
 <h3 id="iota-and-ramps">iota and ramps</h3>
 <table>
@@ -96,21 +105,21 @@ P: N X 440            / phase ramp for 440 Hz over N samples
 <tr>
 <td><code>!N</code></td>
 <td>scalar N</td>
-<td>[0,1,...,N-1]</td>
+<td>[0,1,…,N-1]</td>
 <td>Integer index ramp</td>
 </tr>
 <tr>
 <td><code>~N</code></td>
 <td>scalar N</td>
-<td>[0, 2π/N, ..., 2π*(N-1)/N]</td>
+<td>[0, 2π/N, …, 2π*(N-1)/N]</td>
 <td>Phase ramp 0 to ~2π</td>
 </tr>
 </tbody>
 </table>
 <pre><code>T: !44100             / time index 0..44099
-P: ~1024              / phase ramp for one cycle, 1024 samples
-</code></pre>
-<p><code>~N</code> is shorthand for <code>+\(N#(p2%N))</code> — use it when building wavetables.</p>
+P: ~1024              / phase ramp for one cycle, 1024 samples</code></pre>
+<p><code>~N</code> is shorthand for <code>+\(N#(p2%N))</code> — use it
+when building wavetables.</p>
 <h3 id="reductions-return-scalar">reductions (return scalar)</h3>
 <table>
 <thead>
@@ -132,8 +141,7 @@ P: ~1024              / phase ramp for one cycle, 1024 samples
 </table>
 <pre><code>S: s ~44100
 E: +S                 / sum of all samples
-P: &gt;S                 / peak amplitude (should be ~1.0)
-</code></pre>
+P: &gt;S                 / peak amplitude (should be ~1.0)</code></pre>
 <h3 id="output">output</h3>
 <table>
 <thead>
@@ -149,9 +157,9 @@ P: &gt;S                 / peak amplitude (should be ~1.0)
 </tr>
 </tbody>
 </table>
-<p><code>w</code> is always used to produce <code>W</code>. It normalizes so the peak is exactly 1.0.</p>
-<pre><code>W: w s ~44100
-</code></pre>
+<p><code>w</code> is always used to produce <code>W</code>. It
+normalizes so the peak is exactly 1.0.</p>
+<pre><code>W: w s ~44100</code></pre>
 <h3 id="math">math</h3>
 <table>
 <thead>
@@ -213,10 +221,13 @@ P: &gt;S                 / peak amplitude (should be ~1.0)
 </table>
 <pre><code>A: e(T*(0-3%N))       / exponential decay envelope
 D: d 2*s P            / driven sine into soft clip
-F: p 2                / 2π (= 6.28318...)
-</code></pre>
+F: p 2                / 2π (= 6.28318...)</code></pre>
 <h3 id="noise-and-special-waveforms">noise and special waveforms</h3>
 <table>
+<colgroup>
+<col style="width: 31%" />
+<col style="width: 68%" />
+</colgroup>
 <thead>
 <tr>
 <th>Verb</th>
@@ -230,23 +241,27 @@ F: p 2                / 2π (= 6.28318...)
 </tr>
 <tr>
 <td><code>m V</code></td>
-<td>1-bit metallic noise: deterministic ±0.7 pattern, good for cymbals</td>
+<td>1-bit metallic noise: deterministic ±0.7 pattern, good for
+cymbals</td>
 </tr>
 <tr>
 <td><code>b V</code></td>
-<td>Band-limited buzz: sum of 6 phase-shifted square waves, organ-like</td>
+<td>Band-limited buzz: sum of 6 phase-shifted square waves,
+organ-like</td>
 </tr>
 <tr>
 <td><code>u V</code></td>
-<td>Ramp up: 0→1 over first 10 samples then stays at 1.0 (anti-click)</td>
+<td>Ramp up: 0→1 over first 10 samples then stays at 1.0
+(anti-click)</td>
 </tr>
 </tbody>
 </table>
 <pre><code>R: r T                / white noise, N samples
 C: m T                / metallic noise (hi-hat character)
-O: b T                / organ buzz
-</code></pre>
-<p><code>r</code> ignores the values in V and only uses its length. <code>m</code> is deterministic — same input gives same output, useful for reproducible percussion.</p>
+O: b T                / organ buzz</code></pre>
+<p><code>r</code> ignores the values in V and only uses its length.
+<code>m</code> is deterministic — same input gives same output, useful
+for reproducible percussion.</p>
 <h3 id="midi-and-pitch">MIDI and pitch</h3>
 <table>
 <thead>
@@ -264,9 +279,9 @@ O: b T                / organ buzz
 </table>
 <pre><code>M: n69                / 440.0 Hz (concert A)
 M: n60                / 261.63 Hz (middle C)
-M: n +\(4#2)          / chord: four notes stepped by 2 semitones
-</code></pre>
-<h3 id="reverse-and-stereo-extraction">reverse and stereo extraction</h3>
+M: n +\(4#2)          / chord: four notes stepped by 2 semitones</code></pre>
+<h3 id="reverse-and-stereo-extraction">reverse and stereo
+extraction</h3>
 <table>
 <thead>
 <tr>
@@ -291,8 +306,7 @@ M: n +\(4#2)          / chord: four notes stepped by 2 semitones
 </table>
 <pre><code>B: i A                / reverse of A
 L: j W                / left channel of stereo W
-R: k W                / right channel of stereo W
-</code></pre>
+R: k W                / right channel of stereo W</code></pre>
 <h3 id="quantize-monadic-form">quantize (monadic form)</h3>
 <table>
 <thead>
@@ -308,11 +322,11 @@ R: k W                / right channel of stereo W
 </tr>
 </tbody>
 </table>
-<pre><code>Q: v s P              / 4-level quantized sine — lo-fi effect
-</code></pre>
-<hr>
+<pre><code>Q: v s P              / 4-level quantized sine — lo-fi effect</code></pre>
+<hr />
 <h2 id="scan-adverb">scan adverb (<code>\</code>)</h2>
-<p><code>op\V</code> applies <code>op</code> as a running accumulation over V. Produces a vector the same length as V.</p>
+<p><code>op\V</code> applies <code>op</code> as a running accumulation
+over V. Produces a vector the same length as V.</p>
 <table>
 <thead>
 <tr>
@@ -351,12 +365,15 @@ R: k W                / right channel of stereo W
 P: +\(N#(440*C))      / running sum of N copies of phase increment
 
 / cumulative maximum — envelope follower shape
-E: |\A
-</code></pre>
-<p><code>+\</code> is by far the most used scan — it turns a constant phase increment into a phase ramp, which is the standard oscillator pattern in ksynth.</p>
-<hr>
+E: |\A</code></pre>
+<p><code>+\</code> is by far the most used scan — it turns a constant
+phase increment into a phase ramp, which is the standard oscillator
+pattern in ksynth.</p>
+<hr />
 <h2 id="dyadic-verbs-two-arguments">dyadic verbs (two arguments)</h2>
-<h3 id="arithmetic-element-wise-length-max-of-inputs-shorter-cycles">arithmetic (element-wise, length = max of inputs, shorter cycles)</h3>
+<h3
+id="arithmetic-element-wise-length-max-of-inputs-shorter-cycles">arithmetic
+(element-wise, length = max of inputs, shorter cycles)</h3>
 <table>
 <thead>
 <tr>
@@ -411,9 +428,9 @@ E: |\A
 C: S &amp; -0.5 | 0.5
 
 / silence second half of buffer
-G: S * (T &lt; (N%2))
-</code></pre>
-<p>Note: <code>%</code> is <strong>division</strong>, not modulo. To get the fractional part of X: <code>X - _(X)</code>.</p>
+G: S * (T &lt; (N%2))</code></pre>
+<p>Note: <code>%</code> is <strong>division</strong>, not modulo. To get
+the fractional part of X: <code>X - _(X)</code>.</p>
 <h3 id="vector-construction">vector construction</h3>
 <table>
 <thead>
@@ -437,10 +454,14 @@ G: S * (T &lt; (N%2))
 F: 44100#(440*C)
 
 / drum pattern: kick, kick, snare, kick
-Z: K,K,S,K
-</code></pre>
+Z: K,K,S,K</code></pre>
 <h3 id="filters">filters</h3>
 <table>
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 26%" />
+<col style="width: 50%" />
+</colgroup>
 <thead>
 <tr>
 <th>Verb</th>
@@ -475,11 +496,16 @@ Z: K,K,S,K
 H: R - L              / highpass (zero resonance only)
 B: (0.4 f R)-(0.05 f R) / bandpass
 
-L: 800 g R            / same filter, cutoff in Hz
-</code></pre>
-<p>See <a href="readme.html">readme</a> for resonance character notes.</p>
+L: 800 g R            / same filter, cutoff in Hz</code></pre>
+<p>See <a href="readme.html">readme</a> for resonance character
+notes.</p>
 <h3 id="feedback-delay">feedback delay</h3>
 <table>
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 26%" />
+<col style="width: 50%" />
+</colgroup>
 <thead>
 <tr>
 <th>Verb</th>
@@ -495,12 +521,17 @@ L: 800 g R            / same filter, cutoff in Hz
 </tr>
 </tbody>
 </table>
-<p><code>d</code> and <code>g</code> are passed as a two-element vector. Output is the same length as signal.</p>
+<p><code>d</code> and <code>g</code> are passed as a two-element vector.
+Output is the same length as signal.</p>
 <pre><code>W: w 100 0.9 y R      / comb filter on noise, resonance at ~441 Hz
-W: w 200 0.98 y R     / comb at ~220 Hz, longer sustain
-</code></pre>
+W: w 200 0.98 y R     / comb at ~220 Hz, longer sustain</code></pre>
 <h3 id="additive-synthesis">additive synthesis</h3>
 <table>
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 26%" />
+<col style="width: 50%" />
+</colgroup>
 <thead>
 <tr>
 <th>Verb</th>
@@ -525,11 +556,17 @@ W: w 200 0.98 y R     / comb at ~220 Hz, longer sustain
 W: w P o H            / odd harmonics = hollow square-ish tone
 
 A: 1 0.5 0.333 0.25
-W: w P $ A            / weighted harmonics = sawtooth approximation
-</code></pre>
-<p><code>P</code> should be a phase ramp (from <code>+\</code>). <code>o</code> and <code>$</code> are the main tools for additive synthesis.</p>
+W: w P $ A            / weighted harmonics = sawtooth approximation</code></pre>
+<p><code>P</code> should be a phase ramp (from <code>+\</code>).
+<code>o</code> and <code>$</code> are the main tools for additive
+synthesis.</p>
 <h3 id="wavetable-oscillator">wavetable oscillator</h3>
 <table>
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 26%" />
+<col style="width: 50%" />
+</colgroup>
 <thead>
 <tr>
 <th>Verb</th>
@@ -545,7 +582,9 @@ W: w P $ A            / weighted harmonics = sawtooth approximation
 </tr>
 </tbody>
 </table>
-<p><code>freq</code> and <code>dur</code> form a two-element vector. Scalar variables absorb into the vector naturally: <code>T t 440 D</code> where D=88200 gives a two-second output.</p>
+<p><code>freq</code> and <code>dur</code> form a two-element vector.
+Scalar variables absorb into the vector naturally:
+<code>T t 440 D</code> where D=88200 gives a two-second output.</p>
 <pre><code>N: 1024
 P: ~N                 / one-cycle phase ramp
 T: s P                / sine wavetable
@@ -554,8 +593,7 @@ W: w T t 440 D        / 440 Hz sine from table, 2 seconds
 
 / any waveform works as a table
 T: (2*(P&lt;p1%p2))-1    / square wave table (P &lt; π)
-W: w T t 220 D
-</code></pre>
+W: w T t 220 D</code></pre>
 <p>Monadic <code>t</code> is <code>tan</code>.</p>
 <h3 id="quantize-dyadic-form">quantize (dyadic form)</h3>
 <table>
@@ -574,10 +612,14 @@ W: w T t 220 D
 </tr>
 </tbody>
 </table>
-<pre><code>Q: 8 v s P            / 8-level quantized sine — bit-crush effect
-</code></pre>
+<pre><code>Q: 8 v s P            / 8-level quantized sine — bit-crush effect</code></pre>
 <h3 id="stereo">stereo</h3>
 <table>
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 26%" />
+<col style="width: 50%" />
+</colgroup>
 <thead>
 <tr>
 <th>Verb</th>
@@ -589,33 +631,32 @@ W: w T t 220 D
 <tr>
 <td><code>z</code></td>
 <td><code>L z R</code></td>
-<td>Interleave L and R into stereo stream [l0,r0,l1,r1,...]</td>
+<td>Interleave L and R into stereo stream [l0,r0,l1,r1,…]</td>
 </tr>
 </tbody>
 </table>
-<p>Output length is <code>min(L,R) * 2</code>. Use <code>j</code> and <code>k</code> to extract channels.</p>
-<pre><code>W: w L z R            / stereo output
-</code></pre>
-<hr>
+<p>Output length is <code>min(L,R) * 2</code>. Use <code>j</code> and
+<code>k</code> to extract channels.</p>
+<pre><code>W: w L z R            / stereo output</code></pre>
+<hr />
 <h2 id="special-syntax">special syntax</h2>
 <h3 id="vectors-literals">vectors literals</h3>
-<p>Space-separated numbers form a vector. A scalar variable following a number (with space) is absorbed into the vector:</p>
+<p>Space-separated numbers form a vector. A scalar variable following a
+number (with space) is absorbed into the vector:</p>
 <pre><code>V: 1 2 3 4            / four-element vector
-V: 440 D              / [440, value-of-D] if D is scalar
-</code></pre>
+V: 440 D              / [440, value-of-D] if D is scalar</code></pre>
 <h3 id="negative-numbers-in-vectors">negative numbers in vectors</h3>
-<p>A minus sign with preceding space is negation (continues the vector). Flush minus is subtraction (ends the vector):</p>
+<p>A minus sign with preceding space is negation (continues the vector).
+Flush minus is subtraction (ends the vector):</p>
 <pre><code>V: 1 -2 3             / [1, -2, 3]
-V: A-1                / A minus 1 (subtraction)
-</code></pre>
+V: A-1                / A minus 1 (subtraction)</code></pre>
 <h3 id="comments">comments</h3>
-<pre><code>/ this is a comment — everything after / to end of line
-</code></pre>
+<pre><code>/ this is a comment — everything after / to end of line</code></pre>
 <h3 id="semicolons">semicolons</h3>
-<p><code>;</code> separates expressions on one line; only the last value is used:</p>
-<pre><code>A: 1; B: 2; A+B       / evaluates all three, returns 3
-</code></pre>
-<hr>
+<p><code>;</code> separates expressions on one line; only the last value
+is used:</p>
+<pre><code>A: 1; B: 2; A+B       / evaluates all three, returns 3</code></pre>
+<hr />
 <h2 id="quick-patterns">quick patterns</h2>
 <pre><code>/ oscillator
 C: p2%p0              / 2π/44100 — per-sample increment for 1 Hz
@@ -639,8 +680,8 @@ W: w 0.05 f R         / lowpass filtered white noise
 
 / FM synthesis
 I: 3.5*e(T*(0-40%N))  / fast-decaying modulation index
-W: w A*(s P+(I*s P))  / self-FM bell tone
-</code></pre>
+W: w A*(s P+(I*s P))  / self-FM bell tone</code></pre>
+
 </div>
 <script>
 (function(){var THEMES=['retro','dark','light'];var btn=document.getElementById('btn-doc-theme');function applyTheme(t){document.documentElement.setAttribute('data-theme',t);btn.textContent=t;localStorage.setItem('ks-theme',t)}var saved=localStorage.getItem('ks-theme');applyTheme(THEMES.includes(saved)?saved:'retro');btn.addEventListener('click',function(){var cur=document.documentElement.getAttribute('data-theme')||'retro';var next=THEMES[(THEMES.indexOf(cur)+1)%THEMES.length];applyTheme(next)});}());

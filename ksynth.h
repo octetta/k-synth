@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <setjmp.h>
+#include <stdint.h>
 
 /* Cross-platform Thread Local Storage */
 #if defined(_MSC_VER)
@@ -69,5 +70,32 @@ K k_get(ks_ctx *ctx, char name);
 
 /* Output Helper */
 void p(ks_ctx *ctx, K x);
+
+/* Wrapper API (context handle based, suitable for WebAssembly and embedders) */
+uintptr_t ks_ctx_create(void);
+void ks_ctx_destroy(uintptr_t handle);
+int ks_ctx_run(uintptr_t handle, const char *script);
+int ks_ctx_repl(uintptr_t handle, const char *expr);
+const char *ks_ctx_repl_str(uintptr_t handle);
+int ks_ctx_get_var(uintptr_t handle, int letter_upper);
+float *ks_ctx_get_var_buf(uintptr_t handle);
+int ks_ctx_repl_length(uintptr_t handle);
+int ks_ctx_repl_get_floats(uintptr_t handle, float *out, int max_n);
+float *ks_ctx_get_buffer(uintptr_t handle);
+int ks_ctx_get_length(uintptr_t handle);
+const char *ks_ctx_get_error(uintptr_t handle);
+
+/* Legacy singleton wrappers (kept for compatibility) */
+void ks_init(void);
+int ks_run(const char *script);
+int ks_repl(const char *expr);
+const char *ks_repl_str(void);
+int ks_get_var(int letter_upper);
+float *ks_get_var_buf(void);
+int ks_repl_length(void);
+int ks_repl_get_floats(float *out, int max_n);
+float *ks_get_buffer(void);
+int ks_get_length(void);
+const char *ks_get_error(void);
 
 #endif

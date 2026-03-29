@@ -1120,14 +1120,17 @@ let pendingPatchName = null; // set when a patch is loaded from browser
 
 // Wasm handles
 let KS        = null;
-let ks_run      = null;
-let ks_buf      = null;
-let ks_len      = null;
-let ks_err      = null;
-let ks_repl         = null;
-let ks_repl_str     = null;
-let ks_get_var      = null;
-let ks_get_var_buf  = null;
+let ksCtx = 0;
+let ks_ctx_create_fn  = null;
+let ks_ctx_destroy_fn = null;
+let ks_run_fn         = null;
+let ks_buf_fn         = null;
+let ks_len_fn         = null;
+let ks_err_fn         = null;
+let ks_repl_fn        = null;
+let ks_repl_str_fn    = null;
+let ks_get_var_fn     = null;
+let ks_get_var_buf_fn = null;
 
 // AudioContext (lazy init on first user gesture)
 let audioCtx  = null;
@@ -1146,16 +1149,19 @@ async function initWasm() {
   const statusEl = document.getElementById('wasm-status');
   try {
     KS = await KSynth();
-    KS.ccall('ks_init', null, [], []);
+    ks_ctx_create_fn  = KS.cwrap('ks_ctx_create',  'number', []);
+    ks_ctx_destroy_fn = KS.cwrap('ks_ctx_destroy',  null,    ['number']);
+    ks_run_fn         = KS.cwrap('ks_ctx_run',      'number', ['number', 'string']);
+    ks_buf_fn         = KS.cwrap('ks_ctx_get_buffer','number', ['number']);
+    ks_len_fn         = KS.cwrap('ks_ctx_get_length','number', ['number']);
+    ks_err_fn         = KS.cwrap('ks_ctx_get_error', 'string', ['number']);
+    ks_repl_fn        = KS.cwrap('ks_ctx_repl',      'number', ['number', 'string']);
+    ks_repl_str_fn    = KS.cwrap('ks_ctx_repl_str',  'string', ['number']);
+    ks_get_var_fn     = KS.cwrap('ks_ctx_get_var',   'number', ['number', 'number']);
+    ks_get_var_buf_fn = KS.cwrap('ks_ctx_get_var_buf','number',['number']);
 
-    ks_run      = KS.cwrap('ks_run',        'number', ['string']);
-    ks_buf      = KS.cwrap('ks_get_buffer', 'number', []);
-    ks_len      = KS.cwrap('ks_get_length', 'number', []);
-    ks_err      = KS.cwrap('ks_get_error',  'string', []);
-    ks_repl        = KS.cwrap('ks_repl',       'number', ['string']);
-    ks_repl_str    = KS.cwrap('ks_repl_str',   'string', []);
-    ks_get_var     = KS.cwrap('ks_get_var',     'number', ['number']);
-    ks_get_var_buf = KS.cwrap('ks_get_var_buf', 'number', []);
+    ksCtx = ks_ctx_create_fn();
+    if (!ksCtx) throw new Error('failed to create ks context');
 
     statusEl.textContent = 'wasm ready';
     statusEl.className = 'ready';
@@ -1238,13 +1244,13 @@ function playSlot(slotIdx, extraSemitones = 0) {
 function evalScript(code) {
   if (!KS) return { success: false, error: 'wasm not loaded', samples: 0, floatData: null };
 
-  const n = ks_run(code);
+  const n = ks_run_fn(ksCtx, code);
   if (n < 0) {
-    return { success: false, error: ks_err(), samples: 0, floatData: null };
+    return { success: false, error: ks_err_fn(ksCtx), samples: 0, floatData: null };
   }
 
-  const ptr = ks_buf();
-  const len = ks_len();
+  const ptr = ks_buf_fn(ksCtx);
+  const len = ks_len_fn(ksCtx);
   // Copy out of Wasm heap immediately
   const f32 = new Float32Array(KS.HEAPF32.buffer, ptr, len).slice();
   return { success: true, samples: len, floatData: f32, error: '' };
@@ -1816,14 +1822,14 @@ document.getElementById('btn-clear').addEventListener('click', () => {
       return;
     }
 
-    if (!ks_repl) { output.textContent = 'wasm not ready'; output.className='err'; return; }
+    if (!ks_repl_fn) { output.textContent = 'wasm not ready'; output.className='err'; return; }
 
     ensureAudio();
-    const rc  = ks_repl(expr);
-    const res = ks_repl_str();
+    const rc  = ks_repl_fn(ksCtx, expr);
+    const res = ks_repl_str_fn(ksCtx);
 
     if (rc !== 0) {
-      output.textContent = '> ' + expr + '  !  ' + ks_err();
+      output.textContent = '> ' + expr + '  !  ' + ks_err_fn(ksCtx);
       output.className   = 'err';
     } else {
       output.textContent = res
@@ -2410,11 +2416,11 @@ function downloadWav(f32, filename) {
   }
 
   function getVar(name) {
-    if (!ks_get_var || !KS) return null;
+    if (!ks_get_var_fn || !KS) return null;
     const upper = name.toUpperCase().charCodeAt(0);
-    const n = ks_get_var(upper);
+    const n = ks_get_var_fn(ksCtx, upper);
     if (n <= 0) return null;
-    const ptr = ks_get_var_buf();
+    const ptr = ks_get_var_buf_fn(ksCtx);
     return new Float32Array(KS.HEAPF32.buffer, ptr, n).slice();
   }
 
@@ -2760,6 +2766,12 @@ function downloadWav(f32, filename) {
 
 renderSlotStrip();
 initWasm();
+window.addEventListener('beforeunload', () => {
+  if (ks_ctx_destroy_fn && ksCtx) {
+    ks_ctx_destroy_fn(ksCtx);
+    ksCtx = 0;
+  }
+});
 editor.focus();
 </script>
 

@@ -47,38 +47,60 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <div id="doc-body">
 <h1 id="ksynth-web-user-guide">ksynth web — user guide</h1>
 <h2 id="overview">overview</h2>
-<p>ksynth web is a browser-based live-coding environment for the ksynth synthesis language. It compiles ksynth scripts in WebAssembly and plays audio directly through the Web Audio API.</p>
+<p>ksynth web is a browser-based live-coding environment for the ksynth
+synthesis language. It compiles ksynth scripts in WebAssembly and plays
+audio directly through the Web Audio API.</p>
 <p>The interface has three functional areas:</p>
 <ul>
-<li><strong>slot strip</strong> — two rows of 8 across the top, slots <code>0</code>–<code>F</code>. Holds audio buffers ready to trigger.</li>
-<li><strong>notebook</strong> — the left panel. An append-only log of every script you have run, with waveform previews.</li>
-<li><strong>editor</strong> — the right panel. Where you write and run ksynth code.</li>
+<li><strong>slot strip</strong> — two rows of 8 across the top, slots
+<code>0</code>–<code>F</code>. Holds audio buffers ready to
+trigger.</li>
+<li><strong>notebook</strong> — the left panel. An append-only log of
+every script you have run, with waveform previews.</li>
+<li><strong>editor</strong> — the right panel. Where you write and run
+ksynth code.</li>
 </ul>
-<p>A <strong>pad panel</strong> overlay turns the 16 slots into a playable instrument. A <strong>patches</strong> button fetches <code>.ks</code> files directly from the <code>octetta/k-synth</code> GitHub repo.</p>
-<p>The toolbar has <strong>save</strong> and <strong>load</strong> buttons for persisting sessions as <code>.json</code> files, a <strong>theme</strong> toggle (retro / dark / light), and <strong>guide</strong> / <strong>readme</strong> buttons.</p>
-<hr>
+<p>A <strong>pad panel</strong> overlay turns the 16 slots into a
+playable instrument. A <strong>patches</strong> button fetches
+<code>.ks</code> files directly from the <code>octetta/k-synth</code>
+GitHub repo.</p>
+<p>The toolbar has <strong>save</strong> and <strong>load</strong>
+buttons for persisting sessions as <code>.json</code> files, a
+<strong>theme</strong> toggle (retro / dark / light), and
+<strong>guide</strong> / <strong>readme</strong> buttons.</p>
+<hr />
 <h2 id="setup">setup</h2>
-<p>After building with <code>build.sh</code>, serve the directory with any static file server:</p>
-<pre><code class="language-sh">python3 -m http.server 8080
-</code></pre>
-<p>Open <code>http://localhost:8080</code>. The status indicator reads <code>wasm ready</code> in green when the engine is available. Audio initialises on the first user gesture.</p>
-<hr>
+<p>After building with <code>build.sh</code>, serve the directory with
+any static file server:</p>
+<pre class="sh"><code>python3 -m http.server 8080</code></pre>
+<p>Open <code>http://localhost:8080</code>. The status indicator reads
+<code>wasm ready</code> in green when the engine is available. Audio
+initialises on the first user gesture.</p>
+<hr />
 <h2 id="tutorial">tutorial</h2>
 <h3 id="step-1-your-first-sound">step 1 — your first sound</h3>
-<p>Type the following into the editor and press <code>Ctrl+Enter</code>:</p>
+<p>Type the following into the editor and press
+<code>Ctrl+Enter</code>:</p>
 <pre><code>N: 4410
 T: !N
-W: w s +\(N#(440*(6.28318%44100)))
-</code></pre>
-<p>You should hear a 100ms sine wave at 440 Hz. A cell appears in the notebook showing the waveform. What each line does:</p>
+W: w s +\(N#(440*(6.28318%44100)))</code></pre>
+<p>You should hear a 100ms sine wave at 440 Hz. A cell appears in the
+notebook showing the waveform. What each line does:</p>
 <ul>
 <li><code>N: 4410</code> — 4410 samples = 100ms at 44100 Hz</li>
 <li><code>T: !N</code> — time index: a ramp from 0 to N−1</li>
-<li><code>W: ...</code> — the output buffer. <code>w s</code> writes samples. <code>+\(N#...)</code> is a phase accumulator. <code>440*(6.28318%44100)</code> is the per-sample phase increment for 440 Hz</li>
+<li><code>W: ...</code> — the output buffer. <code>w s</code> writes
+samples. <code>+\(N#...)</code> is a phase accumulator.
+<code>440*(6.28318%44100)</code> is the per-sample phase increment for
+440 Hz</li>
 </ul>
 <p><code>W</code> is always the output. Every script must set it.</p>
 <h3 id="step-2-a-bell-sound">step 2 — a bell sound</h3>
-<p>FM synthesis produces bell tones naturally. A carrier oscillator is phase-modulated by a modulator: the modulation index starts high — bright and complex at the attack — then decays fast. ksynth's right-associative parse makes FM natural: <code>s P + Q</code> parses as <code>s(P + s(Q))</code>.</p>
+<p>FM synthesis produces bell tones naturally. A carrier oscillator is
+phase-modulated by a modulator: the modulation index starts high —
+bright and complex at the attack — then decays fast. ksynth’s
+right-associative parse makes FM natural: <code>s P + Q</code> parses as
+<code>s(P + s(Q))</code>.</p>
 <pre><code>N: 88200
 T: !N
 A: e(T*(0-3%N))
@@ -87,42 +109,61 @@ C: 440*(6.28318%44100)
 M: 440*(6.28318%44100)
 P: +\(N#C)
 Q: +\(N#M)
-W: w A*(s P+(I*s Q))
-</code></pre>
+W: w A*(s P+(I*s Q))</code></pre>
 <ul>
 <li><code>A</code> — amplitude envelope, decays over ~2 seconds</li>
-<li><code>I</code> — modulation index: starts at 3.5, decays to near zero in ~50ms</li>
-<li><code>P</code>, <code>Q</code> — carrier and modulator phase accumulators</li>
-<li><code>W</code> — <code>A × sin(P + I×sin(Q))</code>, the FM formula</li>
+<li><code>I</code> — modulation index: starts at 3.5, decays to near
+zero in ~50ms</li>
+<li><code>P</code>, <code>Q</code> — carrier and modulator phase
+accumulators</li>
+<li><code>W</code> — <code>A × sin(P + I×sin(Q))</code>, the FM
+formula</li>
 </ul>
-<p><strong>Experiment:</strong> change <code>40</code> to <code>80</code> for a drier attack, <code>3.5</code> to <code>5</code> for something harsher, or the modulator to <code>616</code> Hz (ratio 1.4:1) for a tubular bell quality.</p>
+<p><strong>Experiment:</strong> change <code>40</code> to
+<code>80</code> for a drier attack, <code>3.5</code> to <code>5</code>
+for something harsher, or the modulator to <code>616</code> Hz (ratio
+1.4:1) for a tubular bell quality.</p>
 <h3 id="step-3-bank-it-to-a-slot">step 3 — bank it to a slot</h3>
-<p>After running the bell script, find its cell in the notebook. Click <code>→0</code> to bank the buffer to slot 0. Click the slot card to play it. Right-click for the context menu.</p>
+<p>After running the bell script, find its cell in the notebook. Click
+<code>→0</code> to bank the buffer to slot 0. Click the slot card to
+play it. Right-click for the context menu.</p>
 <h3 id="step-4-play-it-melodically">step 4 — play it melodically</h3>
-<ol>
+<ol type="1">
 <li>With the bell in slot 0, click <strong>pads</strong>.</li>
 <li>Click the <strong>melodic</strong> preset.</li>
-<li>All 16 pads play slot 0 at different semitone offsets — click them to play the bell at different pitches.</li>
+<li>All 16 pads play slot 0 at different semitone offsets — click them
+to play the bell at different pitches.</li>
 </ol>
-<p>The playback rate for each pad is <code>2^(semitones/12)</code>. Right-click the slot card and use <strong>set base rate</strong> to transpose the whole instrument.</p>
+<p>The playback rate for each pad is <code>2^(semitones/12)</code>.
+Right-click the slot card and use <strong>set base rate</strong> to
+transpose the whole instrument.</p>
 <h3 id="step-5-a-second-voice">step 5 — a second voice</h3>
-<p>Bank a second sound to slot 1, then right-click pads to assign them to slot 1 with their own offsets. You now have two independent pitched voices across the grid.</p>
-<hr>
+<p>Bank a second sound to slot 1, then right-click pads to assign them
+to slot 1 with their own offsets. You now have two independent pitched
+voices across the grid.</p>
+<hr />
 <h2 id="editor">editor</h2>
-<p>Write ksynth code one assignment per line. Comments use <code>/</code>.</p>
-<p><code>Ctrl+Enter</code> or <code>Cmd+Enter</code> to run. Variables <code>A</code>–<code>Z</code> reset before each run — each script is self-contained.</p>
-<p><code>↑</code> at the first line loads the previous run. <code>↓</code> at the last line moves forward through history.</p>
+<p>Write ksynth code one assignment per line. Comments use
+<code>/</code>.</p>
+<p><code>Ctrl+Enter</code> or <code>Cmd+Enter</code> to run. Variables
+<code>A</code>–<code>Z</code> reset before each run — each script is
+self-contained.</p>
+<p><code>↑</code> at the first line loads the previous run.
+<code>↓</code> at the last line moves forward through history.</p>
 <p><code>Ctrl+L</code> clears the editor.</p>
 <h3 id="repl-strip">REPL strip</h3>
-<p>The single-line input at the bottom of the editor is a persistent calculator. Type any ksynth expression and press <strong>Enter</strong>:</p>
+<p>The single-line input at the bottom of the editor is a persistent
+calculator. Type any ksynth expression and press
+<strong>Enter</strong>:</p>
 <pre><code>2+2           =&gt;  4
 440*6.28318   =&gt;  2763.8
 N             =&gt;  44100    (if N was set in the last run)
-!8            =&gt;  [0  1  2  3  4  5 ...]  len=8
-</code></pre>
-<p>Variables persist between REPL entries and are shared with the main editor — run a script then inspect intermediate values here.</p>
+!8            =&gt;  [0  1  2  3  4  5 ...]  len=8</code></pre>
+<p>Variables persist between REPL entries and are shared with the main
+editor — run a script then inspect intermediate values here.</p>
 <h3 id="inspect-commands">inspect commands</h3>
-<p>Type these directly in the editor or REPL and press Enter (or they fire as you type the third character in the editor):</p>
+<p>Type these directly in the editor or REPL and press Enter (or they
+fire as you type the third character in the editor):</p>
 <table>
 <thead>
 <tr>
@@ -141,16 +182,28 @@ N             =&gt;  44100    (if N was set in the last run)
 </tr>
 </tbody>
 </table>
-<p>The graph window shows the waveform, min/max values, zero line, sample count and duration. <code>V</code> is any single letter <code>a</code>–<code>z</code>.</p>
-<hr>
+<p>The graph window shows the waveform, min/max values, zero line,
+sample count and duration. <code>V</code> is any single letter
+<code>a</code>–<code>z</code>.</p>
+<hr />
 <h2 id="notebook">notebook</h2>
-<p>Each run appends a cell. Click the <strong>header</strong> to toggle between collapsed (first line only) and expanded (full code). Click <strong><code>→ edit</code></strong> in the header to copy the code back to the editor. Click the <strong>waveform</strong> to audition without banking.</p>
-<p>When a patch is loaded from the browser, the filename appears in the cell header.</p>
-<hr>
+<p>Each run appends a cell. Click the <strong>header</strong> to toggle
+between collapsed (first line only) and expanded (full code). Click
+<strong><code>→ edit</code></strong> in the header to copy the code back
+to the editor. Click the <strong>waveform</strong> to audition without
+banking.</p>
+<p>When a patch is loaded from the browser, the filename appears in the
+cell header.</p>
+<hr />
 <h2 id="slots">slots</h2>
-<p>16 slots in a 2×8 grid, indexed <code>0</code>–<code>F</code>. Each holds a buffer, a label, and a base pitch offset.</p>
+<p>16 slots in a 2×8 grid, indexed <code>0</code>–<code>F</code>. Each
+holds a buffer, a label, and a base pitch offset.</p>
 <p><strong>Right-click</strong> any slot for the context menu:</p>
 <table>
+<colgroup>
+<col style="width: 42%" />
+<col style="width: 57%" />
+</colgroup>
 <thead>
 <tr>
 <th>Item</th>
@@ -180,10 +233,12 @@ N             =&gt;  44100    (if N was set in the last run)
 </tr>
 </tbody>
 </table>
-<hr>
+<hr />
 <h2 id="pad-panel">pad panel</h2>
-<p>Click <strong><code>pads</code></strong> to open. <code>Escape</code> to close.</p>
-<p>4×4 grid of 16 trigger pads. Each pad shows its slot, key shortcut, label, and semitone offset.</p>
+<p>Click <strong><code>pads</code></strong> to open. <code>Escape</code>
+to close.</p>
+<p>4×4 grid of 16 trigger pads. Each pad shows its slot, key shortcut,
+label, and semitone offset.</p>
 <p><strong>Keyboard triggers</strong> (editor must not have focus):</p>
 <table>
 <thead>
@@ -207,22 +262,39 @@ N             =&gt;  44100    (if N was set in the last run)
 </tr>
 </tbody>
 </table>
-<p>Right-click any pad to configure its slot and semitone offset. Scroll wheel adjusts semitone offset.</p>
-<p><strong>Presets:</strong> <strong>drum</strong> assigns pad N → slot N at 0 semitones. <strong>melodic</strong> assigns all pads to slot 0 at offsets −7 through +8.</p>
-<hr>
+<p>Right-click any pad to configure its slot and semitone offset. Scroll
+wheel adjusts semitone offset.</p>
+<p><strong>Presets:</strong> <strong>drum</strong> assigns pad N → slot
+N at 0 semitones. <strong>melodic</strong> assigns all pads to slot 0 at
+offsets −7 through +8.</p>
+<hr />
 <h2 id="save-load">save / load</h2>
-<p><strong>save</strong> downloads the session as a <code>.json</code> file containing all slot buffers, pad assignments, notebook history, and editor text. <strong>load</strong> restores it completely — no scripts are re-run.</p>
+<p><strong>save</strong> downloads the session as a <code>.json</code>
+file containing all slot buffers, pad assignments, notebook history, and
+editor text. <strong>load</strong> restores it completely — no scripts
+are re-run.</p>
 <p>Session files are compatible with ksynth-desktop.</p>
-<hr>
+<hr />
 <h2 id="patches-browser">patches browser</h2>
-<p><strong>patches</strong> fetches the file tree from <code>octetta/k-synth</code> on GitHub. Type to filter. Click any file to load it into the editor. Press <code>Ctrl+Enter</code> to run when ready.</p>
-<hr>
+<p><strong>patches</strong> fetches the file tree from
+<code>octetta/k-synth</code> on GitHub. Type to filter. Click any file
+to load it into the editor. Press <code>Ctrl+Enter</code> to run when
+ready.</p>
+<hr />
 <h2 id="notes">notes</h2>
-<p><strong>Variable isolation</strong> — <code>A</code>–<code>Z</code> reset before each main editor run. The REPL preserves state between entries.</p>
-<p><strong><code>W</code> is the output</strong> — every script must set <code>W</code>. No <code>W</code> → error cell.</p>
-<p><strong>Wavetable oscillator</strong> — <code>T t [freq n_samples]</code> plays vector <code>T</code> as a DDS oscillator. See readme for examples.</p>
-<p><strong>Literal arrays</strong> — every number after the first must start with a digit <code>0</code>–<code>9</code>. Use <code>0.5</code> not <code>.5</code>.</p>
+<p><strong>Variable isolation</strong> — <code>A</code>–<code>Z</code>
+reset before each main editor run. The REPL preserves state between
+entries.</p>
+<p><strong><code>W</code> is the output</strong> — every script must set
+<code>W</code>. No <code>W</code> → error cell.</p>
+<p><strong>Wavetable oscillator</strong> —
+<code>T t [freq n_samples]</code> plays vector <code>T</code> as a DDS
+oscillator. See readme for examples.</p>
+<p><strong>Literal arrays</strong> — every number after the first must
+start with a digit <code>0</code>–<code>9</code>. Use <code>0.5</code>
+not <code>.5</code>.</p>
 <p><strong>Sample rate</strong> — fixed at 44100 Hz.</p>
+
 </div>
 <script>
 (function(){var THEMES=['retro','dark','light'];var btn=document.getElementById('btn-doc-theme');function applyTheme(t){document.documentElement.setAttribute('data-theme',t);btn.textContent=t;localStorage.setItem('ks-theme',t)}var saved=localStorage.getItem('ks-theme');applyTheme(THEMES.includes(saved)?saved:'retro');btn.addEventListener('click',function(){var cur=document.documentElement.getAttribute('data-theme')||'retro';var next=THEMES[(THEMES.indexOf(cur)+1)%THEMES.length];applyTheme(next)});}());
