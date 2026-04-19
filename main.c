@@ -91,32 +91,17 @@ void handle_line(ks_ctx *ctx, char* line, size_t len) {
 
   if (line[0] == '\0' || line[0] == '/') return;
 
+#if 0
   for (int i=0; i<len; i++) {
     if (line[i] == '/') {
       line[i] = '\0';
       break;
     }
   }
-
-  // Strip inline comments (everything after first '/')
-  // But be careful: '/' inside strings or functions should be preserved
-  // Simple approach: find first '/' not inside {}
-  char *comment_start = NULL;
-  int brace_depth = 0;
-  for (char *p = line; *p; p++) {
-    if (*p == '{') brace_depth++;
-    else if (*p == '}') brace_depth--;
-    else if (*p == '/' && brace_depth == 0) {
-      comment_start = p;
-      break;
-    }
-  }
-  if (comment_start) {
-    *comment_start = '\0';  // Truncate at comment
-  }
+#endif
 
   if (line[0] == '\\') {
-    
+    // user command, don't try to k evaluate anything
     if (line[1] == 't') { 
       show = (show == 0) ? 1 : 0;
       
@@ -168,14 +153,15 @@ void handle_line(ks_ctx *ctx, char* line, size_t len) {
         }
       }
       
-    } else if (line[1] == 'l') { 
+    } else if (line[1] == 'l') {
       char *fn = line + 2; while (*fn == ' ') fn++;
-      printf("/ \\l (load) %p : %s\n", ctx, fn);
+      printf("/ \\l (load) %p : {%s}\n", ctx, fn);
       FILE *f = fopen(fn, "r");
       if (!f) { printf("/ Error: %s\n", fn); return; }
       char buf[1024];
       while (fgets(buf, sizeof(buf), f)) {
         buf[strcspn(buf, "\n")] = 0;
+        if (show) { printf("{%s}\n", buf); }
         handle_line(ctx, buf, strlen(buf));
       }
       fclose(f);
@@ -183,7 +169,6 @@ void handle_line(ks_ctx *ctx, char* line, size_t len) {
     } else if (line[1] == 'w') { 
       int ms = atoi(line + 2);
       if (ms > 0) usleep(ms * 1000);
-
     } else if (line[1] == 's') {
       // \s X    - save mono
       // \ss X   - save stereo (interleaved L/R)
@@ -212,6 +197,39 @@ void handle_line(ks_ctx *ctx, char* line, size_t len) {
           printf("write %c to %s (%s, %lld frames)\n", 
                  v_name, name, is_stereo ? "stereo" : "mono", frames);
           write_wav_from_k(name, v->f, frames, channels, 44100);
+        }
+      }
+
+    } else if (line[1] == 'c') {
+      char *arg = line + 2;
+      while (*arg == ' ') arg++;
+      char v_name = get_var(arg);
+      if (v_name) {
+        K v = ctx->vars[v_name - 'A'];
+        if (v) {
+          char name[1024];
+          struct timeval tv;
+          gettimeofday(&tv, NULL);
+          double ts = (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0;
+          
+          ma_uint64 frames = v->n;
+          
+          snprintf(name, sizeof(name), "%c-%f.h", v_name, ts);
+          printf("write %c to %s (%lld frames)\n", 
+                 v_name, name, frames);
+          FILE *out = fopen(name, "w+");
+          if (out) {
+            int c = 0;
+            fprintf(out, "float %c[%d] = {\n", v_name, frames);
+            for (int i=0; i<frames; i++) {
+              fprintf(out, "%g, ", v->f[i]);
+              c++;
+              if (c >= 64) { fprintf(out, "\n"); c = 0; }
+            }
+            if (c) fprintf(out, "\n");
+            fprintf(out, "};\n");
+            fclose(out);
+          }
         } else {
           printf("nothing in %c\n", v_name);
         }
@@ -282,6 +300,23 @@ void handle_line(ks_ctx *ctx, char* line, size_t len) {
         }
     }
   } else {
+    // Strip inline comments (everything after first '/')
+    // But be careful: '/' inside strings or functions should be preserved
+    // Simple approach: find first '/' not inside {}
+    char *comment_start = NULL;
+    int brace_depth = 0;
+    for (char *p = line; *p; p++) {
+      if (*p == '{') brace_depth++;
+      else if (*p == '}') brace_depth--;
+      else if (*p == '/' && brace_depth == 0) {
+        comment_start = p;
+        break;
+      }
+    }
+    if (comment_start) {
+      *comment_start = '\0';  // Truncate at comment
+    }
+
     char *ptr = line;
     K r = ks_eval(ctx, ptr, strlen(ptr));
     if (ctx->last_status != KS_OK) {
