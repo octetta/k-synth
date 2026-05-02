@@ -94,6 +94,9 @@ W: (S*.3)+(U*.7)+(V*.2)
 | `+\` | scan sum | cumulative sum (running phase) |
 | `|\` | scan max | running maximum |
 
+`/` is **not** the normal K reduce/over adverb in ksynth; `/` starts a comment.
+Use monadic verbs like `+A` for reduction, and `+\A` for scan.
+
 > **Critical:** `r` is element-wise. `r T` where `T: !N` generates N noise samples. `r N` where N is a scalar generates **1 sample**.
 
 ---
@@ -288,4 +291,4 @@ gcc -O2 test_ksynth.c ksynth.c -lm -o test_ksynth && ./test_ksynth
 # 151 tests, 0 failures
 ```
 
-Coverage: scalars · vectors · arithmetic · scan/reduce · normalize · sine/cosine · exp/log · filter cutoff · highpass subtract · delay/comb · additive synthesis `o` and `$` · dot literals · right-assoc mix correctness · envelope decay · noise length · pitch sweep · rise-decay envelope · 1-bit noise
+Coverage: scalars · vectors · arithmetic · scan · normalize · sine/cosine · exp/log · filter cutoff · highpass subtract · delay/comb · additive synthesis `o` and `$` · dot literals · right-assoc mix correctness · envelope decay · noise length · pitch sweep · rise-decay envelope · 1-bit noise
