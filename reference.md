@@ -145,6 +145,10 @@ Q: v s P              / 4-level quantized sine — lo-fi effect
 
 `op\V` applies `op` as a running accumulation over V. Produces a vector the same length as V.
 
+This is the only adverb-like operator currently supported in normal ksynth code.
+It is K-inspired, but ksynth does **not** currently support the normal K
+reduce/over adverb `/`.
+
 | Scan | Description |
 |------|-------------|
 | `+\V` | Running sum (cumulative sum) |
@@ -163,6 +167,25 @@ E: |\A
 ```
 
 `+\` is by far the most used scan — it turns a constant phase increment into a phase ramp, which is the standard oscillator pattern in ksynth.
+
+### no K-style reduce/over (`/`)
+
+In normal K, forms like `+/1 2 3` or `*/A` use `/` as reduce/over. In ksynth,
+that spelling is **not available** because `/` starts a comment.
+
+So these are different:
+
+```
++1 2 3             / works: monadic sum reduction => 6
++\1 2 3            / works: running sum => 1 3 6
++/1 2 3            / does not work as K reduce; / begins a comment
+```
+
+Reduction in ksynth is verb-specific. The common case is monadic `+`:
+
+```
++A                  / sum reduction
+```
 
 ---
 

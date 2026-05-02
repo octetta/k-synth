@@ -375,6 +375,10 @@ python3 -m http.server 8080
 | Feedback delay | `[d g] y sig` | Comb / echo |
 | Convolution | `A z B` | FIR / impulse response |
 
+`+\` is supported as a scan (running sum / phase accumulator). Normal K-style
+`/` reduce-over forms like `+/1 2 3` are **not** supported in ksynth, because
+`/` starts a comment. Use monadic reduction such as `+A` for sum reduction.
+
 Right-associativity: `a op b op c` = `a op (b op c)`. Use parentheses for
 linear mixes: `(A*0.5)+(B*0.5)`, not `A*0.5+B*0.5`.
 
