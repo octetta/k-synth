@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <wchar.h>
@@ -85,8 +86,22 @@ int opts = 0;
 void k_gnuplot(K x, const char *name, const char *path);
 
 void usage(int f);
+void handle_line(ks_ctx *ctx, char* line, size_t len);
 
-void handle_line(ks_ctx *ctx, char* line, size_t len) {
+static char *trim_ws(char *s) {
+  while (*s && isspace((unsigned char)*s)) s++;
+  if (*s == '\0') return s;
+
+  char *end = s + strlen(s) - 1;
+  while (end >= s && isspace((unsigned char)*end)) {
+    *end = '\0';
+    end--;
+  }
+
+  return s;
+}
+
+static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
   while (*line == ' ') line++;
 
   if (line[0] == '\0' || line[0] == '/') return;
@@ -330,6 +345,75 @@ void handle_line(ks_ctx *ctx, char* line, size_t len) {
       p_view(r, 1);
     }
   }
+}
+
+void handle_line(ks_ctx *ctx, char* line, size_t len) {
+  char *expr_group = malloc(len + 1);
+  if (!expr_group) {
+    handle_line_single(ctx, line, len);
+    return;
+  }
+
+  expr_group[0] = '\0';
+  size_t expr_len = 0;
+  int paren_depth = 0;
+  int brace_depth = 0;
+  int bracket_depth = 0;
+  char *segment_start = line;
+
+  for (char *p = line; ; p++) {
+    char c = *p;
+    char *segment_head = segment_start;
+    while (*segment_head && isspace((unsigned char)*segment_head)) segment_head++;
+    int segment_is_command = (*segment_head == '\\');
+
+    if (c == '(') paren_depth++;
+    else if (c == ')' && paren_depth > 0) paren_depth--;
+    else if (c == '{') brace_depth++;
+    else if (c == '}' && brace_depth > 0) brace_depth--;
+    else if (c == '[') bracket_depth++;
+    else if (c == ']' && bracket_depth > 0) bracket_depth--;
+
+    int at_top_level = (paren_depth == 0 && brace_depth == 0 && bracket_depth == 0);
+    int is_boundary = (c == '\0' ||
+                       (at_top_level && (c == ';' || (!segment_is_command && c == '/'))));
+
+    if (!is_boundary) continue;
+
+    char saved = c;
+    *p = '\0';
+
+    char *segment = trim_ws(segment_start);
+    if (*segment != '\0') {
+      if (segment[0] == '\\') {
+        if (expr_len > 0) {
+          handle_line_single(ctx, expr_group, expr_len);
+          expr_group[0] = '\0';
+          expr_len = 0;
+        }
+        handle_line_single(ctx, segment, strlen(segment));
+      } else {
+        if (expr_len > 0) {
+          expr_group[expr_len++] = ';';
+          expr_group[expr_len] = '\0';
+        }
+        size_t segment_len = strlen(segment);
+        memcpy(expr_group + expr_len, segment, segment_len + 1);
+        expr_len += segment_len;
+      }
+    }
+
+    if (saved == '/') break;
+    if (saved == '\0') break;
+
+    segment_start = p + 1;
+  }
+
+  if (expr_len > 0) {
+    handle_line_single(ctx, expr_group, expr_len);
+  }
+
+  free(expr_group);
 }
 
 void print_scope(double *data, int len, int width, int height);

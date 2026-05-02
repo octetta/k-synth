@@ -8,20 +8,16 @@
 
 static int pass = 0;
 static int fail = 0;
+static ks_ctx *g_ctx = NULL;
+
+#define k_free(x) k_free(g_ctx, (x))
 
 static void reset_vars(void) {
-    extern K vars[26];
-    for (int i = 0; i < 26; i++) {
-        if (vars[i]) { k_free(vars[i]); vars[i] = NULL; }
-    }
+    ks_clear_vars(g_ctx);
 }
 
 static K run(const char *src) {
-    char buf[4096];
-    strncpy(buf, src, sizeof(buf) - 1);
-    buf[sizeof(buf) - 1] = '\0';
-    char *s = buf;
-    return e(&s);
+    return ks_eval(g_ctx, src, strlen(src));
 }
 
 static void check_scalar(const char *label, const char *src, double expected, double tol) {
@@ -820,9 +816,104 @@ static void test_1bit_noise(void) {
     k_free(x);
 }
 
+static void test_host_array_helpers(void) {
+    float af[] = {1.5f, 2.5f, 3.5f};
+    int bi[] = {10, 20, 30};
+    double cd[] = {0.25, 0.5, 0.75};
+    float af_out[3] = {0};
+    int bi_out[3] = {0};
+    double cd_out[3] = {0};
+    K a = k_from_f32(g_ctx, 3, af);
+    K b = k_from_i32(g_ctx, 3, bi);
+    K c = k_from_f64(g_ctx, 3, cd);
+    K sum;
+
+    if (!a || !b || !c) {
+        printf("FAIL [host array helpers alloc]\n");
+        fail++;
+        if (a) k_free(a);
+        if (b) k_free(b);
+        if (c) k_free(c);
+        return;
+    }
+
+    if (fabs(a->f[0] - 1.5) < 1e-9 && fabs(a->f[2] - 3.5) < 1e-9) {
+        printf("pass [k_from_f32]\n"); pass++;
+    } else {
+        printf("FAIL [k_from_f32 values]\n"); fail++;
+    }
+
+    if (fabs(b->f[0] - 10.0) < 1e-9 && fabs(b->f[2] - 30.0) < 1e-9) {
+        printf("pass [k_from_i32]\n"); pass++;
+    } else {
+        printf("FAIL [k_from_i32 values]\n"); fail++;
+    }
+
+    if (fabs(c->f[1] - 0.5) < 1e-9) {
+        printf("pass [k_from_f64]\n"); pass++;
+    } else {
+        printf("FAIL [k_from_f64 values]\n"); fail++;
+    }
+
+    if (k_copy_to_f32(a, af_out, 3) == 3 &&
+        fabs(af_out[0] - 1.5f) < 1e-6 &&
+        fabs(af_out[2] - 3.5f) < 1e-6) {
+        printf("pass [k_copy_to_f32]\n"); pass++;
+    } else {
+        printf("FAIL [k_copy_to_f32 values]\n"); fail++;
+    }
+
+    if (k_copy_to_i32(b, bi_out, 3) == 3 &&
+        bi_out[0] == 10 &&
+        bi_out[2] == 30) {
+        printf("pass [k_copy_to_i32]\n"); pass++;
+    } else {
+        printf("FAIL [k_copy_to_i32 values]\n"); fail++;
+    }
+
+    if (k_copy_to_f64(c, cd_out, 3) == 3 &&
+        fabs(cd_out[0] - 0.25) < 1e-9 &&
+        fabs(cd_out[2] - 0.75) < 1e-9) {
+        printf("pass [k_copy_to_f64]\n"); pass++;
+    } else {
+        printf("FAIL [k_copy_to_f64 values]\n"); fail++;
+    }
+
+    k_free(a);
+    k_free(b);
+    k_free(c);
+
+    bind_array_f32(g_ctx, 'A', 3, af);
+    bind_array_i32(g_ctx, 'B', 3, bi);
+    bind_array_f64(g_ctx, 'C', 3, cd);
+    sum = run("A+B+C");
+    if (!sum || sum->n != 3) {
+        printf("FAIL [bind_array_* result]\n");
+        fail++;
+        if (sum) k_free(sum);
+        return;
+    }
+
+    if (fabs(sum->f[0] - 11.75) < 1e-9 &&
+        fabs(sum->f[1] - 23.0) < 1e-9 &&
+        fabs(sum->f[2] - 34.25) < 1e-9) {
+        printf("pass [bind_array_*]\n"); pass++;
+    } else {
+        printf("FAIL [bind_array_* values %.6f %.6f %.6f]\n", sum->f[0], sum->f[1], sum->f[2]);
+        fail++;
+    }
+    k_free(sum);
+}
+
 int main(void) {
     printf("ksynth test suite\n");
     printf("=================\n");
+
+    g_ctx = ks_create(512 * 1024 * 1024, 500000000LL);
+    if (!g_ctx) {
+        fprintf(stderr, "failed to create ksynth test context\n");
+        return 1;
+    }
 
     test_index_gen();
     test_phase_gen();
@@ -871,8 +962,10 @@ int main(void) {
     test_pitch_sweep();
     test_rise_decay_envelope();
     test_1bit_noise();
+    test_host_array_helpers();
 
     printf("\n=================\n");
     printf("passed: %d  failed: %d\n", pass, fail);
+    ks_destroy(g_ctx);
     return fail > 0 ? 1 : 0;
 }
