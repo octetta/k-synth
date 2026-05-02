@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <ctype.h>
 #include "ksynth.h"
 
 typedef struct ks_api_state {
@@ -18,6 +19,92 @@ typedef struct ks_api_state {
 
 static ks_api_state *g_states = NULL;
 static ks_api_state *g_default_state = NULL;
+
+static char *ks_api_trim_ws(char *s) {
+    while (*s && isspace((unsigned char)*s)) s++;
+    if (*s == '\0') return s;
+
+    char *end = s + strlen(s) - 1;
+    while (end >= s && isspace((unsigned char)*end)) {
+        *end = '\0';
+        end--;
+    }
+
+    return s;
+}
+
+static int ks_api_eval_segments(ks_api_state *st, const char *code, K *last_result_out) {
+    if (last_result_out) *last_result_out = NULL;
+    if (!st || !st->ctx || !code) return -1;
+
+    size_t len = strlen(code);
+    char *buf = (char*)malloc(len + 1);
+    if (!buf) {
+        st->ctx->last_status = KS_ERR_OOM;
+        return -1;
+    }
+    memcpy(buf, code, len + 1);
+
+    int paren_depth = 0;
+    int brace_depth = 0;
+    int bracket_depth = 0;
+    char *segment_start = buf;
+
+    for (char *p = buf; ; p++) {
+        char c = *p;
+
+        if (c == '(') paren_depth++;
+        else if (c == ')' && paren_depth > 0) paren_depth--;
+        else if (c == '{') brace_depth++;
+        else if (c == '}' && brace_depth > 0) brace_depth--;
+        else if (c == '[') bracket_depth++;
+        else if (c == ']' && bracket_depth > 0) bracket_depth--;
+
+        int at_top_level = (paren_depth == 0 && brace_depth == 0 && bracket_depth == 0);
+        int is_boundary = (c == '\0' ||
+                           (at_top_level && (c == ';' || c == '\n' || c == '\r' || c == '/')));
+        if (!is_boundary) continue;
+
+        char saved = c;
+        *p = '\0';
+
+        char *segment = ks_api_trim_ws(segment_start);
+        if (*segment != '\0') {
+            K result = ks_eval(st->ctx, segment, strlen(segment));
+            if (st->ctx->last_status != KS_OK) {
+                if (result) k_free(st->ctx, result);
+                if (last_result_out && *last_result_out) {
+                    k_free(st->ctx, *last_result_out);
+                    *last_result_out = NULL;
+                }
+                free(buf);
+                return -1;
+            }
+
+            if (last_result_out) {
+                if (*last_result_out) k_free(st->ctx, *last_result_out);
+                *last_result_out = result;
+            } else if (result) {
+                k_free(st->ctx, result);
+            }
+        }
+
+        if (saved == '/') {
+            char *comment = p + 1;
+            while (*comment && *comment != '\n') comment++;
+            if (*comment == '\0') break;
+            segment_start = comment + 1;
+            p = comment;
+            continue;
+        }
+
+        if (saved == '\0') break;
+        segment_start = p + 1;
+    }
+
+    free(buf);
+    return 0;
+}
 
 static void ks_api_clear_buffers(ks_api_state *st) {
     if (!st) return;
@@ -98,16 +185,8 @@ int ks_ctx_run(uintptr_t handle, const char *script) {
     ks_api_clear_buffers(st);
     if (!script) return -1;
 
-    const char *p = script;
-    while (*p) {
-        const char *nl = strchr(p, '\n');
-        int len = nl ? (int)(nl - p) : (int)strlen(p);
-        if (len > 0 && p[0] != '/') {
-            K result = ks_eval(st->ctx, p, (size_t)len);
-            if (result) k_free(st->ctx, result);
-            if (st->ctx->last_status != KS_OK) return -1;
-        }
-        p = nl ? nl + 1 : p + len;
+    if (ks_api_eval_segments(st, script, NULL) != 0) {
+        return -1;
     }
 
     K w = k_get(st->ctx, 'W');
@@ -145,8 +224,8 @@ int ks_ctx_repl(uintptr_t handle, const char *expr) {
 
     if (!expr || !*expr) return 0;
 
-    K result = ks_eval(st->ctx, expr, strlen(expr));
-    if (st->ctx->last_status != KS_OK) {
+    K result = NULL;
+    if (ks_api_eval_segments(st, expr, &result) != 0) {
         snprintf(st->repl_str, sizeof(st->repl_str), "Error: %s", ks_strerror(st->ctx->last_status));
         return -1;
     }

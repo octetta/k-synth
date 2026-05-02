@@ -1,6 +1,9 @@
 CC := zig cc
+TEST_CC ?= gcc
 CFLAGS = -O3 -Wall
 LDFLAGS = -lm
+
+.PHONY: all test wasm clean
 
 all: ksynth
 
@@ -24,7 +27,10 @@ ksynth: $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(STATIC_OBJS) $(LDFLAGS)
 
 test: test_ksynth.c ksynth.c ksynth.h
-	$(CC) -o test_ksynth test_ksynth.c ksynth.c -lm && ./test_ksynth
+	$(TEST_CC) -O3 -Wall -o test_ksynth test_ksynth.c ksynth.c -lm && ./test_ksynth
+
+wasm: build.sh ksynth.c ks_api.c ksynth.h docs-build.py guide.md readme.md reference.md
+	./build.sh
 
 %.o: %.c $(DEPS)
 	$(CC) $(CFLAGS) -c $< -o $@

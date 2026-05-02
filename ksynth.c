@@ -149,12 +149,85 @@ K k_view(ks_ctx *ctx, int n, double *ptr) {
     return x;
 }
 
+K k_from_f64(ks_ctx *ctx, int n, const double *ptr) {
+    return k_view(ctx, n, (double *)ptr);
+}
+
+K k_from_f32(ks_ctx *ctx, int n, const float *ptr) {
+    K x = k_new(ctx, n);
+    if (x && ptr) {
+        GAS_CHECK(ctx, n);
+        for (int i = 0; i < n; i++) {
+            x->f[i] = (double)ptr[i];
+        }
+    }
+    return x;
+}
+
+K k_from_i32(ks_ctx *ctx, int n, const int *ptr) {
+    K x = k_new(ctx, n);
+    if (x && ptr) {
+        GAS_CHECK(ctx, n);
+        for (int i = 0; i < n; i++) {
+            x->f[i] = (double)ptr[i];
+        }
+    }
+    return x;
+}
+
+int k_copy_to_f64(K x, double *out, int max_n) {
+    if (!x || !out || max_n <= 0 || x->n <= 0) return 0;
+    int n = x->n < max_n ? x->n : max_n;
+    memcpy(out, x->f, (size_t)n * sizeof(double));
+    return n;
+}
+
+int k_copy_to_f32(K x, float *out, int max_n) {
+    if (!x || !out || max_n <= 0 || x->n <= 0) return 0;
+    int n = x->n < max_n ? x->n : max_n;
+    for (int i = 0; i < n; i++) {
+        out[i] = (float)x->f[i];
+    }
+    return n;
+}
+
+int k_copy_to_i32(K x, int *out, int max_n) {
+    if (!x || !out || max_n <= 0 || x->n <= 0) return 0;
+    int n = x->n < max_n ? x->n : max_n;
+    for (int i = 0; i < n; i++) {
+        out[i] = (int)x->f[i];
+    }
+    return n;
+}
+
+static void bind_array(ks_ctx *ctx, char name, K x) {
+    if (!ctx || !x || name < 'A' || name > 'Z') {
+        if (ctx && x) k_free(ctx, x);
+        return;
+    }
+    int i = name - 'A';
+    if (ctx->vars[i]) k_free(ctx, ctx->vars[i]);
+    ctx->vars[i] = x;
+}
+
 void bind_scalar(ks_ctx *ctx, char name, double val) {
     if (name < 'A' || name > 'Z') return;
     int i = name - 'A';
     K x = k_new(ctx, 1); x->f[0] = val;
     if (ctx->vars[i]) k_free(ctx, ctx->vars[i]);
     ctx->vars[i] = x;
+}
+
+void bind_array_f64(ks_ctx *ctx, char name, int n, const double *ptr) {
+    bind_array(ctx, name, k_from_f64(ctx, n, ptr));
+}
+
+void bind_array_f32(ks_ctx *ctx, char name, int n, const float *ptr) {
+    bind_array(ctx, name, k_from_f32(ctx, n, ptr));
+}
+
+void bind_array_i32(ks_ctx *ctx, char name, int n, const int *ptr) {
+    bind_array(ctx, name, k_from_i32(ctx, n, ptr));
 }
 
 K k_get(ks_ctx *ctx, char name) {

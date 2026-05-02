@@ -58,11 +58,38 @@ W: K,K,S,K,K,S,K,K,S,C,C,C,O,S,S
 gcc -O2 ksynth.c -lm -o ksynth
 ```
 
-The engine is a single C file with no dependencies beyond libc and libm.
+The core engine is a single C file with no dependencies beyond libc and libm.
 It can also be embedded as a library: include `ksynth.h` and use the
 context API (`ks_create`/`ks_eval`) directly, or the wrapper-handle API
 (`ks_ctx_create`/`ks_ctx_run`) when you want a stable C ABI (including WebAssembly).
 Legacy singleton wrappers like `ks_run()` are still available for compatibility.
+
+#### Embedding
+
+If you are embedding k/synth in another C program, the file set depends on
+which API surface you use:
+
+- Core context API only: `ksynth.c` + `ksynth.h`
+- Wrapper / handle API: `ksynth.c` + `ks_api.c` + `ksynth.h`
+
+You do not need `main.c`, `miniaudio.*`, `bestline.*`, or `kgnuplot.*`
+unless you specifically want the standalone CLI or audio playback shell.
+
+Why choose one over the other:
+
+- Use the core context API when you are writing normal C and want direct access
+  to `K` values, host-side array helpers, and the fewest layers between your code
+  and the evaluator.
+- Use the wrapper API when you want opaque handles instead of `ks_ctx *`, a
+  narrower ABI for foreign-function bindings, or the same surface used by the
+  WebAssembly build.
+
+For the simplest host-side example, see
+[`examples/simple_api.c`](examples/simple_api.c), which shows:
+
+- evaluating expressions with `ks_eval()`
+- binding `float[]`, `int[]`, and `double[]` from C
+- copying results back out to normal C arrays
 
 ---
 
