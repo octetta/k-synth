@@ -63,28 +63,15 @@ K k_call(ks_ctx *ctx, K fn, K *call_args, int nargs);
 int k_is_func(K x);
 char* k_func_body(K x);
 
-/* C API Integration.
-   Prefer these when embedding directly in C and you want to work with K values
-   and host arrays without going through the wrapper layer. */
+/* C API Integration */
 K k_view(ks_ctx *ctx, int n, double *ptr);
-K k_from_f64(ks_ctx *ctx, int n, const double *ptr);
-K k_from_f32(ks_ctx *ctx, int n, const float *ptr);
-K k_from_i32(ks_ctx *ctx, int n, const int *ptr);
-int k_copy_to_f64(K x, double *out, int max_n);
-int k_copy_to_f32(K x, float *out, int max_n);
-int k_copy_to_i32(K x, int *out, int max_n);
 void bind_scalar(ks_ctx *ctx, char name, double val);
-void bind_array_f64(ks_ctx *ctx, char name, int n, const double *ptr);
-void bind_array_f32(ks_ctx *ctx, char name, int n, const float *ptr);
-void bind_array_i32(ks_ctx *ctx, char name, int n, const int *ptr);
 K k_get(ks_ctx *ctx, char name);
 
 /* Output Helper */
 void p(ks_ctx *ctx, K x);
 
-/* Wrapper API (context handle based, suitable for WebAssembly and embedders).
-   Prefer these when you want opaque handles and a narrower ABI surface for
-   foreign-function bindings or non-C hosts. */
+/* Wrapper API (context handle based, suitable for WebAssembly and embedders) */
 uintptr_t ks_ctx_create(void);
 void ks_ctx_destroy(uintptr_t handle);
 int ks_ctx_run(uintptr_t handle, const char *script);
