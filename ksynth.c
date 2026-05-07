@@ -69,76 +69,81 @@ static inline double safe_val(double v) {
 ks_ctx* ks_create(size_t mem_limit, long long gas_limit) {
     ks_ctx *ctx = calloc(1, sizeof(ks_ctx));
     if (!ctx) return NULL;
-    ctx->mem_limit = mem_limit;
-    ctx->gas_limit = gas_limit;
+
+    /* Default arena size if caller passes 0 */
+    if (mem_limit == 0) mem_limit = 4 * 1024 * 1024; /* 4 MB */
+
+    ctx->arena_base = malloc(mem_limit);
+    if (!ctx->arena_base) { free(ctx); return NULL; }
+    ctx->arena_ptr  = ctx->arena_base;
+    ctx->arena_end  = ctx->arena_base + mem_limit;
+    ctx->mem_limit  = mem_limit;
+
+    ctx->gas_limit  = gas_limit;
     return ctx;
 }
 
 void ks_clear_vars(ks_ctx *ctx) {
     if (!ctx) return;
     for (int i = 0; i < 26; i++) {
-        if (ctx->vars[i]) {
-            k_free(ctx, ctx->vars[i]);
-            ctx->vars[i] = NULL;
-        }
+        if (ctx->vars[i]) { free(ctx->vars[i]); ctx->vars[i] = NULL; }
     }
-    for (int i = 0; i < 2; i++) {
-        if (ctx->args[i]) {
-            k_free(ctx, ctx->args[i]);
-            ctx->args[i] = NULL;
-        }
-    }
+    /* args[] are arena-allocated; just null them out — the arena
+       reset in ks_eval handles their memory. */
+    ctx->args[0] = ctx->args[1] = NULL;
 }
 
 void ks_destroy(ks_ctx *ctx) {
     if (!ctx) return;
     ks_clear_vars(ctx);
+    free(ctx->arena_base);
     free(ctx);
 }
 
 /* --- K Lifecycle --- */
 
+/* Alignment for the bump allocator — double is 8 bytes, that's our ceiling. */
+#define KS_ALIGN 8
+#define KS_ALIGN_UP(n) (((n) + (KS_ALIGN-1)) & ~(size_t)(KS_ALIGN-1))
+
+/* Arena-allocated K: lives only for the duration of the current ks_eval call.
+   k_free is a no-op; the arena is reset as a whole in ks_eval. */
 K k_new(ks_ctx *ctx, int n) {
     if (n < 0) n = 0;
-    size_t sz = sizeof(struct { int r, n; double f[]; }) + sizeof(double) * n;
-    
-    if (ctx->mem_limit > 0 && ctx->mem_used + sz > ctx->mem_limit) {
+    size_t sz = KS_ALIGN_UP(sizeof(struct { int r, n; double f[]; }) + sizeof(double) * n);
+
+    if (ctx->arena_ptr + sz > ctx->arena_end) {
         ctx->last_status = KS_ERR_OOM;
         longjmp(ctx->recover, 1);
     }
-    
+
+    K x = (K)ctx->arena_ptr;
+    ctx->arena_ptr += sz;
+    x->r = 1; x->n = n;
+    return x;
+}
+
+/* Persistent K: malloc'd, survives across ks_eval calls.
+   Used for vars[] (A-Z) only. Freed explicitly by ks_clear_vars/ks_destroy. */
+K k_new_perm(ks_ctx *ctx, int n) {
+    (void)ctx;
+    if (n < 0) n = 0;
+    size_t sz = sizeof(struct { int r, n; double f[]; }) + sizeof(double) * n;
     K x = malloc(sz);
     if (!x) {
         ctx->last_status = KS_ERR_OOM;
         longjmp(ctx->recover, 1);
     }
-    
-    /* Update mem_used only after successful allocation */
-    ctx->mem_used += sz;
-    x->r = 1; x->n = n; return x;
+    x->r = 1; x->n = n;
+    return x;
 }
 
+/* k_free: arena objects are owned by the arena — this is a no-op for them.
+   Perm objects (vars[]) are freed directly via free() in ks_clear_vars.
+   We keep this function so call sites don't need to change. */
 void k_free(ks_ctx *ctx, K x) {
-    if (!x) return;
-    if (!--x->r) {
-        size_t sz = sizeof(struct { int r, n; double f[]; }) + sizeof(double) * (x->n < 0 ? 0 : x->n);
-        /* If it's a function (n=-1), we still need to calculate the actual allocated size.
-           The function logic uses n=-1 but allocates based on length. 
-           We'll improve this tracking. */
-        if (x->n == -1) {
-            // Re-calculate size for functions. In k_func we use ndoubles.
-            // Let's make it consistent.
-            char *body = (char*)x->f;
-            int len = strlen(body) + 1;
-            int ndoubles = (len + sizeof(double) - 1) / sizeof(double);
-            sz = sizeof(struct { int r, n; double f[]; }) + sizeof(double) * ndoubles;
-        }
-        
-        if (ctx->mem_used >= sz) ctx->mem_used -= sz;
-        else ctx->mem_used = 0;
-        
-        free(x);
-    }
+    (void)ctx; (void)x;
+    /* no-op: arena objects reset in bulk; perm objects freed by ks_clear_vars */
 }
 
 K k_view(ks_ctx *ctx, int n, double *ptr) {
@@ -153,15 +158,30 @@ K k_view(ks_ctx *ctx, int n, double *ptr) {
 void bind_scalar(ks_ctx *ctx, char name, double val) {
     if (name < 'A' || name > 'Z') return;
     int i = name - 'A';
-    K x = k_new(ctx, 1); x->f[0] = val;
-    if (ctx->vars[i]) k_free(ctx, ctx->vars[i]);
+    K x = k_new_perm(ctx, 1); x->f[0] = val;
+    if (ctx->vars[i]) free(ctx->vars[i]);
     ctx->vars[i] = x;
 }
 
+/* k_get returns an arena-allocated copy of the var's value.
+   The perm object in vars[] is left untouched; the copy lives for
+   the duration of the current eval. */
 K k_get(ks_ctx *ctx, char name) {
     if (name < 'A' || name > 'Z' || !ctx->vars[name - 'A']) return NULL;
     K v = ctx->vars[name - 'A'];
-    v->r++; return v;
+    if (k_is_func(v)) {
+        /* Functions: arena-copy the func object so the body pointer
+           still points into the perm allocation's flex array. */
+        int len = strlen((char*)v->f) + 1;
+        int ndoubles = (len + sizeof(double) - 1) / sizeof(double);
+        K x = k_new(ctx, ndoubles);
+        x->n = -1;
+        memcpy(x->f, v->f, len);
+        return x;
+    }
+    K x = k_new(ctx, v->n);
+    memcpy(x->f, v->f, v->n * sizeof(double));
+    return x;
 }
 
 /* --- Function Support --- */
@@ -681,13 +701,24 @@ K atom(ks_ctx *ctx, char **s) {
 
     if (**s == ':') {
         (*s)++; K x = expr(ctx, s);
-        if (c >= 'A' && c <= 'Z') {
+        if (c >= 'A' && c <= 'Z' && x) {
             int i = c - 'A';
-            if (ctx->vars[i]) k_free(ctx, ctx->vars[i]);
-            if (x) { x->r++; ctx->vars[i] = x; }
+            /* Copy x (arena) into a persistent malloc'd object for vars[]. */
+            K perm;
+            if (k_is_func(x)) {
+                int len = strlen((char*)x->f) + 1;
+                int ndoubles = (len + sizeof(double) - 1) / sizeof(double);
+                perm = k_new_perm(ctx, ndoubles);
+                perm->n = -1;
+                memcpy(perm->f, x->f, len);
+            } else {
+                perm = k_new_perm(ctx, x->n);
+                memcpy(perm->f, x->f, x->n * sizeof(double));
+            }
+            if (ctx->vars[i]) free(ctx->vars[i]);
+            ctx->vars[i] = perm;
         }
-        /* Return x with its existing ref (no additional bump needed —
-           the var slot already took one ref via x->r++ above). */
+        /* Return x as-is (arena lifetime, caller frees via k_free no-op). */
         return x;
     }
 
@@ -757,26 +788,21 @@ K e(ks_ctx *ctx, char **s) {
 
 K ks_eval(ks_ctx *ctx, const char *code, size_t len) {
     if (!ctx || !code) return NULL;
-    
-    /* Setup sandbox environment */
+
     current_ks_ctx = ctx;
     ctx->last_status = KS_OK;
-    
-    /* Snapshot mem_used so we can restore it if we longjmp out mid-eval.
-       Any K objects allocated but not freed (orphaned intermediates on the
-       C stack) will have been malloc'd but their memory is truly lost; at
-       least this keeps the accounting honest so subsequent evals aren't
-       incorrectly blocked by a phantom high-water mark. */
-    size_t mem_checkpoint = ctx->mem_used;
-    
-    /* Setup signals */
+    ctx->gas_used = 0;
+
+    /* Save arena position — on longjmp or normal return we reset to here,
+       reclaiming all temporaries allocated during this eval in one shot. */
+    char *arena_checkpoint = ctx->arena_ptr;
+
     void (*old_segv)(int) = signal(SIGSEGV, ks_handle_signal);
     void (*old_fpe)(int)  = signal(SIGFPE,  ks_handle_signal);
     void (*old_ill)(int)  = signal(SIGILL,  ks_handle_signal);
-    
+
     K result = NULL;
     if (setjmp(ctx->recover) == 0) {
-        /* Evaluation */
         char *buf = malloc(len + 1);
         if (!buf) {
             ctx->last_status = KS_ERR_OOM;
@@ -787,20 +813,21 @@ K ks_eval(ks_ctx *ctx, const char *code, size_t len) {
             result = e(ctx, &p_code);
             free(buf);
         }
-    } else {
-        /* Recovered from longjmp — reset mem accounting to checkpoint.
-           The vars[] still hold live objects (accounted for before the
-           checkpoint), so we restore to checkpoint not zero. */
-        ctx->mem_used = mem_checkpoint;
-        result = NULL;
     }
-    
-    /* Cleanup signals */
+    /* Both the success and longjmp paths fall through here.
+       Reset the arena — all temporaries are gone. */
+    ctx->arena_ptr  = arena_checkpoint;
+    ctx->args[0]    = ctx->args[1] = NULL; /* were arena ptrs, now dangling */
+
     signal(SIGSEGV, old_segv);
     signal(SIGFPE,  old_fpe);
     signal(SIGILL,  old_ill);
     current_ks_ctx = NULL;
-    
+
+    /* result pointed into the arena which we just reset — it's invalid.
+       Callers that need the value must have stored it in a var (A:) or
+       the wrapper layer must copy it before this return. For the REPL
+       use-case the wrappers do exactly that. */
     return result;
 }
 

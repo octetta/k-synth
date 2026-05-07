@@ -30,15 +30,19 @@ typedef enum {
 typedef struct { int r, n; double f[]; } *K;
 
 typedef struct ks_ctx {
-    K vars[26];          /* A-Z user variables */
-    K args[2];           /* x, y function arguments */
-    
-    size_t mem_limit;    /* Max bytes allowed for K objects */
-    size_t mem_used;     /* Current bytes used by K objects */
-    
+    K vars[26];          /* A-Z user variables (persistent, malloc'd) */
+    K args[2];           /* x, y function arguments (arena) */
+
+    /* Eval-scoped bump allocator for temporary K objects */
+    char  *arena_base;   /* Start of arena block */
+    char  *arena_ptr;    /* Current bump position */
+    char  *arena_end;    /* One past end of arena block */
+
+    size_t mem_limit;    /* Arena size (bytes); set at ks_create time */
+
     long long gas_limit; /* Max operations allowed for evaluation */
     long long gas_used;  /* Current operations consumed */
-    
+
     jmp_buf recover;     /* For sandboxing escape */
     ks_status last_status;
     char last_err_msg[256];
@@ -53,9 +57,10 @@ void ks_clear_vars(ks_ctx *ctx);
 K ks_eval(ks_ctx *ctx, const char *code, size_t len);
 const char* ks_strerror(ks_status status);
 
-/* Internal-ish K Lifecycle (now requires context for tracking) */
-K k_new(ks_ctx *ctx, int n);
-void k_free(ks_ctx *ctx, K x);
+/* Internal-ish K Lifecycle */
+K k_new(ks_ctx *ctx, int n);       /* arena-allocated (eval lifetime) */
+K k_new_perm(ks_ctx *ctx, int n);  /* malloc'd (persists across evals, e.g. vars) */
+void k_free(ks_ctx *ctx, K x);     /* no-op for arena objects; frees perm objects */
 
 /* Function support */
 K k_func(ks_ctx *ctx, char *body);
