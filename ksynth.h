@@ -43,7 +43,7 @@ typedef struct ks_ctx {
     long long gas_limit; /* Max operations allowed for evaluation */
     long long gas_used;  /* Current operations consumed */
 
-    jmp_buf recover;     /* For sandboxing escape */
+    sigjmp_buf recover;  /* For sandboxing escape — sigjmp_buf restores signal mask */
     ks_status last_status;
     char last_err_msg[256];
 } ks_ctx;

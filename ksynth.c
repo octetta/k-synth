@@ -4,6 +4,7 @@
 #include <math.h>
 #include <signal.h>
 #include <setjmp.h>
+#include <fenv.h>
 #include "ksynth.h"
 
 /* --- Thread-Local Tracking for Signal Handling --- */
@@ -35,14 +36,23 @@ const char* ks_strerror(ks_status status) {
 
 static void ks_handle_signal(int sig) {
     if (!current_ks_ctx) return;
-    
+
     switch (sig) {
         case SIGSEGV: current_ks_ctx->last_status = KS_ERR_SIGSEGV; break;
-        case SIGFPE:  current_ks_ctx->last_status = KS_ERR_SIGFPE; break;
-        case SIGILL:  current_ks_ctx->last_status = KS_ERR_SIGILL; break;
+        case SIGFPE:  current_ks_ctx->last_status = KS_ERR_SIGFPE;  break;
+        case SIGILL:  current_ks_ctx->last_status = KS_ERR_SIGILL;  break;
         default:      current_ks_ctx->last_status = KS_ERR_INTERNAL; break;
     }
-    longjmp(current_ks_ctx->recover, 1);
+
+    /* Clear any pending FP exceptions before leaving the signal frame.
+       Without this, siglongjmp on SIGFPE re-triggers the exception
+       immediately on x86 because the FPU status word isn't reset. */
+    feclearexcept(FE_ALL_EXCEPT);
+
+    /* siglongjmp (not longjmp) restores the signal mask saved by sigsetjmp,
+       unblocking the signal so it can fire again on a future fault rather
+       than being permanently masked for this thread. */
+    siglongjmp(current_ks_ctx->recover, 1);
 }
 
 /* --- Gas Helper --- */
@@ -126,13 +136,19 @@ K k_new(ks_ctx *ctx, int n) {
 /* Persistent K: malloc'd, survives across ks_eval calls.
    Used for vars[] (A-Z) only. Freed explicitly by ks_clear_vars/ks_destroy. */
 K k_new_perm(ks_ctx *ctx, int n) {
-    (void)ctx;
     if (n < 0) n = 0;
     size_t sz = sizeof(struct { int r, n; double f[]; }) + sizeof(double) * n;
     K x = malloc(sz);
     if (!x) {
+        /* k_new_perm is called both inside ks_eval (from the assignment
+           operator) and outside it (from bind_scalar). longjmp-ing to
+           ctx->recover when called outside eval is UB — recover hasn't
+           been initialised by sigsetjmp yet. Return NULL instead and let
+           the call site handle it. Inside eval the caller (atom) will
+           immediately dereference the result; that SIGSEGV will be caught
+           cleanly by the signal handler. */
         ctx->last_status = KS_ERR_OOM;
-        longjmp(ctx->recover, 1);
+        return NULL;
     }
     x->r = 1; x->n = n;
     return x;
@@ -158,7 +174,9 @@ K k_view(ks_ctx *ctx, int n, double *ptr) {
 void bind_scalar(ks_ctx *ctx, char name, double val) {
     if (name < 'A' || name > 'Z') return;
     int i = name - 'A';
-    K x = k_new_perm(ctx, 1); x->f[0] = val;
+    K x = k_new_perm(ctx, 1);
+    if (!x) return; /* OOM — leave existing var untouched */
+    x->f[0] = val;
     if (ctx->vars[i]) free(ctx->vars[i]);
     ctx->vars[i] = x;
 }
@@ -231,22 +249,11 @@ K k_call(ks_ctx *ctx, K fn, K *call_args, int nargs) {
     ctx->args[0] = k_new(ctx, 0);
     ctx->args[1] = k_new(ctx, 0);
 
-    if (nargs > 0 && call_args[0]) {
-        k_free(ctx, ctx->args[0]);
-        call_args[0]->r++;
-        ctx->args[0] = call_args[0];
-    }
-    if (nargs > 1 && call_args[1]) {
-        k_free(ctx, ctx->args[1]);
-        call_args[1]->r++;
-        ctx->args[1] = call_args[1];
-    }
+    if (nargs > 0 && call_args[0]) ctx->args[0] = call_args[0];
+    if (nargs > 1 && call_args[1]) ctx->args[1] = call_args[1];
 
     char *s = body;
     K result = e(ctx, &s);
-
-    if (ctx->args[0]) k_free(ctx, ctx->args[0]);
-    if (ctx->args[1]) k_free(ctx, ctx->args[1]);
 
     ctx->args[0] = old_x;
     ctx->args[1] = old_y;
@@ -303,7 +310,7 @@ K scan(ks_ctx *ctx, char op, K b) {
             acc = b->f[0];
             x->f[0] = acc;
             for (int i = 1; i < b->n; i++) {
-                acc = pow(acc, b->f[i]);
+                acc = safe_val(pow(acc, b->f[i]));
                 x->f[i] = acc;
             }
             break;
@@ -333,6 +340,7 @@ K mo(ks_ctx *ctx, char c, K b) {
 
     if (c == '!') {
         int n = (int)b->f[0]; k_free(ctx, b);
+        if (n < 0 || n > 1000000) { ctx->last_status = KS_ERR_INVALID_ARGS; siglongjmp(ctx->recover, 1); }
         GAS_CHECK(ctx, n);
         x = k_new(ctx, n);
         for (int j = 0; j < n; j++) x->f[j] = (double)j;
@@ -341,7 +349,7 @@ K mo(ks_ctx *ctx, char c, K b) {
 
     if (c == '~') {
         int n = (int)b->f[0]; k_free(ctx, b);
-        if (n < 1) return k_new(ctx, 0);
+        if (n < 1 || n > 1000000) return k_new(ctx, 0);
         GAS_CHECK(ctx, n);
         x = k_new(ctx, n);
         double twopi = 2.0 * M_PI;
@@ -801,8 +809,14 @@ K ks_eval(ks_ctx *ctx, const char *code, size_t len) {
     void (*old_fpe)(int)  = signal(SIGFPE,  ks_handle_signal);
     void (*old_ill)(int)  = signal(SIGILL,  ks_handle_signal);
 
+    /* Clear any stale FP exception flags before entering eval so a
+       pre-existing flag doesn't immediately re-trigger SIGFPE. */
+    feclearexcept(FE_ALL_EXCEPT);
+
     K result = NULL;
-    if (setjmp(ctx->recover) == 0) {
+    /* sigsetjmp with savemask=1 saves the current signal mask so that
+       siglongjmp can restore it, unblocking the signal after recovery. */
+    if (sigsetjmp(ctx->recover, 1) == 0) {
         char *buf = malloc(len + 1);
         if (!buf) {
             ctx->last_status = KS_ERR_OOM;
