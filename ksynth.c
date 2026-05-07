@@ -80,8 +80,12 @@ ks_ctx* ks_create(size_t mem_limit, long long gas_limit) {
     ks_ctx *ctx = calloc(1, sizeof(ks_ctx));
     if (!ctx) return NULL;
 
-    /* Default arena size if caller passes 0 */
-    if (mem_limit == 0) mem_limit = 4 * 1024 * 1024; /* 4 MB */
+    /* Default arena size if caller passes 0.
+       Sizing rationale: a 2-second stereo output at 44100 is 88200 frames
+       × 2 channels × 8 bytes = ~1.4 MB just for the output buffer, before
+       any intermediate vectors. 8 MB gives comfortable headroom for typical
+       multi-stage patches without being wasteful. */
+    if (mem_limit == 0) mem_limit = 8 * 1024 * 1024;
 
     ctx->arena_base = malloc(mem_limit);
     if (!ctx->arena_base) { free(ctx); return NULL; }
@@ -439,14 +443,22 @@ K mo(ks_ctx *ctx, char c, K b) {
                 break;
             }
             case 'b': {
+                /* Monadic b: fixed-pitch buzz at 110 Hz (default organ bass).
+                   For pitched use, prefer dyadic form: freq b V */
                 double ff[] = {2.43, 3.01, 3.52, 4.11, 5.23, 6.78};
+                double phase_inc = 110.0 * (2.0 * M_PI / 44100.0);
                 double ss = 0;
                 for (int j = 0; j < 6; j++)
-                    ss += (sin(i * 0.1 * ff[j]) > 0) ? 1.0 : -1.0;
+                    ss += (sin(i * phase_inc * ff[j]) > 0) ? 1.0 : -1.0;
                 x->f[i] = ss / 6.0;
                 break;
             }
-            case 'u': x->f[i] = (i < 10) ? (double)i / 10.0 : 1.0; break;
+            case 'u': {
+                /* Monadic u: fixed 10-sample anti-click ramp.
+                   For a longer ramp, use dyadic form: N u V */
+                x->f[i] = (i < 10) ? (double)i / 10.0 : 1.0;
+                break;
+            }
             case 'n': x->f[i] = 440.0 * pow(2.0, (v - 69.0) / 12.0); break;
             default: x->f[i] = v; break;
         }
@@ -538,6 +550,37 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
         x = k_new(ctx, b->n);
         for (int i = 0; i < b->n; i++)
             x->f[i] = floor(b->f[i] * levels) / levels;
+        k_free(ctx, a); k_free(ctx, b); return x;
+    }
+
+    if (c == 'b') {
+        /* Dyadic b: freq b signal — pitched band-limited buzz at freq Hz.
+           Same 6-oscillator metallic cluster as monadic b, tuned to freq.
+           Output length = b->n (the signal vector). */
+        double freq = (a->n > 0) ? a->f[0] : 110.0;
+        if (freq < 1.0) freq = 1.0;
+        double phase_inc = freq * (2.0 * M_PI / 44100.0);
+        double ff[] = {2.43, 3.01, 3.52, 4.11, 5.23, 6.78};
+        GAS_CHECK(ctx, b->n);
+        x = k_new(ctx, b->n);
+        for (int i = 0; i < b->n; i++) {
+            double ss = 0;
+            for (int j = 0; j < 6; j++)
+                ss += (sin(i * phase_inc * ff[j]) > 0) ? 1.0 : -1.0;
+            x->f[i] = ss / 6.0;
+        }
+        k_free(ctx, a); k_free(ctx, b); return x;
+    }
+
+    if (c == 'u') {
+        /* Dyadic u: N u signal — anti-click ramp over first N samples.
+           Ramps from 0 to 1 over N samples then holds at 1.0.
+           N < 1 is treated as 1; use N=0 to effectively bypass. */
+        int ramp = (a->n > 0 && a->f[0] >= 1.0) ? (int)a->f[0] : 1;
+        GAS_CHECK(ctx, b->n);
+        x = k_new(ctx, b->n);
+        for (int i = 0; i < b->n; i++)
+            x->f[i] = (i < ramp) ? (double)i / (double)ramp : 1.0;
         k_free(ctx, a); k_free(ctx, b); return x;
     }
 

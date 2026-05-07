@@ -29,7 +29,7 @@ P: N X 440            / phase ramp for 440 Hz over N samples
 | Verb | Input | Output | Description |
 |------|-------|--------|-------------|
 | `!N` | scalar N | [0,1,...,N-1] | Integer index ramp |
-| `~N` | scalar N | [0, 2π/N, ..., 2π*(N-1)/N] | Phase ramp 0 to ~2π |
+| `~N` | scalar N | [0, 2π/N, ..., 2π*(N-1)/N] | Phase ramp 0 to approximately 2π |
 
 ```
 T: !44100             / time index 0..44099
@@ -55,9 +55,9 @@ P: >S                 / peak amplitude (should be ~1.0)
 
 | Verb | Description |
 |------|-------------|
-| `w V` | Peak-normalize `V` to ±1.0 and write as output |
+| `w V` | Peak-normalize `V` to ±1.0 and return as output |
 
-`w` is always used to produce `W`. It normalizes so the peak is exactly 1.0.
+`w` returns the normalized vector; assign it to `W` by convention. If the peak is below 1e-10 (silence), the result is all zeros.
 
 ```
 W: w s ~44100
@@ -82,26 +82,33 @@ W: w s ~44100
 
 ```
 A: e(T*(0-3%N))       / exponential decay envelope
-D: d 2*s P            / driven sine into soft clip
+D: d(2*s P)           / driven sine into soft clip (parens clarify grouping)
 F: p 2                / 2π (= 6.28318...)
 ```
 
 ### noise and special waveforms
 
-| Verb | Description |
-|------|-------------|
-| `r V` | White noise: uniform random [-1,1], one per element of V |
-| `m V` | 1-bit metallic noise: deterministic ±0.7 pattern, good for cymbals |
-| `b V` | Band-limited buzz: sum of 6 phase-shifted square waves, organ-like |
-| `u V` | Ramp up: 0→1 over first 10 samples then stays at 1.0 (anti-click) |
+| Verb | Usage | Description |
+|------|-------|-------------|
+| `r V` | `r V` | White noise: uniform random [-1,1], one per element of V |
+| `m V` | `m V` | 1-bit metallic noise: deterministic ±0.7 pattern, good for cymbals |
+| `b V` | `b V` | Band-limited buzz at 110 Hz (default), organ-like |
+| `b V` | `freq b V` | Band-limited buzz at freq Hz — 6-oscillator metallic cluster |
+| `u V` | `u V` | Anti-click ramp: 0→1 over first 10 samples, then 1.0 |
+| `u V` | `N u V` | Anti-click ramp over first N samples, then 1.0 |
 
 ```
 R: r T                / white noise, N samples
 C: m T                / metallic noise (hi-hat character)
-O: b T                / organ buzz
+O: b T                / organ buzz at 110 Hz
+O: w 220 b T          / organ buzz at 220 Hz
+A: u T                / 10-sample anti-click ramp
+A: 100 u T            / 100-sample anti-click ramp (~2ms at 44100)
 ```
 
-`r` ignores the values in V and only uses its length. `m` is deterministic — same input gives same output, useful for reproducible percussion.
+`r` ignores the values in V and only uses its length. `m` is deterministic — same input gives same output, useful for reproducible percussion. `b` and `u` also use only the length of V, not its values.
+
+For `b`, the 6 oscillator frequencies are non-harmonic multiples of the base frequency (ratios ×2.43, ×3.01, ×3.52, ×4.11, ×5.23, ×6.78), which gives the metallic inharmonic character. At low base frequencies this sounds like organ; at higher frequencies (400–900 Hz) it produces cymbal-like tones useful without needing `m`.
 
 ### MIDI and pitch
 
@@ -110,9 +117,9 @@ O: b T                / organ buzz
 | `n V` | MIDI note number to Hz: `440 * 2^((V-69)/12)` |
 
 ```
-M: n69                / 440.0 Hz (concert A)
-M: n60                / 261.63 Hz (middle C)
-M: n +\(4#2)          / chord: four notes stepped by 2 semitones
+M: n 69               / 440.0 Hz (concert A)
+M: n 60               / 261.63 Hz (middle C)
+M: n(60+!4*2)         / four notes: 60 62 64 66 — C D E F# in Hz
 ```
 
 ### reverse and stereo extraction
@@ -207,14 +214,16 @@ Reduction in ksynth is verb-specific. The common case is monadic `+`:
 | `A = B` | 1.0 if A=B else 0.0 |
 
 ```
-/ hard clip to [-0.5, 0.5]
-C: S & -0.5 | 0.5
+/ hard clip to [-0.5, 0.5] — parens required due to right-associativity
+C: (S & 0.5) | -0.5
 
-/ silence second half of buffer
+/ silence second half of buffer (% is division, so N%2 = N/2)
 G: S * (T < (N%2))
 ```
 
 Note: `%` is **division**, not modulo. To get the fractional part of X: `X - _(X)`.
+
+Note: `&` and `|` are right-associative like all dyadic verbs. `S & -0.5 | 0.5` parses as `S & (-0.5 | 0.5)` = `S & 0.5` (clips top only). Always use explicit parentheses when chaining clip operations.
 
 ### vector construction
 
@@ -296,7 +305,7 @@ D: 88200
 W: w T t 440 D        / 440 Hz sine from table, 2 seconds
 
 / any waveform works as a table
-T: (2*(P<p1%p2))-1    / square wave table (P < π)
+T: (2*(P<p1))-1       / square wave table: 1 where phase < π, -1 above
 W: w T t 220 D
 ```
 
@@ -311,6 +320,35 @@ Monadic `t` is `tan`.
 ```
 Q: 8 v s P            / 8-level quantized sine — bit-crush effect
 ```
+
+### pitched buzz (dyadic form)
+
+| Verb | Usage | Description |
+|------|-------|-------------|
+| `b` | `freq b V` | Band-limited buzz at freq Hz, length = len(V) |
+
+```
+N: 44100
+T: !N
+E: e(T*(0-5%N))
+W: w E * 110 b T      / decaying organ buzz at 110 Hz
+W: w E * 440 b T      / same at 440 Hz — brighter, more metallic
+```
+
+The 6-oscillator cluster makes `b` useful at higher frequencies too — `300 b T` through `900 b T` gives tones in the cowbell/cymbal range without needing `m`. Monadic `b V` defaults to 110 Hz.
+
+### anti-click ramp (dyadic form)
+
+| Verb | Usage | Description |
+|------|-------|-------------|
+| `u` | `N u V` | Ramp 0→1 over first N samples of V, then 1.0 |
+
+```
+A: 100 u T            / ~2ms ramp at 44100 Hz
+W: w (100 u T) * s P  / sine with 100-sample onset ramp
+```
+
+Monadic `u V` uses a fixed 10-sample ramp. The dyadic form lets you tune the ramp to the sound — percussive hits may need only 5–10 samples; pads and tones benefit from 100–500 samples to avoid audible clicks.
 
 ### stereo
 
@@ -365,14 +403,15 @@ A: 1; B: 2; A+B       / evaluates all three, returns 3
 ## quick patterns
 
 ```
-/ oscillator
+/ oscillator (N must be set before use)
 C: p2%p0              / 2π/44100 — per-sample increment for 1 Hz
+N: 44100
 P: +\(N#(440*C))      / 440 Hz phase ramp over N samples
 W: w s P              / sine wave output
 
 / envelope + oscillator
 T: !N
-A: e(T*(0-3%N))       / exponential decay
+A: e(T*(0-3%N))       / exponential decay (~1s at N=44100)
 W: w A*s P            / enveloped sine
 
 / reusable oscillator function
@@ -385,7 +424,8 @@ W: w (s P)+(s Q)      / two-voice chord
 R: r T
 W: w 0.05 f R         / lowpass filtered white noise
 
-/ FM synthesis
-I: 3.5*e(T*(0-40%N))  / fast-decaying modulation index
-W: w A*(s P+(I*s P))  / self-FM bell tone
+/ FM synthesis — bell tone
+/ index decays 4x faster than amplitude: FM character audible then fades
+I: 5*e(T*(0-12%N))    / modulation index: fast decay (~100ms at N=44100)
+W: w A*(s(P+I*s(P)))  / carrier phase modulated by scaled sine
 ```
