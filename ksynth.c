@@ -32,7 +32,14 @@ const char* ks_strerror(ks_status status) {
     }
 }
 
-/* --- Signal Handling --- */
+/* --- Sandboxing & Signal Handling ---
+ *
+ * Because ksynth evaluates raw strings in real-time, it relies on hardware
+ * page faults (SIGSEGV) and floating point exceptions (SIGFPE) to catch
+ * runaway operations. `siglongjmp` (not standard `longjmp`) is explicitly
+ * used to ensure the kernel unblocks the caught signal so it can fire
+ * again on future evaluations.
+ */
 
 static void ks_handle_signal(int sig) {
     if (!current_ks_ctx) return;
@@ -327,7 +334,16 @@ K scan(ks_ctx *ctx, char op, K b) {
     return x;
 }
 
-/* --- Verbs & Operators --- */
+/* --- Verbs & Operators ---
+ *
+ * mo(char c, K b)       : Monadic verbs (single argument, e.g., 's' sine).
+ * dy(char c, K a, K b)  : Dyadic verbs (two arguments, e.g., 't' wavetable).
+ * scan(char op, K b)    : Adverb operations (e.g., '+\' running sum).
+ *
+ * Execution scales to the max length of the input vectors. If vectors
+ * are unequal, the shorter vector cycles. All loops are bounds-checked
+ * by the GAS_CHECK macro to prevent audio thread lockups.
+ */
 
 K mo(ks_ctx *ctx, char c, K b) {
     if (!b) return NULL;
@@ -674,7 +690,14 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
     }
 }
 
-/* --- Parser --- */
+/* --- Parser & Evaluator ---
+ * * Evaluates right-to-left.
+ * The parser advances a char pointer (`char **s`) in place.
+ * * Call Graph:
+ * e()    -> parses sequences separated by ';'
+ * expr() -> handles dyadic operators (A + B) and function calls (F arg)
+ * atom() -> parses literals, variables (A-Z), monads, and (...) groups
+ */
 
 K atom(ks_ctx *ctx, char **s);
 
