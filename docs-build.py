@@ -18,12 +18,23 @@ TEMPLATE = 'doc-template.html'
 
 DOCS = [
     {
+        'src':   'api.md',
+        'out':   'api.html',
+        'title': 'ksynth — c API reference',
+        'nav':   '<a class="doc-nav-btn" href="index.html">&#8592; app</a>'
+                 '<a class="doc-nav-btn" href="reference.html">reference</a>'
+                 '<a class="doc-nav-btn" href="guide.html">guide</a>'
+                 '<a class="doc-nav-btn" href="readme.html">readme</a>'
+    },
+
+    {
         'src':   'reference.md',
         'out':   'reference.html',
         'title': 'ksynth — verb reference',
         'nav':   '<a class="doc-nav-btn" href="index.html">&#8592; app</a>'
                  '<a class="doc-nav-btn" href="guide.html">guide</a>'
-                 '<a class="doc-nav-btn" href="readme.html">readme</a>',
+                 '<a class="doc-nav-btn" href="readme.html">readme</a>'
+                 '<a class="doc-nav-btn" href="api.html">api</a>'
     },
 
     {
@@ -32,7 +43,8 @@ DOCS = [
         'title': 'ksynth web — user guide',
         'nav':   '<a class="doc-nav-btn" href="index.html">&#8592; app</a>'
                  '<a class="doc-nav-btn" href="reference.html">reference</a>'
-                 '<a class="doc-nav-btn" href="readme.html">readme</a>',
+                 '<a class="doc-nav-btn" href="readme.html">readme</a>'
+                 '<a class="doc-nav-btn" href="api.html">api</a>'
     },
     {
         'src':   'readme.md',
@@ -40,7 +52,8 @@ DOCS = [
         'title': 'ksynth — readme',
         'nav':   '<a class="doc-nav-btn" href="index.html">&#8592; app</a>'
                  '<a class="doc-nav-btn" href="guide.html">guide</a>'
-                 '<a class="doc-nav-btn" href="reference.html">reference</a>',
+                 '<a class="doc-nav-btn" href="reference.html">reference</a>'
+                 '<a class="doc-nav-btn" href="api.html">api</a>'
     },
 ]
 

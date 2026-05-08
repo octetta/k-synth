@@ -41,7 +41,7 @@ hr{border:none;border-top:1px solid var(--border);margin:2em 0}
 <body>
 <div id="doc-header">
   <span id="doc-title">ksynth — verb reference</span>
-  <a class="doc-nav-btn" href="index.html">&#8592; app</a><a class="doc-nav-btn" href="guide.html">guide</a><a class="doc-nav-btn" href="readme.html">readme</a>
+  <a class="doc-nav-btn" href="index.html">&#8592; app</a><a class="doc-nav-btn" href="guide.html">guide</a><a class="doc-nav-btn" href="readme.html">readme</a><a class="doc-nav-btn" href="api.html">api</a>
   <button id="btn-doc-theme">retro</button>
 </div>
 <div id="doc-body">
@@ -93,6 +93,12 @@ P: N X 440            / phase ramp for 440 Hz over N samples</code></pre>
 <h2 id="monadic-verbs-one-argument">monadic verbs (one argument)</h2>
 <h3 id="iota-and-ramps">iota and ramps</h3>
 <table>
+<colgroup>
+<col style="width: 17%" />
+<col style="width: 20%" />
+<col style="width: 23%" />
+<col style="width: 38%" />
+</colgroup>
 <thead>
 <tr>
 <th>Verb</th>
@@ -112,7 +118,7 @@ P: N X 440            / phase ramp for 440 Hz over N samples</code></pre>
 <td><code>~N</code></td>
 <td>scalar N</td>
 <td>[0, 2π/N, …, 2π*(N-1)/N]</td>
-<td>Phase ramp 0 to ~2π</td>
+<td>Phase ramp 0 to approximately 2π</td>
 </tr>
 </tbody>
 </table>
@@ -153,12 +159,13 @@ P: &gt;S                 / peak amplitude (should be ~1.0)</code></pre>
 <tbody>
 <tr>
 <td><code>w V</code></td>
-<td>Peak-normalize <code>V</code> to ±1.0 and write as output</td>
+<td>Peak-normalize <code>V</code> to ±1.0 and return as output</td>
 </tr>
 </tbody>
 </table>
-<p><code>w</code> is always used to produce <code>W</code>. It
-normalizes so the peak is exactly 1.0.</p>
+<p><code>w</code> returns the normalized vector; assign it to
+<code>W</code> by convention. If the peak is below 1e-10 (silence), the
+result is all zeros.</p>
 <pre><code>W: w s ~44100</code></pre>
 <h3 id="math">math</h3>
 <table>
@@ -220,48 +227,72 @@ normalizes so the peak is exactly 1.0.</p>
 </tbody>
 </table>
 <pre><code>A: e(T*(0-3%N))       / exponential decay envelope
-D: d 2*s P            / driven sine into soft clip
+D: d(2*s P)           / driven sine into soft clip (parens clarify grouping)
 F: p 2                / 2π (= 6.28318...)</code></pre>
 <h3 id="noise-and-special-waveforms">noise and special waveforms</h3>
 <table>
 <colgroup>
-<col style="width: 31%" />
-<col style="width: 68%" />
+<col style="width: 23%" />
+<col style="width: 26%" />
+<col style="width: 50%" />
 </colgroup>
 <thead>
 <tr>
 <th>Verb</th>
+<th>Usage</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>r V</code></td>
+<td><code>r V</code></td>
 <td>White noise: uniform random [-1,1], one per element of V</td>
 </tr>
 <tr>
+<td><code>m V</code></td>
 <td><code>m V</code></td>
 <td>1-bit metallic noise: deterministic ±0.7 pattern, good for
 cymbals</td>
 </tr>
 <tr>
 <td><code>b V</code></td>
-<td>Band-limited buzz: sum of 6 phase-shifted square waves,
-organ-like</td>
+<td><code>b V</code></td>
+<td>Band-limited buzz at 110 Hz (default), organ-like</td>
+</tr>
+<tr>
+<td><code>b V</code></td>
+<td><code>freq b V</code></td>
+<td>Band-limited buzz at freq Hz — 6-oscillator metallic cluster</td>
 </tr>
 <tr>
 <td><code>u V</code></td>
-<td>Ramp up: 0→1 over first 10 samples then stays at 1.0
-(anti-click)</td>
+<td><code>u V</code></td>
+<td>Anti-click ramp: 0→1 over first 10 samples, then 1.0</td>
+</tr>
+<tr>
+<td><code>u V</code></td>
+<td><code>N u V</code></td>
+<td>Anti-click ramp over first N samples, then 1.0</td>
 </tr>
 </tbody>
 </table>
 <pre><code>R: r T                / white noise, N samples
 C: m T                / metallic noise (hi-hat character)
-O: b T                / organ buzz</code></pre>
+O: b T                / organ buzz at 110 Hz
+O: w 220 b T          / organ buzz at 220 Hz
+A: u T                / 10-sample anti-click ramp
+A: 100 u T            / 100-sample anti-click ramp (~2ms at 44100)</code></pre>
 <p><code>r</code> ignores the values in V and only uses its length.
 <code>m</code> is deterministic — same input gives same output, useful
-for reproducible percussion.</p>
+for reproducible percussion. <code>b</code> and <code>u</code> also use
+only the length of V, not its values.</p>
+<p>For <code>b</code>, the 6 oscillator frequencies are non-harmonic
+multiples of the base frequency (ratios ×2.43, ×3.01, ×3.52, ×4.11,
+×5.23, ×6.78), which gives the metallic inharmonic character. At low
+base frequencies this sounds like organ; at higher frequencies (400–900
+Hz) it produces cymbal-like tones useful without needing
+<code>m</code>.</p>
 <h3 id="midi-and-pitch">MIDI and pitch</h3>
 <table>
 <thead>
@@ -277,9 +308,9 @@ for reproducible percussion.</p>
 </tr>
 </tbody>
 </table>
-<pre><code>M: n69                / 440.0 Hz (concert A)
-M: n60                / 261.63 Hz (middle C)
-M: n +\(4#2)          / chord: four notes stepped by 2 semitones</code></pre>
+<pre><code>M: n 69               / 440.0 Hz (concert A)
+M: n 60               / 261.63 Hz (middle C)
+M: n(60+!4*2)         / four notes: 60 62 64 66 — C D E F# in Hz</code></pre>
 <h3 id="reverse-and-stereo-extraction">reverse and stereo
 extraction</h3>
 <table>
@@ -439,13 +470,18 @@ id="arithmetic-element-wise-length-max-of-inputs-shorter-cycles">arithmetic
 </tr>
 </tbody>
 </table>
-<pre><code>/ hard clip to [-0.5, 0.5]
-C: S &amp; -0.5 | 0.5
+<pre><code>/ hard clip to [-0.5, 0.5] — parens required due to right-associativity
+C: (S &amp; 0.5) | -0.5
 
-/ silence second half of buffer
+/ silence second half of buffer (% is division, so N%2 = N/2)
 G: S * (T &lt; (N%2))</code></pre>
 <p>Note: <code>%</code> is <strong>division</strong>, not modulo. To get
 the fractional part of X: <code>X - _(X)</code>.</p>
+<p>Note: <code>&amp;</code> and <code>|</code> are right-associative
+like all dyadic verbs. <code>S &amp; -0.5 | 0.5</code> parses as
+<code>S &amp; (-0.5 | 0.5)</code> = <code>S &amp; 0.5</code> (clips top
+only). Always use explicit parentheses when chaining clip
+operations.</p>
 <h3 id="vector-construction">vector construction</h3>
 <table>
 <thead>
@@ -607,7 +643,7 @@ D: 88200
 W: w T t 440 D        / 440 Hz sine from table, 2 seconds
 
 / any waveform works as a table
-T: (2*(P&lt;p1%p2))-1    / square wave table (P &lt; π)
+T: (2*(P&lt;p1))-1       / square wave table: 1 where phase &lt; π, -1 above
 W: w T t 220 D</code></pre>
 <p>Monadic <code>t</code> is <code>tan</code>.</p>
 <h3 id="quantize-dyadic-form">quantize (dyadic form)</h3>
@@ -628,6 +664,55 @@ W: w T t 220 D</code></pre>
 </tbody>
 </table>
 <pre><code>Q: 8 v s P            / 8-level quantized sine — bit-crush effect</code></pre>
+<h3 id="pitched-buzz-dyadic-form">pitched buzz (dyadic form)</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Usage</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>b</code></td>
+<td><code>freq b V</code></td>
+<td>Band-limited buzz at freq Hz, length = len(V)</td>
+</tr>
+</tbody>
+</table>
+<pre><code>N: 44100
+T: !N
+E: e(T*(0-5%N))
+W: w E * 110 b T      / decaying organ buzz at 110 Hz
+W: w E * 440 b T      / same at 440 Hz — brighter, more metallic</code></pre>
+<p>The 6-oscillator cluster makes <code>b</code> useful at higher
+frequencies too — <code>300 b T</code> through <code>900 b T</code>
+gives tones in the cowbell/cymbal range without needing <code>m</code>.
+Monadic <code>b V</code> defaults to 110 Hz.</p>
+<h3 id="anti-click-ramp-dyadic-form">anti-click ramp (dyadic form)</h3>
+<table>
+<thead>
+<tr>
+<th>Verb</th>
+<th>Usage</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>u</code></td>
+<td><code>N u V</code></td>
+<td>Ramp 0→1 over first N samples of V, then 1.0</td>
+</tr>
+</tbody>
+</table>
+<pre><code>A: 100 u T            / ~2ms ramp at 44100 Hz
+W: w (100 u T) * s P  / sine with 100-sample onset ramp</code></pre>
+<p>Monadic <code>u V</code> uses a fixed 10-sample ramp. The dyadic form
+lets you tune the ramp to the sound — percussive hits may need only 5–10
+samples; pads and tones benefit from 100–500 samples to avoid audible
+clicks.</p>
 <h3 id="stereo">stereo</h3>
 <table>
 <colgroup>
@@ -673,14 +758,15 @@ is used:</p>
 <pre><code>A: 1; B: 2; A+B       / evaluates all three, returns 3</code></pre>
 <hr />
 <h2 id="quick-patterns">quick patterns</h2>
-<pre><code>/ oscillator
+<pre><code>/ oscillator (N must be set before use)
 C: p2%p0              / 2π/44100 — per-sample increment for 1 Hz
+N: 44100
 P: +\(N#(440*C))      / 440 Hz phase ramp over N samples
 W: w s P              / sine wave output
 
 / envelope + oscillator
 T: !N
-A: e(T*(0-3%N))       / exponential decay
+A: e(T*(0-3%N))       / exponential decay (~1s at N=44100)
 W: w A*s P            / enveloped sine
 
 / reusable oscillator function
@@ -693,9 +779,10 @@ W: w (s P)+(s Q)      / two-voice chord
 R: r T
 W: w 0.05 f R         / lowpass filtered white noise
 
-/ FM synthesis
-I: 3.5*e(T*(0-40%N))  / fast-decaying modulation index
-W: w A*(s P+(I*s P))  / self-FM bell tone</code></pre>
+/ FM synthesis — bell tone
+/ index decays 4x faster than amplitude: FM character audible then fades
+I: 5*e(T*(0-12%N))    / modulation index: fast decay (~100ms at N=44100)
+W: w A*(s(P+I*s(P)))  / carrier phase modulated by scaled sine</code></pre>
 
 </div>
 <script>

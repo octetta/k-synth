@@ -61,7 +61,7 @@ static void ks_handle_signal(int sig) {
     (ctx)->gas_used += (n); \
     if ((ctx)->gas_limit > 0 && (ctx)->gas_used > (ctx)->gas_limit) { \
         (ctx)->last_status = KS_ERR_GAS; \
-        longjmp((ctx)->recover, 1); \
+        siglongjmp((ctx)->recover, 1); \
     } \
 } while(0)
 
@@ -128,7 +128,7 @@ K k_new(ks_ctx *ctx, int n) {
 
     if (ctx->arena_ptr + sz > ctx->arena_end) {
         ctx->last_status = KS_ERR_OOM;
-        longjmp(ctx->recover, 1);
+        siglongjmp(ctx->recover, 1);
     }
 
     K x = (K)ctx->arena_ptr;
@@ -598,7 +598,9 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
             x->f[i] = b1;
         }
         k_free(ctx, a); k_free(ctx, b); return x;
-    } else if (c == 'g') {
+    }
+
+    if (c == 'g') {
         GAS_CHECK(ctx, b->n);
         x = k_new(ctx, b->n);
         double s0 = 0.0, s1 = 0.0;
@@ -615,7 +617,9 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
             x->f[i] = s1;
         }
         k_free(ctx, a); k_free(ctx, b); return x;
-    } else if (c == 'y') {
+    }
+
+    if (c == 'y') {
         int dd   = (int)a->f[0];
         double g = (a->n > 1) ? a->f[1] : 0.4;
         GAS_CHECK(ctx, b->n);
@@ -625,20 +629,28 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
             x->f[i] = safe_val(b->f[i] + (g * delayed));
         }
         k_free(ctx, a); k_free(ctx, b); return x;
-    } else if (c == '#') {
+    }
+
+    if (c == '#') {
         int n = (int)a->f[0];
+        if (n < 0 || n > 1000000) { ctx->last_status = KS_ERR_INVALID_ARGS; k_free(ctx, a); k_free(ctx, b); siglongjmp(ctx->recover, 1); }
         GAS_CHECK(ctx, n);
         x = k_new(ctx, n);
         if (b->n > 0) for (int i = 0; i < n; i++) x->f[i] = b->f[i % b->n];
         k_free(ctx, a); k_free(ctx, b); return x;
-    } else if (c == ',') {
+    }
+
+    if (c == ',') {
         int n = a->n + b->n;
         GAS_CHECK(ctx, n);
         x = k_new(ctx, n);
         memcpy(x->f, a->f, a->n * sizeof(double));
         memcpy(x->f + a->n, b->f, b->n * sizeof(double));
         k_free(ctx, a); k_free(ctx, b); return x;
-    } else {
+    }
+
+    /* arithmetic: element-wise, length = max of inputs, shorter side cycles */
+    {
         int mn = a->n > b->n ? a->n : b->n;
         GAS_CHECK(ctx, mn);
         x = k_new(ctx, mn);
@@ -797,8 +809,8 @@ K atom(ks_ctx *ctx, char **s) {
         return x;
     }
 
-    if (c == 'x') return ctx->args[0] ? (ctx->args[0]->r++, ctx->args[0]) : k_new(ctx, 0);
-    if (c == 'y') return ctx->args[1] ? (ctx->args[1]->r++, ctx->args[1]) : k_new(ctx, 0);
+    if (c == 'x') return ctx->args[0] ? ctx->args[0] : k_new(ctx, 0);
+    if (c == 'y') return ctx->args[1] ? ctx->args[1] : k_new(ctx, 0);
 
     int is_scan = 0;
     while (**s == ' ') (*s)++;
@@ -889,11 +901,15 @@ K ks_eval(ks_ctx *ctx, const char *code, size_t len) {
 }
 
 void p(ks_ctx *ctx, K x) {
-    if (!x) return;
-    if (k_is_func(x)) {
-        printf("{%s}\n", k_func_body(x));
-        return;
-    }
-    if (x->n == 1) printf("%.4f\n", x->f[0]);
-    else printf("Array[%d]\n", x->n);
+    (void)ctx;
+    if (!x) { printf("(null)\n"); return; }
+    if (k_is_func(x)) { printf("{%s}\n", k_func_body(x)); return; }
+    if (x->n == 0) { printf("()\n"); return; }
+    if (x->n == 1) { printf("%.6g\n", x->f[0]); return; }
+    /* Print up to 8 elements; indicate truncation if longer */
+    int show = x->n < 8 ? x->n : 8;
+    printf("[");
+    for (int i = 0; i < show; i++) printf("%s%.6g", i ? " " : "", x->f[i]);
+    if (x->n > show) printf(" ... (%d total)", x->n);
+    printf("]\n");
 }

@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ksynth — c API reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="retro"]{--bg:#0e1116;--surface:#161b22;--surface2:#1c2128;--border:#21262d;--border2:#30363d;--text:#e6edf3;--muted:#7d8590;--accent:#3fb950;--accent-dim:#1a3a1f;--error:#f85149;--error-dim:#3a1a1a;--warn:#d29922;--font:'JetBrains Mono','Cascadia Code','Fira Mono',monospace;--radius:4px}
+[data-theme="dark"]{--bg:#1a1a2e;--surface:#16213e;--surface2:#0f3460;--border:#1a2a4a;--border2:#2a3a5a;--text:#e0e0ff;--muted:#8888bb;--accent:#e94560;--accent-dim:#3a0f1a;--error:#ff6b6b;--error-dim:#3a1a1a;--warn:#ffa500;--font:'JetBrains Mono','Cascadia Code','Fira Mono',monospace;--radius:4px}
+[data-theme="light"]{--bg:#f5f5f0;--surface:#ffffff;--surface2:#ebebeb;--border:#d0d0c8;--border2:#b8b8b0;--text:#1a1a1a;--muted:#666660;--accent:#0070f3;--accent-dim:#ddeeff;--error:#cc0000;--error-dim:#ffeeee;--warn:#996600;--font:'JetBrains Mono','Cascadia Code','Fira Mono',monospace;--radius:4px}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.7;margin:0;padding:0}
+#doc-header{position:sticky;top:0;z-index:10;background:var(--surface);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:10px}
+#doc-title{font-size:12px;font-weight:600;color:var(--accent);flex:1}
+.doc-nav-btn,#btn-doc-theme{background:transparent;border:1px solid var(--border2);border-radius:4px;color:var(--muted);font-family:var(--font);font-size:11px;padding:3px 8px;cursor:pointer;text-decoration:none;display:inline-block}
+.doc-nav-btn:hover,#btn-doc-theme:hover{border-color:var(--text);color:var(--text)}
+#doc-body{max-width:800px;margin:0 auto;padding:32px 24px 64px}
+h1,h2,h3,h4{color:var(--text);font-weight:600;margin:1.8em 0 0.5em;line-height:1.3}
+h1{font-size:1.6em;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:.3em}
+h2{font-size:1.2em;border-bottom:1px solid var(--border);padding-bottom:.2em}
+h3{font-size:1.05em;color:var(--accent)}
+h4{font-size:1em;color:var(--muted)}
+p{margin:.6em 0}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+code{background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:.9em;color:var(--text)}
+pre{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:14px 16px;overflow-x:auto;margin:1em 0;position:relative}
+pre code{background:none;border:none;padding:0;font-size:.88em;line-height:1.6}
+.copy-btn{position:absolute;top:6px;right:6px;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;color:var(--muted);font-family:var(--font);font-size:10px;padding:2px 7px;cursor:pointer;opacity:0;transition:opacity 100ms,color 100ms,border-color 100ms}
+pre:hover .copy-btn{opacity:1}.copy-btn:hover{color:var(--text);border-color:var(--text)}.copy-btn.copied{color:var(--accent);border-color:var(--accent)}
+blockquote{border-left:3px solid var(--accent);margin:1em 0;padding:.2em 1em;color:var(--muted)}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:.9em}
+th,td{border:1px solid var(--border);padding:6px 12px;text-align:left}
+th{background:var(--surface);color:var(--accent);font-weight:600}
+tr:nth-child(even) td{background:var(--surface2)}
+ul,ol{padding-left:1.5em;margin:.5em 0}li{margin:.2em 0}
+hr{border:none;border-top:1px solid var(--border);margin:2em 0}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+</style>
+</head>
+<body>
+<div id="doc-header">
+  <span id="doc-title">ksynth — c API reference</span>
+  <a class="doc-nav-btn" href="index.html">&#8592; app</a><a class="doc-nav-btn" href="reference.html">reference</a><a class="doc-nav-btn" href="guide.html">guide</a><a class="doc-nav-btn" href="readme.html">readme</a>
+  <button id="btn-doc-theme">retro</button>
+</div>
+<div id="doc-body">
+<h1 id="ksynth-c-api-reference">ksynth C API reference</h1>
+<p>ksynth is an embeddable DSP scripting engine. The host creates a
+context, evaluates ksynth expressions as strings, and reads results back
+as C arrays. All state lives in a <code>ks_ctx</code>; multiple contexts
+can coexist in the same process.</p>
+<hr />
+<h2 id="types">types</h2>
+<pre class="c"><code>typedef struct { int r, n; double f[]; } *K;</code></pre>
+<p><code>K</code> is a pointer to a vector of doubles. <code>n</code> is
+the element count, <code>f[]</code> is the data. A scalar is a
+<code>K</code> with <code>n=1</code>. A function literal is a
+<code>K</code> with <code>n=-1</code>; its <code>f[]</code> stores the
+body as a null-terminated string. The <code>r</code> field is a
+reference count — do not manipulate it directly.</p>
+<pre class="c"><code>typedef enum {
+    KS_OK = 0,
+    KS_ERR_SYNTAX,        /* malformed ksynth code */
+    KS_ERR_OOM,           /* arena exhausted */
+    KS_ERR_GAS,           /* gas limit reached */
+    KS_ERR_SIGSEGV,       /* caught segmentation fault */
+    KS_ERR_SIGFPE,        /* caught floating point exception */
+    KS_ERR_SIGILL,        /* caught illegal instruction */
+    KS_ERR_INVALID_ARGS,  /* bad argument to verb (e.g. !1e9) */
+    KS_ERR_INTERNAL
+} ks_status;</code></pre>
+<hr />
+<h2 id="context-lifecycle">context lifecycle</h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ks_create(mem_limit, gas_limit)</code></td>
+<td>Create a context</td>
+</tr>
+<tr>
+<td><code>ks_destroy(ctx)</code></td>
+<td>Free all resources</td>
+</tr>
+<tr>
+<td><code>ks_clear_vars(ctx)</code></td>
+<td>Free all A–Z variables, keep context</td>
+</tr>
+<tr>
+<td><code>ks_strerror(status)</code></td>
+<td>Human-readable status string</td>
+</tr>
+</tbody>
+</table>
+<p><code>mem_limit</code> is the arena size in bytes. Pass
+<code>0</code> for the default (8 MB), which handles a 2-second stereo
+output at 44100 Hz with room for several intermediate buffers. Each
+sample is 8 bytes; a 1-second mono buffer is ~353 KB.</p>
+<p><code>gas_limit</code> caps total operations per eval. Pass
+<code>0</code> for no limit. A value of <code>50,000,000</code> is
+generous for most patches — enough for several seconds of multi-voice
+synthesis.</p>
+<pre class="c"><code>ks_ctx *ctx = ks_create(0, 0);           / defaults: 8MB arena, no gas limit
+ks_ctx *ctx = ks_create(4*1024*1024, 10000000LL);  / 4MB, 10M ops max</code></pre>
+<p>After each <code>ks_eval</code> call, inspect
+<code>ctx-&gt;last_status</code>:</p>
+<pre class="c"><code>ks_eval(ctx, code, strlen(code));
+if (ctx-&gt;last_status != KS_OK)
+    fprintf(stderr, &quot;%s\n&quot;, ks_strerror(ctx-&gt;last_status));</code></pre>
+<hr />
+<h2 id="evaluation">evaluation</h2>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ks_eval(ctx, code, len)</code></td>
+<td>Evaluate ksynth code, return last value</td>
+</tr>
+</tbody>
+</table>
+<p><code>code</code> is the source string; <code>len</code> is its byte
+length. Returns a caller-owned <code>K</code> that must be freed with
+<code>k_free</code>. Returns <code>NULL</code> on error or if the
+expression produces no value.</p>
+<p>The returned <code>K</code> is a fresh malloc’d copy — it stays valid
+across subsequent <code>ks_eval</code> calls. Variables (A–Z) assigned
+during eval persist in the context and can be read back via
+<code>ctx-&gt;vars['X'-'A']</code>.</p>
+<pre class="c"><code>/ single expression
+K r = ks_eval(ctx, &quot;1+1&quot;, 3);
+/ r-&gt;n == 1, r-&gt;f[0] == 2.0
+k_free(ctx, r);
+
+/ multi-line patch — variables persist after the call
+const char *patch =
+    &quot;N: 44100\n&quot;
+    &quot;T: !N\n&quot;
+    &quot;A: e(T*(0-3%N))\n&quot;
+    &quot;P: +\\(N#(440*(p2%p0)))\n&quot;
+    &quot;W: w A*s P\n&quot;;
+k_free(ctx, ks_eval(ctx, patch, strlen(patch)));
+
+/ read result back from the context directly
+K wave = ctx-&gt;vars[&#39;W&#39;-&#39;A&#39;];   / valid until ks_clear_vars or next W: assignment</code></pre>
+<p>Multiple <code>ks_eval</code> calls share the same variable state —
+each call extends the session:</p>
+<pre class="c"><code>ks_eval(ctx, &quot;N: 44100&quot;, 8);
+ks_eval(ctx, &quot;T: !N&quot;,    5);    / N is visible here
+ks_eval(ctx, &quot;W: w s +\\(N#(440*(p2%p0)))&quot;, ...);</code></pre>
+<hr />
+<h2 id="reading-results">reading results</h2>
+<p>After eval, persistent variables live in
+<code>ctx-&gt;vars[]</code>:</p>
+<table>
+<colgroup>
+<col style="width: 38%" />
+<col style="width: 61%" />
+</colgroup>
+<thead>
+<tr>
+<th>Access</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ctx-&gt;vars['A'-'A']</code></td>
+<td>Direct access to variable A (valid until next assignment or
+<code>ks_clear_vars</code>)</td>
+</tr>
+<tr>
+<td><code>k_get(ctx, name)</code></td>
+<td>Arena copy of a variable — valid for current eval only</td>
+</tr>
+</tbody>
+</table>
+<p><code>ctx-&gt;vars[i]</code> is a raw pointer into the context’s
+persistent storage. Treat it as read-only from the host side — write
+through <code>bind_scalar</code> or <code>bind_array_*</code>
+instead.</p>
+<pre class="c"><code>K w = ctx-&gt;vars[&#39;W&#39;-&#39;A&#39;];
+if (w &amp;&amp; w-&gt;n &gt; 0) {
+    for (int i = 0; i &lt; w-&gt;n; i++)
+        send_sample(w-&gt;f[i]);
+}</code></pre>
+<hr />
+<h2 id="memory-management">memory management</h2>
+<table>
+<colgroup>
+<col style="width: 43%" />
+<col style="width: 56%" />
+</colgroup>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>k_free(ctx, x)</code></td>
+<td>Free a K returned by <code>ks_eval</code> or <code>k_from_*</code>;
+no-op for NULL or arena objects</td>
+</tr>
+<tr>
+<td><code>k_new(ctx, n)</code></td>
+<td>Arena-allocate a K of n doubles (eval lifetime only)</td>
+</tr>
+<tr>
+<td><code>k_new_perm(ctx, n)</code></td>
+<td>Persistent malloc’d K; free with <code>free()</code> directly</td>
+</tr>
+</tbody>
+</table>
+<p><code>k_free</code> is safe to call on any <code>K</code> — it
+detects arena vs malloc’d objects automatically. Arena objects
+(allocated during eval) are reclaimed in bulk when the arena resets;
+<code>k_free</code> is a no-op for them. Malloc’d objects (returned by
+<code>ks_eval</code>, created by <code>k_new_perm</code>, or stored by
+<code>bind_*</code>) are refcount-decremented and freed when the count
+hits zero.</p>
+<p>Always call <code>k_free</code> on the value returned by
+<code>ks_eval</code>, even if you only care about side effects:</p>
+<pre class="c"><code>k_free(ctx, ks_eval(ctx, &quot;A: s ~44100&quot;, ...));  / A stored, return value discarded</code></pre>
+<hr />
+<h2 id="binding-host-data">binding host data</h2>
+<table>
+<colgroup>
+<col style="width: 43%" />
+<col style="width: 56%" />
+</colgroup>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bind_scalar(ctx, name, val)</code></td>
+<td>Store a double as a named variable</td>
+</tr>
+<tr>
+<td><code>bind_array_f32(ctx, name, n, src)</code></td>
+<td>Store a float array as a named variable</td>
+</tr>
+<tr>
+<td><code>bind_array_i32(ctx, name, n, src)</code></td>
+<td>Store an int array as a named variable</td>
+</tr>
+<tr>
+<td><code>bind_array_f64(ctx, name, n, src)</code></td>
+<td>Store a double array as a named variable</td>
+</tr>
+</tbody>
+</table>
+<p><code>name</code> must be <code>'A'</code>–<code>'Z'</code>. Data is
+copied and converted to <code>double[]</code> internally. Variables
+persist across evals. <code>n</code> is clamped to 1,000,000.</p>
+<pre class="c"><code>/ bind synthesis parameters from host
+bind_scalar(ctx, &#39;N&#39;, 44100.0);
+bind_scalar(ctx, &#39;F&#39;, 261.63);     / middle C
+k_free(ctx, ks_eval(ctx, &quot;W: w s +\\(N#(F*(p2%p0)))&quot;, ...));
+
+/ bind a host audio buffer for processing
+float samples[1024];
+capture_audio(samples, 1024);
+bind_array_f32(ctx, &#39;I&#39;, 1024, samples);
+k_free(ctx, ks_eval(ctx, &quot;W: w 0.1 f I&quot;, ...));  / lowpass filter it</code></pre>
+<hr />
+<h2 id="converting-between-k-and-host-arrays">converting between K and
+host arrays</h2>
+<table>
+<colgroup>
+<col style="width: 43%" />
+<col style="width: 56%" />
+</colgroup>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>k_from_f32(ctx, n, src)</code></td>
+<td>Arena K from float array</td>
+</tr>
+<tr>
+<td><code>k_from_i32(ctx, n, src)</code></td>
+<td>Arena K from int array</td>
+</tr>
+<tr>
+<td><code>k_from_f64(ctx, n, src)</code></td>
+<td>Arena K from double array</td>
+</tr>
+<tr>
+<td><code>k_view(ctx, n, ptr)</code></td>
+<td>Arena K copying n doubles from ptr</td>
+</tr>
+<tr>
+<td><code>k_copy_to_f32(x, dst, max_n)</code></td>
+<td>Copy K to float array; returns count</td>
+</tr>
+<tr>
+<td><code>k_copy_to_i32(x, dst, max_n)</code></td>
+<td>Copy K to int array; returns count</td>
+</tr>
+<tr>
+<td><code>k_copy_to_f64(x, dst, max_n)</code></td>
+<td>Copy K to double array; returns count</td>
+</tr>
+</tbody>
+</table>
+<p><code>k_from_*</code> returns an arena-allocated K valid only for the
+current eval. Use <code>bind_array_*</code> if the data needs to
+persist. <code>k_copy_to_*</code> returns the number of elements copied
+— <code>min(x-&gt;n, max_n)</code>.</p>
+<pre class="c"><code>/ copy synthesis output to a float buffer for the audio driver
+K result = ks_eval(ctx, &quot;W&quot;, 1);
+float out[44100];
+int n = k_copy_to_f32(result, out, 44100);
+k_free(ctx, result);
+audio_write(out, n);</code></pre>
+<hr />
+<h2 id="function-support">function support</h2>
+<table>
+<colgroup>
+<col style="width: 43%" />
+<col style="width: 56%" />
+</colgroup>
+<thead>
+<tr>
+<th>Function</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>k_is_func(x)</code></td>
+<td>Non-zero if x is a ksynth function literal</td>
+</tr>
+<tr>
+<td><code>k_func_body(x)</code></td>
+<td>Null-terminated body string, or NULL if not a function</td>
+</tr>
+<tr>
+<td><code>k_call(ctx, fn, args, nargs)</code></td>
+<td>Call a function K with 1 or 2 arguments</td>
+</tr>
+</tbody>
+</table>
+<p><code>k_call</code> sets <code>x</code> = <code>args[0]</code> and
+<code>y</code> = <code>args[1]</code> inside the function body. Returns
+an arena K.</p>
+<pre class="c"><code>k_free(ctx, ks_eval(ctx, &quot;F: {x*x}&quot;, ...));     / define F
+K fn = ctx-&gt;vars[&#39;F&#39;-&#39;A&#39;];
+float v = 5.0f;
+K arg = k_from_f32(ctx, 1, &amp;v);
+K call_args[1] = {arg};
+K result = k_call(ctx, fn, call_args, 1);
+/ result-&gt;f[0] == 25.0</code></pre>
+<hr />
+<h2 id="signal-safety-and-error-recovery">signal safety and error
+recovery</h2>
+<p>ksynth catches <code>SIGSEGV</code>, <code>SIGFPE</code>, and
+<code>SIGILL</code> during eval using
+<code>sigsetjmp</code>/<code>siglongjmp</code>. On recovery,
+<code>ctx-&gt;last_status</code> is set and <code>ks_eval</code> returns
+<code>NULL</code>. Signal handlers are installed per-eval and restored
+afterward — ksynth does not permanently alter the host’s signal
+disposition.</p>
+<p>FP exceptions are cleared before each eval and again inside the
+signal handler (<code>feclearexcept(FE_ALL_EXCEPT)</code>), preventing
+re-triggering of the caught exception when execution resumes.</p>
+<p>The gas limit triggers <code>KS_ERR_GAS</code> and unwinds cleanly.
+OOM triggers <code>KS_ERR_OOM</code>. In all error cases the arena is
+reset and variables written before the fault are preserved.</p>
+<hr />
+<h2 id="thread-safety">thread safety</h2>
+<p>Each <code>ks_ctx</code> is not thread-safe — do not share a context
+between threads without a mutex. Multiple contexts in separate threads
+are fine; the signal handler uses a thread-local pointer
+(<code>KS_TLS</code>) so concurrent evals on different threads do not
+interfere.</p>
+<hr />
+<h2 id="simple-repl-example">simple REPL example</h2>
+<p>A minimal REPL that reads ksynth expressions one line at a time,
+evaluates them, and prints the result. Variables accumulate across lines
+for the duration of the session.</p>
+<pre class="c"><code>#include &quot;ksynth.h&quot;
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+
+int main(void) {
+    ks_ctx *ctx = ks_create(0, 0);
+    char line[4096];
+
+    printf(&quot;ksynth repl — ctrl-d to quit\n&quot;);
+
+    while (printf(&quot;&gt; &quot;), fgets(line, sizeof(line), stdin)) {
+        size_t len = strlen(line);
+        / strip trailing newline
+        if (len &gt; 0 &amp;&amp; line[len-1] == &#39;\n&#39;) line[--len] = &#39;\0&#39;;
+        if (len == 0) continue;
+
+        K result = ks_eval(ctx, line, len);
+
+        if (ctx-&gt;last_status != KS_OK) {
+            printf(&quot;error: %s\n&quot;, ks_strerror(ctx-&gt;last_status));
+        } else if (result) {
+            p(ctx, result);   / prints scalar, vector preview, or function body
+        }
+
+        k_free(ctx, result);
+    }
+
+    ks_destroy(ctx);
+    return 0;
+}</code></pre>
+<p>Sample session:</p>
+<pre><code>&gt; 2+2
+4
+&gt; A: 1 2 3 4
+&gt; A
+[1 2 3 4]
+&gt; +A
+10
+&gt; F: {x*x}
+&gt; F 7
+49
+&gt; W: w s ~44100
+&gt; W
+[0 0.000143 0.000285 0.000428 0.000571 0.000713 0.000856 0.000999 ... (44100 total)]</code></pre>
+<p>Variables accumulate across lines. Typing <code>A: expr</code> stores
+the result silently (the assignment returns a value but the REPL prints
+it). Clear state between sessions with
+<code>ks_clear_vars(ctx)</code>.</p>
+<hr />
+<h2 id="complete-synthesis-example">complete synthesis example</h2>
+<pre class="c"><code>#include &quot;ksynth.h&quot;
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;stdlib.h&gt;
+
+int main(void) {
+    ks_ctx *ctx = ks_create(0, 50000000LL);
+
+    / bind parameters
+    bind_scalar(ctx, &#39;N&#39;, 44100.0);
+    bind_scalar(ctx, &#39;F&#39;, 261.63);   / middle C
+
+    / run patch
+    const char *patch =
+        &quot;T: !N\n&quot;
+        &quot;C: p2%p0\n&quot;
+        &quot;P: +\\(N#(F*C))\n&quot;
+        &quot;A: e(T*(0-5%N))\n&quot;
+        &quot;W: w A*s P\n&quot;;
+
+    k_free(ctx, ks_eval(ctx, patch, strlen(patch)));
+
+    if (ctx-&gt;last_status != KS_OK) {
+        fprintf(stderr, &quot;error: %s\n&quot;, ks_strerror(ctx-&gt;last_status));
+        ks_destroy(ctx);
+        return 1;
+    }
+
+    / copy output to float buffer
+    K wave = ctx-&gt;vars[&#39;W&#39;-&#39;A&#39;];
+    float *buf = malloc(wave-&gt;n * sizeof(float));
+    int n = k_copy_to_f32(wave, buf, wave-&gt;n);
+
+    printf(&quot;%d samples ready\n&quot;, n);
+    / ... send buf to audio driver ...
+
+    free(buf);
+    ks_destroy(ctx);
+    return 0;
+}</code></pre>
+
+</div>
+<script>
+(function(){var THEMES=['retro','dark','light'];var btn=document.getElementById('btn-doc-theme');function applyTheme(t){document.documentElement.setAttribute('data-theme',t);btn.textContent=t;localStorage.setItem('ks-theme',t)}var saved=localStorage.getItem('ks-theme');applyTheme(THEMES.includes(saved)?saved:'retro');btn.addEventListener('click',function(){var cur=document.documentElement.getAttribute('data-theme')||'retro';var next=THEMES[(THEMES.indexOf(cur)+1)%THEMES.length];applyTheme(next)});}());
+document.querySelectorAll('pre').forEach(function(pre){var btn=document.createElement('button');btn.className='copy-btn';btn.textContent='copy';btn.addEventListener('click',function(){var code=pre.querySelector('code');var text=code?code.innerText:pre.innerText;navigator.clipboard.writeText(text).then(function(){btn.textContent='copied';btn.classList.add('copied');setTimeout(function(){btn.textContent='copy';btn.classList.remove('copied')},1500)})});pre.appendChild(btn)});
+</script>
+</body>
+</html>
