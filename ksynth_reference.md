@@ -1,294 +1,344 @@
-# ksynth Language Reference
+# ksynth language reference
 
-## Overview
-
-ksynth is a line-oriented array DSL for audio synthesis, inspired by K/APL. Each line is one expression. Variables are single uppercase letters A–Z. All values are double-precision floating-point vectors (or scalars, which are 1-element vectors). The interpreter is **right-associative**: `a op b op c` = `a op (b op c)`.
-
-## Build
-
-```sh
-gcc -O2 ksynth.c -lm -o ksynth
-```
-
-Output is stored in variable `W`. To use as a library, include `ksynth.h` and call `e(char **s)` per line.
+ksynth is a line-oriented array DSL for audio synthesis, inspired by K/APL. Each line is one expression. Variables are single uppercase letters `A`–`Z`. All values are double-precision floating-point vectors — scalars are 1-element vectors. The interpreter is right-associative: `a op b op c` = `a op (b op c)`.
 
 ---
 
-## Variables
+## variables and assignment
 
-- Single uppercase letter `A`–`Z`
-- Assignment: `X: expr` evaluates `expr` and stores in `X`
-- No multi-letter names, no digit suffixes (`F1`, `NE`, etc. are invalid)
-- `W` is conventional output; `w W` normalizes to peak ±1
+- Single uppercase letter `A`–`Z` only. No multi-letter names, no digit suffixes.
+- `X: expr` evaluates `expr` and stores in `X`.
+- `W` is the conventional output — every script sets it via `W: w expr`.
+- Inside a function body, `x` and `y` are the first and second arguments.
 
 ---
 
-## Literals
+## literals
 
 ```
-42        scalar 42
-3.14      scalar 3.14
-.5        scalar 0.5   ← leading dot OK
--.25      scalar -0.25
-1 2 3     vector [1, 2, 3]
-1 .5 .25  vector with leading-dot elements
+42          scalar 42
+3.14        scalar 3.14
+.5          scalar 0.5    / leading dot valid
+1 2 3       vector [1, 2, 3]
+1 0.5 0.25  vector — space-separated
+```
+
+Negative numbers: a spaced minus is negation (continues the vector); a flush minus is subtraction (ends the vector):
+
+```
+1 -2 3      vector [1, -2, 3]
+A-1         A minus 1 (subtraction)
+0-X         negate X (use this form in expressions, not -X)
 ```
 
 ---
 
-## Operators (dyadic, right-associative)
+## monadic verbs
 
-| Op | Name | Notes |
-|----|------|-------|
-| `+` | add | |
-| `-` | subtract | |
-| `*` | multiply | |
-| `%` | divide | |
-| `^` | power | |
-| `&` | min | |
-| `\|` | max | |
-| `<` `>` `=` | compare | returns 0 or 1 |
-| `,` | concatenate | |
-| `#` | tile | `N#V` — tile V to length N |
-| `o` | additive equal-amp | `P o H` — Σ sin(P×h) for h in H |
-| `$` | additive weighted | `P $ A` — Σ A[j]×sin(P×(j+1)) |
-| `f` | lowpass filter | `ct f sig` — 2-pole LP |
-| `y` | feedback delay/comb | `[d g] y sig` |
-| `z` | convolution | `A z B` |
+| Verb | Behavior |
+|------|----------|
+| `!N` | iota: `[0, 1, ..., N-1]` |
+| `~N` | phase ramp: `[0, 2π/N, ..., 2π*(N-1)/N]` |
+| `s V` | sin elementwise |
+| `c V` | cos elementwise |
+| `t V` | tan elementwise |
+| `h V` | tanh(V) — soft saturation |
+| `d V` | tanh(3V) — harder soft clip |
+| `a V` | abs elementwise |
+| `q V` | sqrt(abs(V)) elementwise |
+| `l V` | log(abs(V)+ε) elementwise |
+| `e V` | exp(V), input clamped to [-100, 100] |
+| `x V` | exp(-5V) — fast decay shape |
+| `_ V` | floor elementwise |
+| `p V` | 44100 if V=0, else π×V elementwise |
+| `n V` | MIDI note to Hz: `440 * 2^((V-69)/12)` |
+| `i V` | reverse vector |
+| `j V` | extract left channel (even samples) from interleaved stereo |
+| `k V` | extract right channel (odd samples) from interleaved stereo |
+| `r V` | white noise: uniform [-1,1], one sample per element of V |
+| `m V` | 1-bit metallic noise: deterministic ±0.7 per element |
+| `b V` | band-limited buzz at 110 Hz (monadic default) |
+| `u V` | anti-click ramp: 0→1 over first 10 samples, then 1.0 |
+| `v V` | quantize to 4 levels (nearest 0.25) |
+| `w V` | peak-normalize to ±1.0 — use for output |
+| `+V` | sum all elements (scalar result) |
+| `>V` | peak absolute value (scalar result) |
 
-### Right-associativity and linear mixes
+`r` and `m` use only the length of V, not its values. `b` and `u` likewise.
 
-Without parens, `A*x+B*y` parses as `A*(x+(B*y))` — **not** a linear mix.
-
-```
-/ WRONG — nested multiplication
-W: S*.3+U*.7+V*.2
-
-/ CORRECT — explicit parens
-W: (S*.3)+(U*.7)+(V*.2)
-```
-
----
-
-## Monadic verbs (prefix)
-
-| Verb | Name | Behavior |
-|------|------|----------|
-| `!N` | iota | `[0, 1, ..., N-1]` |
-| `s` | sine | `sin(x)` elementwise |
-| `c` | cosine | `cos(x)` elementwise |
-| `e` | exp | `exp(x)` elementwise |
-| `l` | log | `log(x)` elementwise |
-| `a` | abs | `|x|` elementwise |
-| `q` | sqrt | `sqrt(x)` elementwise |
-| `h` | tanh | `tanh(x)` elementwise |
-| `d` | soft clip | `tanh(3x)` elementwise |
-| `x` | exp-env | `exp(-5x)` elementwise |
-| `r` | white noise | uniform `[-1, 1]` per element |
-| `m` | 1-bit noise | `±0.7` per element (metallic timbre) |
-| `b` | negate | elementwise |
-| `n` | clip to 0 | `max(0, x)` |
-| `i` | integer | floor elementwise |
-| `w` | normalize | scale to peak ±1.0 |
-| `p` | print | print and pass through |
-| `+\` | scan sum | cumulative sum (running phase) |
-| `|\` | scan max | running maximum |
-
-`/` is **not** the normal K reduce/over adverb in ksynth; `/` starts a comment.
-Use monadic verbs like `+A` for reduction, and `+\A` for scan.
-
-> **Critical:** `r` is element-wise. `r T` where `T: !N` generates N noise samples. `r N` where N is a scalar generates **1 sample**.
+`n`, `j`, `k`, `v`: see dyadic forms below for additional arguments.
 
 ---
 
-## Filter verb `f`
+## dyadic verbs
+
+All dyadic verbs are right-associative. Length of result = max of inputs; the shorter side cycles.
+
+### arithmetic
+
+| Op | Behavior |
+|----|----------|
+| `A + B` | add |
+| `A - B` | subtract |
+| `A * B` | multiply |
+| `A % B` | divide (`%` is division, not modulo) |
+| `A ^ B` | power: `abs(A)^B` |
+| `A & B` | min elementwise |
+| `A \| B` | max elementwise |
+| `A < B` | 1.0 if A<B else 0.0 |
+| `A > B` | 1.0 if A>B else 0.0 |
+| `A = B` | 1.0 if A=B else 0.0 |
+| `N # V` | tile V to length N (cyclic) |
+| `A , B` | concatenate |
+
+`%` is **division**. Fractional part of X: `X - _(X)`.
+
+Hard clip requires explicit parens — `&` and `|` are right-associative:
 
 ```
-ct f signal
-[ct resonance] f signal
+/ hard clip to [-0.5, 0.5]
+C: (S & 0.5) | -0.5   / correct
+C: S & -0.5 | 0.5     / wrong — parses as S & (-0.5 | 0.5) = S & 0.5
 ```
 
-2-pole lowpass. `ct` is the per-sample coefficient; cutoff frequency at 44100 Hz sr:
+### filters
+
+| Verb | Usage | Description |
+|------|-------|-------------|
+| `f` | `ct f signal` | 2-pole lowpass; `ct` = normalised coefficient 0–0.95 |
+| `f` | `ct rs f signal` | with resonance `rs` 0–3.9 |
+| `g` | `hz g signal` | 2-pole lowpass, cutoff in Hz |
+| `g` | `hz q g signal` | with Q 0.01–3.9 |
+
+Approximate `f` coefficient mapping (44100 Hz):
 
 | `ct` | `fc` |
 |------|------|
 | 0.04 | ~281 Hz |
 | 0.08 | ~561 Hz |
-| 0.114 | ~800 Hz |
+| 0.11 | ~800 Hz |
 | 0.15 | ~1053 Hz |
-| 0.256 | ~1800 Hz |
-| 0.3 | ~2106 Hz |
-| 0.5 | ~3509 Hz |
-| 0.7 | ~4913 Hz |
-| 0.9 | ~6317 Hz |
+| 0.26 | ~1800 Hz |
+| 0.5  | ~3509 Hz |
+| 0.7  | ~4913 Hz |
+| 0.9  | ~6317 Hz |
 
-Formula: `fc ≈ ct × sr / (2π)`
-
-**Highpass:** `sig - (ct f sig)`
-
-**Bandpass 800–1800 Hz:**
-```
-A: 0.256 f R    / LP at 1800Hz
-B: 0.114 f R    / LP at 800Hz
-C: A-B          / band between them
-```
-
----
-
-## Weighted additive synthesis `$`
+Highpass: subtract the lowpass. Bandpass: subtract two lowpass filters at different cutoffs.
 
 ```
-phase_vector $ amplitude_vector
+H: R - (0.1 f R)          / highpass
+B: (0.4 f R)-(0.05 f R)   / bandpass
 ```
 
-`result[i] = Σ_j amp[j] × sin(phase[i] × (j+1))`
+`g` accepts a modulation vector for swept cutoff: if `hz` has the same length as `signal`, each sample uses its own cutoff value.
 
-Index 0 = harmonic 1, index 1 = harmonic 2, etc. Use 0 for absent harmonics.
+### feedback delay
+
+| Verb | Usage | Description |
+|------|-------|-------------|
+| `y` | `d g y signal` | feedback delay: `out[i] = signal[i] + g*out[i-d]` |
+
+`d` (samples) and `g` (gain) form a two-element vector. Default gain if omitted: 0.4.
 
 ```
-/ sawtooth (32 harmonics, 1/h amplitudes)
-H: !32
-H: H+1
-A: 1%H
-W: w P $ A
+W: w 100 0.9 y R     / comb filter on noise, resonance at ~441 Hz
+```
 
-/ organ drawbar (h1,2,3,4,6,8 equal, rest silent)
+### additive synthesis
+
+| Verb | Usage | Description |
+|------|-------|-------------|
+| `o` | `P o H` | sum sin(P×h) for each h in H, equal amplitudes |
+| `$` | `P $ A` | sum A[j]×sin(P×(j+1)) — weighted harmonic series |
+
+`P` must be a phase ramp (from `+\`). Index 0 of A = harmonic 1. Use 0.0 for absent harmonics.
+
+```
+H: 1 3 5 7
+W: w P o H              / odd harmonics, equal amplitude
+
+A: 1 0.5 0.333 0.25
+W: w P $ A              / sawtooth approximation
+
+/ organ drawbar: h1,2,3,4 equal, h5 silent, h6 on, h7 silent, h8 on
 A: 1 1 1 1 0 1 0 1
 W: w P $ A
-
-/ cowbell — slightly square character
-A: 1 0 0.3 0 0.15
-W: w P $ A
 ```
 
-Versus `o` (equal-amplitude additive):
-- `P o (1 3 5 7)` — sum at those harmonic numbers, equal amplitude
-- `P $ A` — sum at harmonics 1,2,3,... with amplitudes from A
+### wavetable oscillator
+
+| Verb | Usage | Description |
+|------|-------|-------------|
+| `t` | `T t freq dur` | DDS oscillator from table T, freq Hz, dur samples |
+
+`freq` and `dur` form a two-element vector. Linear interpolation between table samples. Monadic `t` is tan.
+
+```
+N: 1024
+P: ~N                   / phase ramp 0..2π
+T: s P                  / sine wavetable
+D: 88200
+W: w T t 440 D          / 440 Hz for 2 seconds
+```
+
+### pitched buzz (dyadic form)
+
+| Verb | Usage | Description |
+|------|-------|-------------|
+| `b` | `freq b V` | 6-oscillator buzz at freq Hz, length = len(V) |
+
+```
+W: w e(T*(0-5%N)) * 220 b T   / decaying buzz at 220 Hz
+```
+
+### anti-click ramp (dyadic form)
+
+| Verb | Usage | Description |
+|------|-------|-------------|
+| `u` | `N u V` | ramp 0→1 over N samples, then 1.0 |
+
+```
+W: w (100 u T) * s P    / 100-sample onset ramp on a sine
+```
+
+### quantize (dyadic form)
+
+| Verb | Usage | Description |
+|------|-------|-------------|
+| `v` | `N v signal` | quantize to N levels |
+
+```
+Q: 8 v s P              / 8-level quantized sine
+```
+
+### stereo
+
+| Verb | Usage | Description |
+|------|-------|-------------|
+| `z` | `L z R` | interleave into stereo stream `[l0,r0,l1,r1,...]` |
+
+Output length is `min(L,R) * 2`. Extract channels with monadic `j` (left) and `k` (right).
 
 ---
 
-## Standard synthesis patterns
+## scan adverb (`\`)
 
-### Envelope (exponential decay)
+`op\V` — running accumulation over V, same length as V.
+
+| Scan | Description |
+|------|-------------|
+| `+\V` | running sum — the phase accumulator primitive |
+| `*\V` | running product |
+| `-\V` | running subtraction |
+| `%\V` | running division |
+| `&\V` | running minimum |
+| `|\V` | running maximum |
+| `^\V` | running power |
+
+`/` is not reduce/over — it starts a comment. Reduction is verb-specific: `+V` sums, `>V` peaks.
+
+---
+
+## functions
+
+`{ expr }` defines a function. `x` = first argument, `y` = second.
+
 ```
+F: { x+1 }      / define
+F 3              / call: x=3 → 4
+
+G: { x+y }
+2 G 3            / call: x=2, y=3 → 5
+```
+
+The phase accumulator as a reusable function:
+
+```
+C: p2%p0
+X: { +\(x#(y*C)) }   / x=length, y=freq
+P: N X 440
+Q: N X 660
+W: w (s P)+(s Q)
+```
+
+---
+
+## special syntax
+
+`;` separates expressions on one line — only the last value is used:
+
+```
+A: 1; B: 2; A+B     / returns 3
+```
+
+`p0` = 44100 (sample rate). `pN` = N×π. `p2%p0` = 2π/44100 — the 1 Hz phase increment.
+
+---
+
+## right-associativity gotchas
+
+```
+/ linear mix — parens required
+W: (S*.3)+(U*.7)    / correct
+W: S*.3+U*.7        / wrong: S*(0.3+U*0.7)
+
+/ FM hazard — s consumes its full right expression
+s P + s Q           / parses as sin(P + sin(Q)) — FM, not a mix
+(s P) + (s Q)       / correct mix of two sines
+
+/ hard clip — & and | are right-associative
+(S & 0.5) | -0.5    / correct clip to [-0.5, 0.5]
+S & -0.5 | 0.5      / wrong: S & (-0.5 | 0.5) = S & 0.5
+```
+
+---
+
+## standard patterns
+
+```
+/ oscillator
+C: p2%p0
 N: 44100
 T: !N
-E: e(T*(0-6.9%N))    / k=6.9 → −60 dB at end of buffer
-```
-For faster decays use larger k. Tau in samples = `N/k`.
+P: +\(N#(440*C))
+W: w s P
 
-### Pitch-sweeping oscillator
-```
-N: 13230
-T: !N
-F: 50+91*e(T*(0-60%N))    / 141Hz → 50Hz sweep
-D: F*(6.28318%44100)       / phase increment per sample
-P: +\D                     / cumulative phase
-S: s P                     / oscillator output
-```
+/ exponential decay envelope — k=6.9 → -60dB at end
+E: e(T*(0-6.9%N))
 
-### Fixed-frequency oscillator
-```
-F: 440*(6.28318%44100)
-P: +\(N#F)
-S: (s P)                   / parens prevent FM misparse
-```
+/ pitch-sweeping oscillator (141Hz → 50Hz)
+F: 50+91*e(T*(0-60%N))
+P: +\(N#(F*(p2%p0)))
 
-> **FM hazard:** `s P + s Q` parses as `s(P + s(Q))` — FM synthesis, not a mix!
-> Use `(s P) + (s Q)` or assign each sine to a variable first.
-
-### Noise generation
-```
-T: !N
-R: r T          / N samples white noise
-M: m T          / N samples 1-bit noise (metallic)
-```
-
-### Highpass filter
-```
-R: r T
-L: 0.5 f R      / lowpass at ~3500 Hz
-H: R-L          / highpass: subtract LP
-```
-
-### Rise-then-fall envelope (staggered bursts)
-```
-/ T*e(−T*k/N) peaks at sample N/k
-/ k=30 → peak at 7ms  (N=8820, sr=44100)
-/ k=15 → peak at 13ms
-/ k=8  → peak at 25ms
-T: !N
+/ percussive rise-then-fall — peaks at sample N/k
 X: T*e(T*(0-8%N))
-E: w X              / normalize envelope to peak=1
+
+/ FM bell: fast index decay, slow amplitude decay
+A: e(T*(0-3%N))
+I: 5*e(T*(0-12%N))
+P: +\(N#(440*C))
+W: w A*(s(P+I*s(P)))
+
+/ filtered noise
+R: r T
+W: w 0.1 f R           / lowpass
+W: w R-(0.1 f R)        / highpass
+W: w (0.4 f R)-(0.05 f R)  / bandpass
+
+/ wavetable sine, 2 seconds
+P: ~1024
+D: 88200
+W: w (s P) t 440 D
 ```
-Used for 808 clap: three independent burst layers with staggered peak times.
 
 ---
 
-## 808 Drum Kit
-
-Synthesized from real 808 samples (measured spectra and decay envelopes).
-
-| File | Voice | Key freq | Duration | Method |
-|------|-------|----------|----------|--------|
-| `drums-kick.ks` | Bass Drum | 141→50 Hz | 300ms | Pitch-sweep oscillator |
-| `drums-snare.ks` | Snare | 170 Hz body | 280ms | Sines + noise tail |
-| `drums-clap.ks` | Clap | 800–1800 Hz | 200ms | 3 staggered bandpassed bursts |
-| `drums-chh.ks` | Closed Hi-Hat | >6 kHz | 200ms | 1-bit noise + HP |
-| `drums-ohh.ks` | Open Hi-Hat | >6 kHz | 280ms | Same as CHH, longer |
-| `drums-hitom.ks` | Hi Tom | 170 Hz | 500ms | Pitch-sweep |
-| `drums-midtom.ks` | Mid Tom | 122 Hz | 500ms | Pitch-sweep |
-| `drums-lotom.ks` | Lo Tom | 80 Hz | 640ms | Pitch-sweep |
-| `drums-rim.ks` | Rimshot | 1800 Hz | 60ms | Short tonal burst + HP noise |
-| `drums-cowbell.ks` | Cowbell | 735+850 Hz | 900ms | Two tones, `$` spectrum |
-| `drums-crash.ks` | Crash | 3 kHz inharmonic | 1500ms | 5 inharmonic oscillators + 1-bit noise |
-| `drums-clave.ks` | Clave | 2500 Hz | 100ms | Two detuned sines |
-| `drums-maracas.ks` | Maracas | 4 kHz | 30ms | 1-bit noise + HP |
-| `drums-trigger.ks` | Trigger Out | 100 Hz | 650ms | Fixed-pitch sine |
-
----
-
-## DW-8000 Wavetables
-
-Files `dw8k-01.ks` through `dw8k-16.ks`. Amplitudes measured via DFT from ROM data.
-
-| # | Name | Character |
-|---|------|-----------|
-| 01 | strings | Perfect 1/h sawtooth |
-| 02 | clarinet | Odd harmonics, 1/h |
-| 03 | apiano | h2>h1, bumps h8–h14 |
-| 04 | epiano | Similar to apiano |
-| 05 | epiano-hard | Brighter |
-| 06 | clavi | Complex — h3≈h7≈h1, alternating phase |
-| 07 | organ | Drawbar h1,2,3,4,6,8,10,12,16 equal |
-| 08 | brass | h2≈h3≈h1, very bright |
-| 09 | sax | Strong h2–h5 |
-| 10 | violin | Formant clusters at h14, h22–23 |
-| 11 | aguitar | Similar to violin |
-| 12 | dguitar | Picking transient emphasis |
-| 13 | ebass | Low-end focused |
-| 14 | dbass | Same pattern as apiano |
-| 15 | bell | Sparse every-4th harmonics; h17 > h1 |
-| 16 | whistle | Near-pure sine (h1=0.989) |
-
----
-
-## Parser quirks summary
-
-| Issue | Symptom | Fix |
-|-------|---------|-----|
-| Right-assoc mix | `A*.5+B*.3` = `A*(0.5+B*0.3)` | `(A*.5)+(B*.3)` |
-| FM hazard | `s P+Q` = FM, not mix | `(s P)+(s Q)` |
-| Noise on scalar | `r N` = 1 sample | `r T` where `T: !N` |
-| Negation | `-X` ambiguous | Use `0-X` for expressions |
-
----
-
-## Test suite
+## test suite
 
 ```sh
 gcc -O2 test_ksynth.c ksynth.c -lm -o test_ksynth && ./test_ksynth
-# 151 tests, 0 failures
 ```
 
-Coverage: scalars · vectors · arithmetic · scan · normalize · sine/cosine · exp/log · filter cutoff · highpass subtract · delay/comb · additive synthesis `o` and `$` · dot literals · right-assoc mix correctness · envelope decay · noise length · pitch sweep · rise-decay envelope · 1-bit noise
+158 tests, 0 failures. Coverage: scalars, vectors, arithmetic, scan, normalize, sine/cosine, exp/log, filter cutoff, highpass, delay/comb, additive synthesis `o` and `$`, wavetable `t`, dot literals, right-assoc correctness, envelope decay, noise length, pitch sweep, rise-decay envelope, 1-bit noise, host array helpers.
+
+See `api.md` for the C embedding API.
