@@ -120,3 +120,8 @@ int ks_get_length(void);
 const char *ks_get_error(void);
 
 #endif
+
+/*
+Copyright (c) 2026 octetta / Joseph Stewart
+MIT LICENSE AT https://github.com/octetta/k-synth
+*/

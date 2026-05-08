@@ -936,3 +936,8 @@ void p(ks_ctx *ctx, K x) {
     if (x->n > show) printf(" ... (%d total)", x->n);
     printf("]\n");
 }
+
+/*
+Copyright (c) 2026 octetta / Joseph Stewart
+MIT license at https://github.com/octetta/k-synth
+*/
