@@ -8,7 +8,7 @@ F: 170*(6.28318%44100)
 G: 183*(6.28318%44100)
 P: +\(N#F)
 Q: +\(N#G)
-S: B*(s P+s Q)*.5
+S: B*((s P)+(s Q))*.5
 / noise tail: full duration — lower in mix than body at start
 E: e(T*(0-6.9%N))
 R: r T

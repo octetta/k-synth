@@ -11,4 +11,4 @@ S: (s P)
 Q: e(T*(0-220%N))
 R: r T
 C: 0.08 f R
-W: w E*S+Q*C*.1
+W: w (E*S)+(Q*C*.1)
