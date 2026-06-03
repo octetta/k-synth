@@ -694,12 +694,13 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
  * * Evaluates right-to-left.
  * The parser advances a char pointer (`char **s`) in place.
  * * Call Graph:
- * e()    -> parses sequences separated by ';'
+ * e()    -> parses statement sequences separated by ';'
  * expr() -> handles dyadic operators (A + B) and function calls (F arg)
  * atom() -> parses literals, variables (A-Z), monads, and (...) groups
  */
 
 K atom(ks_ctx *ctx, char **s);
+K expr(ks_ctx *ctx, char **s);
 
 K expr(ks_ctx *ctx, char **s) {
     K x = atom(ctx, s);
@@ -838,36 +839,23 @@ K atom(ks_ctx *ctx, char **s) {
     int is_scan = 0;
     while (**s == ' ') (*s)++;
     if (**s == '\\') { is_scan = 1; (*s)++; }
-    K arg = e(ctx, s);
+    K arg = expr(ctx, s);
     if (is_scan) return scan(ctx, c, arg);
     else return mo(ctx, c, arg);
 }
 
 K e(ks_ctx *ctx, char **s) {
-    K x = atom(ctx, s);
+    K x = expr(ctx, s);
     while (**s == ' ') (*s)++;
     while (**s == ';') {
         (*s)++;
         if (x) k_free(ctx, x);
         while (**s == ' ') (*s)++;
         if (!**s || **s == '\n' || **s == ')' || **s == '}') return k_new(ctx, 0);
-        x = atom(ctx, s);
+        x = expr(ctx, s);
         while (**s == ' ') (*s)++;
     }
-    if (k_is_func(x) && **s && **s != '\n' && **s != ')' && **s != ';' && **s != '/') {
-        char peek = **s;
-        int is_operator = strchr("+-*%^&|<>=,#osfzt haqle rpciw dvmbu jkn g", peek) != NULL;
-        if (!is_operator) {
-            K arg = e(ctx, s);
-            K call_args[1] = {arg};
-            K result = k_call(ctx, x, call_args, 1);
-            k_free(ctx, x);
-            return result;
-        }
-    }
-    if (!**s || **s == '\n' || **s == ')' || **s == ';' || **s == '/') return x;
-    char op = *(*s)++;
-    return dy(ctx, op, x, e(ctx, s));
+    return x;
 }
 
 /* --- Public API --- */
