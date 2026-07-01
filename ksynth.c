@@ -152,13 +152,27 @@ K k_view(ks_ctx *ctx, int n, double *ptr) {
 }
 
 void bind_scalar(ks_ctx *ctx, char name, double val) {
-    if (name < 'A' || name > 'Z') return;
+    (void)ks_bind_vector(ctx, name, &val, 1);
+}
+
+ks_status ks_bind_vector(ks_ctx *ctx, char name, const double *values,
+                         size_t length) {
+    if (!ctx || name < 'A' || name > 'Z' ||
+        (length > 0 && !values) || length > 1000000) {
+        if (ctx) ctx->last_status = KS_ERR_INVALID_ARGS;
+        return KS_ERR_INVALID_ARGS;
+    }
+
+    K x = k_new_perm(ctx, (int)length);
+    if (!x) return KS_ERR_OOM;
+    if (length) memcpy(x->f, values, length * sizeof(double));
+
     int i = name - 'A';
-    K x = k_new_perm(ctx, 1);
-    if (!x) return; /* OOM — leave existing var untouched */
-    x->f[0] = val;
-    if (ctx->vars[i]) k_free(ctx, ctx->vars[i]);
+    K old = ctx->vars[i];
     ctx->vars[i] = x;
+    k_free(ctx, old);
+    ctx->last_status = KS_OK;
+    return KS_OK;
 }
 
 /* k_get returns an arena-allocated copy of the var's value.
@@ -831,6 +845,26 @@ K e(ks_ctx *ctx, char **s) {
 
 /* --- Public API --- */
 
+static K k_clone_owned(ks_ctx *ctx, K source) {
+    if (!source) return NULL;
+    if (k_is_func(source)) {
+        int len = (int)strlen((char *)source->f) + 1;
+        int ndoubles = (len + (int)sizeof(double) - 1) / (int)sizeof(double);
+        K copy = k_new_perm(ctx, ndoubles);
+        if (!copy) return NULL;
+        copy->n = -1;
+        memcpy(copy->f, source->f, (size_t)len);
+        return copy;
+    }
+
+    K copy = k_new_perm(ctx, source->n);
+    if (!copy) return NULL;
+    if (source->n > 0) {
+        memcpy(copy->f, source->f, (size_t)source->n * sizeof(double));
+    }
+    return copy;
+}
+
 K ks_eval(ks_ctx *ctx, const char *code, size_t len) {
     if (!ctx || !code) return NULL;
 
@@ -841,28 +875,28 @@ K ks_eval(ks_ctx *ctx, const char *code, size_t len) {
        reclaiming all temporaries allocated during this eval in one shot. */
     char *arena_checkpoint = ctx->arena_ptr;
 
-    K result = NULL;
-    if (setjmp(ctx->recover) == 0) {
-        char *buf = malloc(len + 1);
-        if (!buf) {
-            ctx->last_status = KS_ERR_OOM;
-        } else {
-            memcpy(buf, code, len);
-            buf[len] = '\0';
-            char *p_code = buf;
-            result = e(ctx, &p_code);
-            free(buf);
-        }
+    char *buf = malloc(len + 1);
+    if (!buf) {
+        ctx->last_status = KS_ERR_OOM;
+    } else {
+        memcpy(buf, code, len);
+        buf[len] = '\0';
     }
+
+    K result = NULL;
+    if (buf && setjmp(ctx->recover) == 0) {
+        char *p_code = buf;
+        result = e(ctx, &p_code);
+        if (result) result = k_clone_owned(ctx, result);
+    }
+    free(buf);
     /* Both the success and longjmp paths fall through here.
        Reset the arena — all temporaries are gone. */
     ctx->arena_ptr  = arena_checkpoint;
     ctx->args[0]    = ctx->args[1] = NULL; /* were arena ptrs, now dangling */
 
-    /* result pointed into the arena which we just reset — it's invalid.
-       Callers that need the value must have stored it in a var (A:) or
-       the wrapper layer must copy it before this return. For the REPL
-       use-case the wrappers do exactly that. */
+    /* The returned object is an owned copy. The caller releases it with
+       k_free(); all evaluator intermediates were reclaimed above. */
     return result;
 }
 

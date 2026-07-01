@@ -63,6 +63,8 @@ void ks_clear_vars(ks_ctx *ctx);
 /* Evaluation API */
 K ks_eval(ks_ctx *ctx, const char *code, size_t len);
 const char* ks_strerror(ks_status status);
+ks_status ks_bind_vector(ks_ctx *ctx, char name, const double *values,
+                         size_t length);
 
 /* Internal-ish K Lifecycle */
 K k_new(ks_ctx *ctx, int n);       /* arena-allocated (eval lifetime) */

@@ -344,6 +344,7 @@ static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
     if (show && r) {
       p_view(r, 1);
     }
+    k_free(ctx, r);
   }
 }
 
