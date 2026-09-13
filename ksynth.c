@@ -47,7 +47,7 @@ static inline double safe_val(double v) {
 
 /* --- Context Lifecycle --- */
 
-ks_ctx* ks_create(size_t mem_limit, long long gas_limit) {
+ks_ctx* ks_create(size_t mem_limit, long long gas_limit, double sample_rate) {
     ks_ctx *ctx = calloc(1, sizeof(ks_ctx));
     if (!ctx) return NULL;
 
@@ -63,6 +63,7 @@ ks_ctx* ks_create(size_t mem_limit, long long gas_limit) {
     ctx->arena_ptr  = ctx->arena_base;
     ctx->arena_end  = ctx->arena_base + mem_limit;
     ctx->mem_limit  = mem_limit;
+    ctx->sample_rate = sample_rate;
 
     ctx->gas_limit  = gas_limit;
     return ctx;
@@ -431,7 +432,7 @@ K mo(ks_ctx *ctx, char c, K b) {
             }
             case '_': x->f[i] = floor(v); break;
             case 'r': x->f[i] = ((double)rand() / (double)RAND_MAX) * 2.0 - 1.0; break;
-            case 'p': x->f[i] = (v == 0) ? 44100 : M_PI * v; break;
+            case 'p': x->f[i] = (v == 0) ? ctx->sample_rate : M_PI * v; break;
             case 'i': x->f[i] = b->f[b->n - 1 - i]; break;
             case 'x': x->f[i] = exp(-5.0 * v); break;
             case 'd': x->f[i] = tanh(v * 3.0); break;
@@ -445,7 +446,7 @@ K mo(ks_ctx *ctx, char c, K b) {
                 /* Monadic b: fixed-pitch buzz at 110 Hz (default organ bass).
                    For pitched use, prefer dyadic form: freq b V */
                 double ff[] = {2.43, 3.01, 3.52, 4.11, 5.23, 6.78};
-                double phase_inc = 110.0 * (2.0 * M_PI / 44100.0);
+                double phase_inc = 110.0 * (2.0 * M_PI / ctx->sample_rate);
                 double ss = 0;
                 for (int j = 0; j < 6; j++)
                     ss += (sin(i * phase_inc * ff[j]) > 0) ? 1.0 : -1.0;
@@ -527,7 +528,7 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
         if (n_out < 1 || tbl_len < 1) { k_free(ctx, a); k_free(ctx, b); return k_new(ctx, 0); }
 
         GAS_CHECK(ctx, n_out);
-        double phase_inc = freq_hz * (double)tbl_len / 44100.0;
+        double phase_inc = freq_hz * (double)tbl_len / ctx->sample_rate;
         double phase     = 0.0;
         x = k_new(ctx, n_out);
 
@@ -558,7 +559,7 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
            Output length = b->n (the signal vector). */
         double freq = (a->n > 0) ? a->f[0] : 110.0;
         if (freq < 1.0) freq = 1.0;
-        double phase_inc = freq * (2.0 * M_PI / 44100.0);
+        double phase_inc = freq * (2.0 * M_PI / ctx->sample_rate);
         double ff[] = {2.43, 3.01, 3.52, 4.11, 5.23, 6.78};
         GAS_CHECK(ctx, b->n);
         x = k_new(ctx, b->n);
@@ -608,7 +609,7 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
         double damp     = 1.0 / (q_val < 0.01 ? 0.01 : q_val);
         for (int i = 0; i < b->n; i++) {
             double f_hz    = (a->n == b->n) ? a->f[i] : static_f;
-            double f_coeff = 2.0 * sin(M_PI * f_hz / 44100.0);
+            double f_coeff = 2.0 * sin(M_PI * f_hz / ctx->sample_rate);
             if (f_coeff > 1.99) f_coeff = 1.99;
             double hp = b->f[i] - s0 - damp * s1;
             s1 += f_coeff * hp; s0 += f_coeff * s1;

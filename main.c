@@ -564,7 +564,7 @@ int main(int argc, char *argv[]) {
   int i16 = 0;
   int f32 = 0;
   //                      mem           gas
-  ks_ctx *ctx = ks_create(16*1024*1024, 1000000); // guessing at limits???
+  ks_ctx *ctx = ks_create(16*1024*1024, 1000000, 44100.0); // guessing at limits???
   audio_start();
   if (argc > 1) {
     char gs[] = "W.gnuplot";

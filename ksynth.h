@@ -53,10 +53,12 @@ typedef struct ks_ctx {
     jmp_buf recover;     /* Eval-local escape for explicit checked errors */
     ks_status last_status;
     char last_err_msg[256];
+    
+    double sample_rate;  /* Passed from host, returned by p0 */
 } ks_ctx;
 
 /* Context Lifecycle */
-ks_ctx* ks_create(size_t mem_limit, long long gas_limit);
+ks_ctx* ks_create(size_t mem_limit, long long gas_limit, double sample_rate);
 void ks_destroy(ks_ctx *ctx);
 void ks_clear_vars(ks_ctx *ctx);
 

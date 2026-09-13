@@ -132,7 +132,7 @@ static ks_api_state *ks_api_find(uintptr_t handle) {
 static ks_api_state *ks_api_create_state(size_t mem_limit, long long gas_limit) {
     ks_api_state *st = (ks_api_state*)calloc(1, sizeof(*st));
     if (!st) return NULL;
-    st->ctx = ks_create(mem_limit, gas_limit);
+    st->ctx = ks_create(mem_limit, gas_limit, 44100.0);
     if (!st->ctx) {
         free(st);
         return NULL;

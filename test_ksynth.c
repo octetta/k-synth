@@ -909,7 +909,7 @@ int main(void) {
     printf("ksynth test suite\n");
     printf("=================\n");
 
-    g_ctx = ks_create(512 * 1024 * 1024, 500000000LL);
+    g_ctx = ks_create(512 * 1024 * 1024, 500000000LL, 44100.0);
     if (!g_ctx) {
         fprintf(stderr, "failed to create ksynth test context\n");
         return 1;
