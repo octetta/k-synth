@@ -15,7 +15,7 @@ F: e(T*(0-3%N))
 
 / Tonal component: a high inharmonic partial for the shimmer character
 / ~6kHz partial that decays slower than the noise
-G: 6200*(6.28318%44100)
+G: 6200*((p 2)%(p 0))
 P: +\(N#G)
 O: (s P)*e(T*(0-8%N))
 

@@ -21,7 +21,7 @@ B: M-(0.5 f M)
 
 / Tiny tonal stinger — the pitch-specific "crack" frequency
 / A sharp crack has a dominant frequency around 4-6kHz
-F: 5000*(6.28318%44100)
+F: 5000*((p 2)%(p 0))
 P: +\(N#F)
 O: (s P)*e(T*(0-60%N))
 

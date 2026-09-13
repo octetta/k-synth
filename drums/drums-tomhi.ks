@@ -1,12 +1,12 @@
 / High Tom
-/ 500ms at 44100 = 22050 samples
+/ 500ms at (p 0) = 22050 samples
 
 N: 22050
 T: !N
 E: e(T*(0-6.9%N))
 / pitch sweep 300->180 Hz
 F: 180+120*e(T*(0-100%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 / clean fundamental only — parentheses prevent FM parsing
 S: (s P)

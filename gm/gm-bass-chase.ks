@@ -9,7 +9,7 @@
 N: 7938
 T: !N
 
-F: 65.4*(6.28318%44100)
+F: 65.4*((p 2)%(p 0))
 P: +\(N#F)
 
 / Sawtooth via spectrum

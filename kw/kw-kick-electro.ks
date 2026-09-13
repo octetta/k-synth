@@ -11,7 +11,7 @@ E: e(T*(0-6.9%N))
 / Sine (not triangle) for the Odyssey analog: cleaner, more sub
 / Very fast sweep: 180Hz -> 42Hz over just 30ms
 F: 42+138*e(T*(0-80%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 S: s P
 

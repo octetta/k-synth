@@ -1,8 +1,8 @@
 / NAP snare — violent crack, thin body, nasty noise burst
 N: 8820
 T: !N
-A: 180*(6.28318%44100)
-B: 330*(6.28318%44100)
+A: 180*((p 2)%(p 0))
+B: 330*((p 2)%(p 0))
 P: +\(N#A)
 Q: +\(N#B)
 / body envelope

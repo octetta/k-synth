@@ -5,7 +5,7 @@ N: 8820
 T: !N
 E: e(T*(0-6.9%N))
 F: 50+100*e(T*(0-60%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 O: s P
 / Hard clip immediately
@@ -15,7 +15,7 @@ V: e(T*(0-500%N))
 R: r T
 A: V*R*.4
 / Sub underneath
-G: 42*(6.28318%44100)
+G: 42*((p 2)%(p 0))
 Q: +\(N#G)
 B: (s Q)*e(T*(0-4%N))
 W: w (C*E*.9)+(A*.2)+(B*.3)

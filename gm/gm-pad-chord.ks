@@ -5,12 +5,12 @@
 / Warm, slightly nasal Moog character — the LP near self-oscillation
 / This voice = one sustained chord note (layer 4 for full chord)
 / C4 = 261.6Hz, 1000ms
-N: 44100
+N: (p 0)
 T: !N
 
 / Single Moog VCO (one note per track as Moroder described)
-F: 261.6*(6.28318%44100)
-G: 262.4*(6.28318%44100)
+F: 261.6*((p 2)%(p 0))
+G: 262.4*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 

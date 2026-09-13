@@ -1,7 +1,7 @@
 / NAP glitch stutter — bitcrushed tone with noise intrusions
 N: 8820
 T: !N
-F: 110*(6.28318%44100)
+F: 110*((p 2)%(p 0))
 P: +\(N#F)
 S: s P
 / quantize heavily — bitcrush approximation

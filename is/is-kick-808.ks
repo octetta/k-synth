@@ -9,7 +9,7 @@ E: e(T*(0-6.9%N))
 
 / 808-style sine kick: long sweep, deep sub
 F: 50+100*e(T*(0-50%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 S: s P
 
@@ -20,7 +20,7 @@ Q: 4096 v S
 / The Prodigy had a raw sawtooth or square tone
 / We use a very low near-triangle tone at sub frequency
 / Slow attack following the kick (the bass swelling in)
-G: 42*(6.28318%44100)
+G: 42*((p 2)%(p 0))
 M: +\(N#G)
 A: 1 0 -.111 0 0.04
 B: (M $ A)*e(T*(0-4%N))

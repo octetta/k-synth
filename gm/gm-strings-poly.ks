@@ -4,12 +4,12 @@
 / More "lush" than the Solina — the poly synth ensemble string sound
 / Character: fatter, warmer, slightly slower attack than Solina
 / C4 = 261.6Hz
-N: 44100
+N: (p 0)
 T: !N
 
 / Two detuned sawtooths — the Prophet-5 unison approach
-F: 261.6*(6.28318%44100)
-G: 263.2*(6.28318%44100)
+F: 261.6*((p 2)%(p 0))
+G: 263.2*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 

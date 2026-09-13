@@ -9,7 +9,7 @@ E: e(T*(0-6.9%N))
 
 / Triangle VCO: 400Hz -> 200Hz sweep, moderate bend speed
 F: 200+200*e(T*(0-40%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 A: 1 0 -.111 0 0.04 0 -.0204
 S: P $ A

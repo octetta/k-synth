@@ -5,7 +5,7 @@ T: !N
 / very fast overall decay
 E: e(T*(0-6.9%N))
 / 1800Hz tone — the dominant frequency
-F: 1800*(6.28318%44100)
+F: 1800*((p 2)%(p 0))
 P: +\(N#F)
 S: (s P)
 / broadband noise crack

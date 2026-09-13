@@ -10,7 +10,7 @@ E: e(T*(0-6.9%N))
 
 / Inharmonic oscillators — same physics but triangle-based
 / Triangle adds warmth vs pure sine
-B: 2900*(6.28318%44100)
+B: 2900*((p 2)%(p 0))
 P: +\(N#(B*1.000))
 Q: +\(N#(B*1.342))
 R: +\(N#(B*1.200))

@@ -2,7 +2,7 @@
 / the harmonic distortion creates the grit
 N: 13230
 T: !N
-F: 41.2*(6.28318%44100)
+F: 41.2*((p 2)%(p 0))
 P: +\(N#F)
 S: s P
 / soft clip then hard clip stack

@@ -6,7 +6,7 @@ T: !N
 E: e(T*(0-6.9%N))
 / pitch sweep: more abrupt than 808
 F: 130+80*e(T*(0-100%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 O: s P
 

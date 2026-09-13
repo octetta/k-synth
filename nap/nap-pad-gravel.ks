@@ -1,12 +1,12 @@
 / NAP gravel pad — mid-range scrape, dissonant chord
 / minor 2nd interval = maximum tension
-N: 44100
+N: (p 0)
 T: !N
 / tritone + minor 2nd cluster = very tense
-F: 220*(6.28318%44100)
-G: 233*(6.28318%44100)
-H: 311*(6.28318%44100)
-I: 330*(6.28318%44100)
+F: 220*((p 2)%(p 0))
+G: 233*((p 2)%(p 0))
+H: 311*((p 2)%(p 0))
+I: 330*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 R: +\(N#H)

@@ -11,7 +11,7 @@ T: !N
 / 120Hz -> 38Hz over 80ms then sustains
 E: e(T*(0-6.9%N))
 F: 38+82*e(T*(0-40%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 S: s P
 
@@ -20,7 +20,7 @@ S: s P
 C: d(S*3)
 
 / Sub reinforcement: pure low-end sine at sustained pitch, slower decay
-G: 38*(6.28318%44100)
+G: 38*((p 2)%(p 0))
 Q: +\(N#G)
 B: (s Q)*e(T*(0-5%N))
 

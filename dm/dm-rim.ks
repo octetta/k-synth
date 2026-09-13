@@ -7,8 +7,8 @@ T: !N
 E: e(T*(0-6.9%N))
 
 / Two tones: 1600Hz + 2200Hz — slightly inharmonic pair
-F: 1600*(6.28318%44100)
-G: 2200*(6.28318%44100)
+F: 1600*((p 2)%(p 0))
+G: 2200*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 O: (s P)

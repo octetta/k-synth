@@ -10,12 +10,12 @@ T: !N
 E: e(T*(0-6.9%N))
 
 / Acoustic tom body: ~300Hz
-F: 300*(6.28318%44100)
+F: 300*((p 2)%(p 0))
 P: +\(N#F)
 S: s P
 
 / SSM2044 dynamic VCF: 5ms attack then decay
-/ At 44100: 5ms = 221 samples
+/ At (p 0): 5ms = 221 samples
 / Filter starts open (bright = high ct), closes (dark = low ct)
 / Bright ct~0.5 (3509Hz), dark ct~0.08 (561Hz)
 / Blend: bright * short_env + dark * long_env

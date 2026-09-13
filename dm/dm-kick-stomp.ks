@@ -11,13 +11,13 @@ E: e(T*(0-6.9%N))
 / Primary body: deep low frequency, very slight pitch drop (stomp, not sine sweep)
 / ARP 2600-style sub — starts at ~85Hz drops quickly to ~52Hz (the metal resonance)
 F: 52+33*e(T*(0-120%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 O: s P
 
 / Second harmonic reinforcement — the metallic ring of the casing
 / A metal floor case resonates at multiple harmonics, not just fundamental
-G: 104*(6.28318%44100)
+G: 104*((p 2)%(p 0))
 Q: +\(N#G)
 I: (s Q)*e(T*(0-15%N))
 

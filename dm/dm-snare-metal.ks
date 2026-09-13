@@ -11,15 +11,15 @@ T: !N
 / Real metal objects have inharmonic partial ratios
 / Mode 1: ~900Hz (bright ping)
 / Mode 2: ~1340Hz (inharmonic upper partial, ratio ~1.49)
-F: 900*(6.28318%44100)
-G: 1340*(6.28318%44100)
+F: 900*((p 2)%(p 0))
+G: 1340*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 O: (s P)*e(T*(0-25%N))
 I: (s Q)*e(T*(0-35%N))
 
 / Third inharmonic mode — makes it feel like a real metal object
-J: 2100*(6.28318%44100)
+J: 2100*((p 2)%(p 0))
 R: +\(N#J)
 B: (s R)*e(T*(0-50%N))
 

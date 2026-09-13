@@ -5,7 +5,7 @@ T: !N
 E: e(T*(0-6.9%N))
 / pitch sweep 141->50Hz
 F: 50+91*e(T*(0-60%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 S: s P
 / short attack noise thump

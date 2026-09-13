@@ -2,8 +2,8 @@
 / carrier 880Hz, modulator 660Hz, ratio 3:2 = inharmonic spread
 N: 22050
 T: !N
-C: 880*(6.28318%44100)
-M: 660*(6.28318%44100)
+C: 880*((p 2)%(p 0))
+M: 660*((p 2)%(p 0))
 P: +\(N#C)
 Q: +\(N#M)
 / high modulation index decaying fast = bright attack, harsh sustain

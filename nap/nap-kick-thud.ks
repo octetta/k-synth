@@ -6,7 +6,7 @@ E: e(T*(0-5%N))
 
 / pitch envelope: 200Hz snap down to 40Hz
 F: 40+160*e(T*(0-80%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 S: s P
 
@@ -14,7 +14,7 @@ S: s P
 B: d(S*3.0)
 
 / sub layer: pure sine at 40Hz
-G: 40*(6.28318%44100)
+G: 40*((p 2)%(p 0))
 M: +\(N#G)
 O: s M
 U: d(O*1.5)

@@ -1,11 +1,11 @@
 / NAP dread pad — slow, suffocating, detuned and distorted
 / like a choir drowning in tar
-N: 44100
+N: (p 0)
 T: !N
 / three heavily detuned voices
-F: 130.8*(6.28318%44100)
-G: 132.5*(6.28318%44100)
-H: 129.2*(6.28318%44100)
+F: 130.8*((p 2)%(p 0))
+G: 132.5*((p 2)%(p 0))
+H: 129.2*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 R: +\(N#H)

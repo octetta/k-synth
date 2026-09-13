@@ -12,7 +12,7 @@ E: e(T*(0-6.9%N))
 / Acoustic kick body: fast pitch sweep, punchy
 / Forsey's real kick had the thwack the Moog lacked
 F: 50+100*e(T*(0-100%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 S: s P
 
@@ -20,7 +20,7 @@ S: s P
 / This is what Moroder described: round, swelling low-frequency weight
 / Moog modular VCO: sine-like (heavily LP-filtered sawtooth through Moog ladder)
 / Two detuned VCOs → Moog LP at ~80Hz = pure sub sine
-G: 55*(6.28318%44100)
+G: 55*((p 2)%(p 0))
 M: +\(N#G)
 O: s M
 / Moog ladder LP on sub: very tight (ct=0.02 → ~140Hz)

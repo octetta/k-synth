@@ -1,11 +1,11 @@
 / NAP static pad — noise floor with tonal undertow
 / like a detuned radio through a broken amp
-N: 44100
+N: (p 0)
 T: !N
 / sub tone cluster
-F: 80*(6.28318%44100)
-G: 81.5*(6.28318%44100)
-H: 78.8*(6.28318%44100)
+F: 80*((p 2)%(p 0))
+G: 81.5*((p 2)%(p 0))
+H: 78.8*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 R: +\(N#H)

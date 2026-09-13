@@ -2,8 +2,8 @@
 / heavily clipped, almost fuzz bass
 N: 11025
 T: !N
-F: 55*(6.28318%44100)
-G: 55.4*(6.28318%44100)
+F: 55*((p 2)%(p 0))
+G: 55.4*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 / square wave approximation: odd harmonics

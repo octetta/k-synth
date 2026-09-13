@@ -10,8 +10,8 @@ E: e(T*(0-6.9%N))
 / Rhythm-King cowbell: two triangle tones
 / Measured 808: 562+845Hz, but Rhythm-King tuned differently
 / Slightly lower, rounder character
-F: 520*(6.28318%44100)
-G: 800*(6.28318%44100)
+F: 520*((p 2)%(p 0))
+G: 800*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 A: 1 0 -.111 0 0.04

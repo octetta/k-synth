@@ -3,7 +3,7 @@ N: 3307
 T: !N
 / fast pitch dive from high to nothing
 F: 10+2000*e(T*(0-200%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 S: s P
 E: e(T*(0-30%N))

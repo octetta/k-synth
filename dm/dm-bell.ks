@@ -9,10 +9,10 @@ E: e(T*(0-6.9%N))
 / Synclavier bell synthesis: fundamental + inharmonic partials
 / Synclavier specialty was precise additive synthesis of bell tones
 / Ratios approximate real bell: 1.0, 2.756, 5.404, 8.933, 13.345
-F: 440*(6.28318%44100)
-G: 1213*(6.28318%44100)
-J: 2378*(6.28318%44100)
-K: 3930*(6.28318%44100)
+F: 440*((p 2)%(p 0))
+G: 1213*((p 2)%(p 0))
+J: 2378*((p 2)%(p 0))
+K: 3930*((p 2)%(p 0))
 
 P: +\(N#F)
 Q: +\(N#G)

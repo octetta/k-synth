@@ -11,7 +11,7 @@ T: !N
 / Triangle oscillator: approximate with $ (odd harmonics, 1/h^2, alternating sign)
 / Pitch sweep: 120Hz -> 50Hz, bend speed medium (Synthanorma precision)
 F: 50+70*e(T*(0-50%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 / Triangle spectrum: h1=1, h3=-1/9, h5=1/25, h7=-1/49
 A: 1 0 -.111 0 0.04 0 -.0204

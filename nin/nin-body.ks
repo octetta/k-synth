@@ -7,7 +7,7 @@ T: !N
 E: e(T*(0-6.9%N))
 
 / Very low fixed tone — not pitch-swept, just a wall of low end
-F: 55*(6.28318%44100)
+F: 55*((p 2)%(p 0))
 P: +\(N#F)
 O: s P
 
@@ -15,7 +15,7 @@ O: s P
 S: d(O*5)
 
 / Sub reinforcement
-B: 40*(6.28318%44100)
+B: 40*((p 2)%(p 0))
 Q: +\(N#B)
 I: (s Q)*e(T*(0-5%N))
 

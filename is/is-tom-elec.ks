@@ -10,7 +10,7 @@ E: e(T*(0-6.9%N))
 
 / Electronic tom: sharper pitch sweep (synthetic character)
 F: 80+140*e(T*(0-120%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 S: s P
 

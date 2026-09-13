@@ -8,8 +8,8 @@ T: !N
 
 / Body: two close tones (the "tuned" quality of Wilder's snare hits)
 B: e(T*(0-40%N))
-F: 210*(6.28318%44100)
-G: 260*(6.28318%44100)
+F: 210*((p 2)%(p 0))
+G: 260*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 O: (s P)

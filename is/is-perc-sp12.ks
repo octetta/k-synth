@@ -8,7 +8,7 @@ E: e(T*(0-6.9%N))
 
 / Sharp electronic pitch sweep — more aggressive than tom
 F: 120+480*e(T*(0-150%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 S: s P
 

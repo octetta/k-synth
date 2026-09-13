@@ -9,7 +9,7 @@ T: !N
 
 / Triangle VCO — snare tuned higher than kick, ~220Hz, small pitch bend
 F: 220+60*e(T*(0-150%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 A: 1 0 -.111 0 0.04 0 -.0204
 S: P $ A

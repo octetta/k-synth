@@ -6,7 +6,7 @@ T: !N
 E: e(T*(0-6.9%N))
 
 / Inharmonic oscillators — same ratios as 808 but distorted harder
-B: 2800*(6.28318%44100)
+B: 2800*((p 2)%(p 0))
 P: +\(N#(B*1.000))
 Q: +\(N#(B*1.342))
 R: +\(N#(B*1.200))

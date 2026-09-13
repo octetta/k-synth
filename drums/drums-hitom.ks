@@ -5,7 +5,7 @@ T: !N
 E: e(T*(0-6.9%N))
 / small pitch sweep 212->170Hz
 F: 170+42*e(T*(0-80%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 S: (s P)
 / short thump

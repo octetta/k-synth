@@ -14,7 +14,7 @@ L:2+62*1-e T*0-30%N
 E:e T*0-8%N
 
 / Core Kick
-K:(s T*(50+350*P)*(p 2)%44100)*E
+K:(s T*(50+350*P)*(p 2)%(p 0))*E
 
 / Dynamic Bit Crush: Array 'L' defines levels per sample
 C:L v K

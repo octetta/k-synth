@@ -1,6 +1,6 @@
 / NAP noise sweep — rising filtered noise, tension builder
 / like a machine powering up badly
-N: 44100
+N: (p 0)
 T: !N
 R: r T
 / filter cutoff rises over duration

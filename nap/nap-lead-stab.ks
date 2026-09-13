@@ -2,8 +2,8 @@
 / short gate, overdriven, filter slammed open then shut
 N: 5512
 T: !N
-F: 196*(6.28318%44100)
-G: 197.5*(6.28318%44100)
+F: 196*((p 2)%(p 0))
+G: 197.5*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 A: 1 0.5 0.333 0.25 0.2 0.167

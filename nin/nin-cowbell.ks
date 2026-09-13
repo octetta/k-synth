@@ -5,8 +5,8 @@ T: !N
 E: e(T*(0-6.9%N))
 
 / Two tones — 562Hz and 845Hz (classic ratios) but heavily processed
-F: 562*(6.28318%44100)
-G: 845*(6.28318%44100)
+F: 562*((p 2)%(p 0))
+G: 845*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 O: s P
@@ -18,7 +18,7 @@ K: Q $ A
 M: J+K*.8
 
 / Ring mod carrier to make it industrial/harsh
-L: 280*(6.28318%44100)
+L: 280*((p 2)%(p 0))
 R: +\(N#L)
 C: s R
 Y: M*C

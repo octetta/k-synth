@@ -11,7 +11,7 @@ E: e(T*(0-6.9%N))
 / Synsonics: simple triangle-ish tone, very fast short sweep
 / Higher starting pitch than SDS-V (smaller, cheaper oscillator)
 F: 160+240*e(T*(0-80%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 A: 1 0 -.111 0 0.04
 S: P $ A

@@ -7,14 +7,14 @@
 / The Solina character: sawtooth-like wave, very long attack (strings), BBD chorus
 / C4 = 261.6Hz, full string chord would layer multiple notes
 / This voice = one string note; layer C+E+G+Bb for the IFL chord texture
-N: 44100
+N: (p 0)
 T: !N
 
 / ARP Solina VCO: sawtooth, but softer than Moog (no LP filter — the Solina
 /  ran into the BBD chorus directly, no resonant filter)
-F: 261.6*(6.28318%44100)
-G: 262.8*(6.28318%44100)
-H: 263.6*(6.28318%44100)
+F: 261.6*((p 2)%(p 0))
+G: 262.8*((p 2)%(p 0))
+H: 263.6*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 R: +\(N#H)
@@ -31,7 +31,7 @@ X: R $ A
 V: (S+U+X)*.333
 
 / Long attack envelope (strings): the Solina had slow attack
-/ Attack = slow fade in over ~200ms at 44100Hz = 8820 samples
+/ Attack = slow fade in over ~200ms at (p 0)Hz = 8820 samples
 / Rise-then-sustain: envelope opens slowly
 / Use inverted-decay as attack: 1 - e(-t*k/N) approximation
 / ksynth: attack = (1 - e(T*(0-20%N)))... not directly available

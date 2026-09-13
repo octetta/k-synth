@@ -1,11 +1,11 @@
 / Crash Cymbal
-/ 1200ms at 44100 = 52920 samples
+/ 1200ms at (p 0) = 52920 samples
 / Six inharmonic oscillators — no lowpass, keep metallic highs
 
 N: 52920
 T: !N
 E: e(T*(0-6.9%N))
-B: 450*(6.28318%44100)
+B: 450*((p 2)%(p 0))
 P: +\(N#(B*1.000))
 Q: +\(N#(B*1.342))
 R: +\(N#(B*1.200))

@@ -15,8 +15,8 @@ T: !N
 
 / C2 = 65.4Hz — the fundamental sequencer note
 / Two VCOs, slightly detuned (3 cents) = the Moog modular multi-VCO richness
-F: 65.4*(6.28318%44100)
-G: 65.7*(6.28318%44100)
+F: 65.4*((p 2)%(p 0))
+G: 65.7*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 

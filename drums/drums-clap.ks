@@ -1,6 +1,6 @@
 / 808-style Clap
 / 3 staggered noise bursts, bandpassed 800-1800Hz
-/ 200ms at 44100 = 8820 samples
+/ 200ms at (p 0) = 8820 samples
 
 N: 8820
 T: !N

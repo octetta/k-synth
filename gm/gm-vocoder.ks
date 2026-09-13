@@ -10,7 +10,7 @@ N: 22050
 T: !N
 
 / Sawtooth carrier at vocal fundamental
-F: 120*(6.28318%44100)
+F: 120*((p 2)%(p 0))
 P: +\(N#F)
 
 / Unfiltered sawtooth: rich harmonic content feeds all vocoder bands

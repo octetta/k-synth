@@ -5,8 +5,8 @@ T: !N
 E: e(T*(0-6.9%N))
 / two close tones at measured frequencies
 / fast initial decay + slow ring
-F: 735*(6.28318%44100)
-G: 850*(6.28318%44100)
+F: 735*((p 2)%(p 0))
+G: 850*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 / harmonic content from $ — slightly square-ish

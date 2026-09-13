@@ -5,8 +5,8 @@ T: !N
 
 / Body: two detuned resonant modes, fast decay ~15ms
 B: e(T*(0-40%N))
-F: 185*(6.28318%44100)
-G: 230*(6.28318%44100)
+F: 185*((p 2)%(p 0))
+G: 230*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 / parenthesise each sine to prevent FM parsing
@@ -17,7 +17,7 @@ S: B*((O+I)*.5)
 / Ring modulation carrier ~320Hz
 / Multiplying body by carrier produces sidebands at 185±320, 230±320
 / = 505Hz, 550Hz (sum) and 135Hz, 90Hz (diff) — the metallic brittleness
-K: 320*(6.28318%44100)
+K: 320*((p 2)%(p 0))
 J: +\(N#K)
 M: s J
 / ring modulated body

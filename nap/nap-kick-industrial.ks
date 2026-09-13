@@ -5,13 +5,13 @@ E: e(T*(0-4%N))
 
 / low thud with fast pitch sweep
 F: 55+220*e(T*(0-60%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 S: d(s(P)*4.0)
 
 / metallic ring layer
-A: 180*(6.28318%44100)
-B: 271*(6.28318%44100)
+A: 180*((p 2)%(p 0))
+B: 271*((p 2)%(p 0))
 Q: +\(N#A)
 R: +\(N#B)
 M: (s(Q)+s(R))*0.5

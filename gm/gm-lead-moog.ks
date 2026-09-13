@@ -8,8 +8,8 @@ N: 22050
 T: !N
 
 / Two detuned VCOs (standard Moog modular patch)
-F: 261.6*(6.28318%44100)
-G: 264.0*(6.28318%44100)
+F: 261.6*((p 2)%(p 0))
+G: 264.0*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 

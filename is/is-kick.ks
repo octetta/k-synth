@@ -15,7 +15,7 @@ E: e(T*(0-6.9%N))
 / Acoustic kick body: fast pitch sweep (sampled real kick)
 / 26kHz Nyquist = original kick had content around 100-150Hz
 F: 55+85*e(T*(0-80%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 S: s P
 
@@ -38,7 +38,7 @@ K: V*L
 / Sub layer: "way tuned down SP-12 tom" — the InSoc secret sauce
 / Tom channel SSM2044 dynamic filter opening on attack
 / Tom at ~60Hz (tuned way down from nominal 200Hz tom)
-G: 60*(6.28318%44100)
+G: 60*((p 2)%(p 0))
 M: +\(N#G)
 / Dynamic filter: bright attack (ct=0.3), decays to dark (ct=0.04)
 / Approximate: blend of two filtered versions

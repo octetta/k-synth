@@ -9,8 +9,8 @@ T: !N
 
 / Pitched body: acoustic snare crack ~200Hz + 250Hz
 B: e(T*(0-30%N))
-F: 200*(6.28318%44100)
-G: 250*(6.28318%44100)
+F: 200*((p 2)%(p 0))
+G: 250*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 O: s P

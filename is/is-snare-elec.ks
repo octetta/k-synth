@@ -9,7 +9,7 @@ T: !N
 
 / Electronic body: higher pitched tone, fast decay — the "snap"
 B: e(T*(0-50%N))
-F: 280*(6.28318%44100)
+F: 280*((p 2)%(p 0))
 P: +\(N#F)
 O: s P
 S: B*O

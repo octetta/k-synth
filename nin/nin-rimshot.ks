@@ -6,8 +6,8 @@ T: !N
 E: e(T*(0-6.9%N))
 
 / Two high tones — 1800Hz + 2400Hz
-F: 1800*(6.28318%44100)
-G: 2400*(6.28318%44100)
+F: 1800*((p 2)%(p 0))
+G: 2400*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 O: s P
@@ -15,7 +15,7 @@ I: s Q
 S: (O+I*.6)
 
 / Ring mod on the tonal mix — extra metallic
-K: 520*(6.28318%44100)
+K: 520*((p 2)%(p 0))
 J: +\(N#K)
 M: s J
 Y: S*M

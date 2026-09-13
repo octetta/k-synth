@@ -10,12 +10,12 @@ T: !N
 / The body impact — very low broadband thud
 / A flight case is a large wooden/metal box: resonates ~60-80Hz
 E: e(T*(0-6.9%N))
-F: 65*(6.28318%44100)
+F: 65*((p 2)%(p 0))
 P: +\(N#F)
 O: s P
 
 / Sub reinforcement — the floor coupling
-G: 38*(6.28318%44100)
+G: 38*((p 2)%(p 0))
 Q: +\(N#G)
 I: (s Q)*e(T*(0-5%N))
 

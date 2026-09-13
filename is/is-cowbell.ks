@@ -8,8 +8,8 @@ T: !N
 E: e(T*(0-6.9%N))
 
 / SP-12 cowbell: similar frequencies to 808 but at 12-bit
-F: 562*(6.28318%44100)
-G: 845*(6.28318%44100)
+F: 562*((p 2)%(p 0))
+G: 845*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 A: 1 0 0.3 0 0.15

@@ -9,12 +9,12 @@ E: e(T*(0-6.9%N))
 
 / Layer 1: SP-12 kick body
 F: 55+80*e(T*(0-70%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 S: 4096 v (s P)
 
 / Layer 2: "way tuned-down SP-12 tom" at ~65Hz, dynamic VCF
-G: 65*(6.28318%44100)
+G: 65*((p 2)%(p 0))
 M: +\(N#G)
 O: e(T*(0-200%N))
 I: 0.3 f (s M)
@@ -29,7 +29,7 @@ C: 0.15 f R
 K: V*C
 
 / Sub from the Moog Prodigy layering (clean sine, very low)
-A: 38*(6.28318%44100)
+A: 38*((p 2)%(p 0))
 Q: +\(N#A)
 Z: (s Q)*e(T*(0-4%N))
 

@@ -4,7 +4,7 @@ N: 28665
 T: !N
 E: e(T*(0-6.9%N))
 / no pitch sweep, fixed ~100Hz
-F: 100*(6.28318%44100)
+F: 100*((p 2)%(p 0))
 P: +\(N#F)
 S: (s P)
 / brief sub attack

@@ -3,12 +3,12 @@
 / Like the hi-hat channels: raw 12-bit sample, no reconstruction filter
 / The imaging artefacts above 13kHz are the character
 / 1000ms — SP-12 crashes sustained well
-N: 44100
+N: (p 0)
 T: !N
 E: e(T*(0-6.9%N))
 
 / Inharmonic oscillator stack — same physics
-B: 3000*(6.28318%44100)
+B: 3000*((p 2)%(p 0))
 P: +\(N#(B*1.000))
 Q: +\(N#(B*1.342))
 R: +\(N#(B*1.200))

@@ -9,18 +9,18 @@ E: e(T*(0-6.9%N))
 / ARP 2600 kick character: starts around 100Hz, settles to ~40Hz
 / Longer sweep than stomp kick
 F: 40+65*e(T*(0-50%N))
-D: F*(6.28318%44100)
+D: F*((p 2)%(p 0))
 P: +\D
 O: s P
 
 / Pure sub reinforcement at fundamental — the EMU Drumulator "fattening" trick
-G: 38*(6.28318%44100)
+G: 38*((p 2)%(p 0))
 Q: +\(N#G)
 I: (s Q)*e(T*(0-4%N))
 
 / Very short attack transient — synthesised, NOT noisy
 / A tight sine burst at ~200Hz simulates the EMU Drumulator click
-J: 200*(6.28318%44100)
+J: 200*((p 2)%(p 0))
 R: +\(N#J)
 B: (s R)*e(T*(0-600%N))
 

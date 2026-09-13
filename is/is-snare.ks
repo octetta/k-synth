@@ -10,8 +10,8 @@ T: !N
 
 / Pitched body: acoustic snare resonance ~180Hz
 B: e(T*(0-35%N))
-F: 180*(6.28318%44100)
-G: 225*(6.28318%44100)
+F: 180*((p 2)%(p 0))
+G: 225*((p 2)%(p 0))
 P: +\(N#F)
 Q: +\(N#G)
 O: s P
