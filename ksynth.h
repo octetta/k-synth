@@ -34,7 +34,7 @@ typedef enum {
     KS_ERR_INTERNAL      /* Unexpected internal error */
 } ks_status;
 
-typedef struct { int r, n; double f[]; } *K;
+typedef struct ks_val { int r, n; double f[]; } *K;
 
 typedef struct ks_ctx {
     K vars[26];          /* A-Z user variables (persistent, malloc'd) */
