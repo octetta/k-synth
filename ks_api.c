@@ -276,7 +276,8 @@ int ks_ctx_get_var(uintptr_t handle, int letter_upper) {
     st->var_len = 0;
     if (letter_upper < 'A' || letter_upper > 'Z') return 0;
 
-    K v = st->ctx->vars[letter_upper - 'A'];
+    char vn[2] = {(char)letter_upper, '\0'};
+    K v = k_get_var_str(st->ctx, vn);
     if (!v || v->n <= 0) return 0;
 
     st->var_buf = (float*)malloc((size_t)v->n * sizeof(float));

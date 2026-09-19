@@ -50,33 +50,62 @@ static inline double safe_val(double v) {
 ks_ctx* ks_create(size_t mem_limit, long long gas_limit, double sample_rate) {
     ks_ctx *ctx = calloc(1, sizeof(ks_ctx));
     if (!ctx) return NULL;
-
-    /* Default arena size if caller passes 0.
-       Sizing rationale: a 2-second stereo output at 44100 is 88200 frames
-       × 2 channels × 8 bytes = ~1.4 MB just for the output buffer, before
-       any intermediate vectors. 8 MB gives comfortable headroom for typical
-       multi-stage patches without being wasteful. */
-    if (mem_limit == 0) mem_limit = 8 * 1024 * 1024;
-
+    
     ctx->arena_base = malloc(mem_limit);
-    if (!ctx->arena_base) { free(ctx); return NULL; }
-    ctx->arena_ptr  = ctx->arena_base;
-    ctx->arena_end  = ctx->arena_base + mem_limit;
-    ctx->mem_limit  = mem_limit;
+    if (!ctx->arena_base) {
+        free(ctx);
+        return NULL;
+    }
+    
+    ctx->arena_ptr = ctx->arena_base;
+    ctx->arena_end = ctx->arena_base + mem_limit;
+    ctx->mem_limit = mem_limit;
+    ctx->gas_limit = gas_limit;
     ctx->sample_rate = sample_rate;
-
-    ctx->gas_limit  = gas_limit;
+    ctx->dict = NULL;
+    
     return ctx;
+}
+
+K k_get_var_str(ks_ctx *ctx, const char *name) {
+    ks_dict_entry *curr = ctx->dict;
+    while (curr) {
+        if (strcmp(curr->name, name) == 0) return curr->val;
+        curr = curr->next;
+    }
+    return NULL;
+}
+
+void k_set_var_str(ks_ctx *ctx, const char *name, K x) {
+    ks_dict_entry *curr = ctx->dict;
+    while (curr) {
+        if (strcmp(curr->name, name) == 0) {
+            if (curr->val) k_free(ctx, curr->val);
+            curr->val = x;
+            return;
+        }
+        curr = curr->next;
+    }
+    ks_dict_entry *entry = malloc(sizeof(ks_dict_entry));
+    entry->name = strdup(name);
+    entry->val = x;
+    entry->next = ctx->dict;
+    ctx->dict = entry;
 }
 
 void ks_clear_vars(ks_ctx *ctx) {
     if (!ctx) return;
-    for (int i = 0; i < 26; i++) {
-        if (ctx->vars[i]) { k_free(ctx, ctx->vars[i]); ctx->vars[i] = NULL; }
+    ks_dict_entry *curr = ctx->dict;
+    while (curr) {
+        ks_dict_entry *next = curr->next;
+        if (curr->val) k_free(ctx, curr->val);
+        free(curr->name);
+        free(curr);
+        curr = next;
     }
-    /* args[] are arena-allocated; just null them out — the arena
-       reset in ks_eval handles their memory. */
-    ctx->args[0] = ctx->args[1] = NULL;
+    ctx->dict = NULL;
+    ctx->args[0] = NULL;
+    ctx->args[1] = NULL;
 }
 
 void ks_destroy(ks_ctx *ctx) {
@@ -169,8 +198,9 @@ ks_status ks_bind_vector(ks_ctx *ctx, char name, const double *values,
     if (length) memcpy(x->f, values, length * sizeof(double));
 
     int i = name - 'A';
-    K old = ctx->vars[i];
-    ctx->vars[i] = x;
+    char vn[2] = {(char)(i+'A'), 0};
+    K old = k_get_var_str(ctx, vn);
+    k_set_var_str(ctx, vn, x);
     k_free(ctx, old);
     ctx->last_status = KS_OK;
     return KS_OK;
@@ -180,8 +210,10 @@ ks_status ks_bind_vector(ks_ctx *ctx, char name, const double *values,
    The perm object in vars[] is left untouched; the copy lives for
    the duration of the current eval. */
 K k_get(ks_ctx *ctx, char name) {
-    if (name < 'A' || name > 'Z' || !ctx->vars[name - 'A']) return NULL;
-    K v = ctx->vars[name - 'A'];
+    char vn[2] = {name, 0};
+    K v = k_get_var_str(ctx, vn);
+    if (!v) return NULL;
+    /* already got v */
     if (k_is_func(v)) {
         /* Functions: arena-copy the func object so the body pointer
            still points into the perm allocation's flex array. */
@@ -333,7 +365,8 @@ K mo(ks_ctx *ctx, char c, K b) {
     if (!b) return NULL;
 
     if (c >= 'A' && c <= 'Z') {
-        K var = ctx->vars[c - 'A'];
+        char vn[2] = {c, 0};
+        K var = k_get_var_str(ctx, vn);
         if (k_is_func(var)) {
             K call_args[1] = {b};
             return k_call(ctx, var, call_args, 1);
@@ -470,7 +503,8 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
     if (!a || !b) { k_free(ctx, a); k_free(ctx, b); return NULL; }
 
     if (c >= 'A' && c <= 'Z') {
-        K var = ctx->vars[c - 'A'];
+        char vn[2] = {c, 0};
+        K var = k_get_var_str(ctx, vn);
         if (k_is_func(var)) {
             K call_args[2] = {a, b};
             return k_call(ctx, var, call_args, 2);
@@ -521,7 +555,7 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
         if (b->n >= 2) {
             n_out = (int)b->f[1];
         } else {
-            K nv = ctx->vars['N' - 'A'];
+            K nv = k_get_var_str(ctx, "N");
             n_out = (nv && nv->n > 0) ? (int)nv->f[0] : 0;
         }
         int tbl_len = a->n;
@@ -758,7 +792,8 @@ K atom(ks_ctx *ctx, char **s) {
             if (*peek >= '0' && *peek <= '9') { ptr = peek; continue; }
             if (*peek == '-' && peek[1] >= '0' && had_space) { ptr = peek; continue; }
             if (had_space && *peek >= 'A' && *peek <= 'Z' && peek[1] != ':') {
-                K v = ctx->vars[*peek - 'A'];
+                char vn[2] = {*peek, 0};
+                K v = k_get_var_str(ctx, vn);
                 if (v && v->n == 1) { buf[n++] = v->f[0]; ptr = peek + 1; continue; }
             }
             break;
@@ -788,8 +823,8 @@ K atom(ks_ctx *ctx, char **s) {
                 if (!perm) longjmp(ctx->recover, 1);
                 memcpy(perm->f, x->f, x->n * sizeof(double));
             }
-            if (ctx->vars[i]) k_free(ctx, ctx->vars[i]);
-            ctx->vars[i] = perm;
+            char vn[2] = {(char)(i+'A'), 0};
+            k_set_var_str(ctx, vn, perm);
         }
         /* Return x as-is (arena lifetime, caller frees via k_free no-op). */
         return x;
@@ -808,7 +843,8 @@ K atom(ks_ctx *ctx, char **s) {
             if (peek == ptr) break;
             if (*peek < 'A' || *peek > 'Z') break;
             if (peek[1] == ':') break;
-            K v = ctx->vars[*peek - 'A'];
+            char vn[2] = {*peek, 0};
+                K v = k_get_var_str(ctx, vn);
             if (!v || v->n != 1) break;
             buf[n++] = v->f[0];
             ptr = peek + 1;
