@@ -1,15 +1,15 @@
 # ksynth language reference
 
-ksynth is a line-oriented array DSL for audio synthesis, inspired by K/APL. Each line is one expression. Variables are single uppercase letters `A`–`Z`. All values are double-precision floating-point vectors — scalars are 1-element vectors. The interpreter is right-associative: `a op b op c` = `a op (b op c)`.
+ksynth is a line-oriented array DSL for audio synthesis, inspired by K/APL. Each line is one expression. Variables can be single uppercase letters `A`–`Z` or descriptive multi-letter names like `freq` or `saw`. All values are double-precision floating-point vectors — scalars are 1-element vectors. The interpreter is right-associative: `a op b op c` = `a op (b op c)`.
 
 ---
 
 ## variables and assignment
 
-- Single uppercase letter `A`–`Z` only. No multi-letter names, no digit suffixes.
+- Names can be any alphanumeric string starting with a letter (e.g. `freq`, `A`, `my_var2`).
 - `X: expr` evaluates `expr` and stores in `X`.
-- `W` is the conventional output — every script sets it via `W: w expr`.
-- Inside a function body, `x` and `y` are the first and second arguments.
+- `W` is the conventional output — many scripts set it via `W: w expr`.
+- Inside a function body `{...}`, `x` and `y` are the implicit first and second arguments.
 
 ---
 
@@ -241,24 +241,38 @@ Output length is `min(L,R) * 2`. Extract channels with monadic `j` (left) and `k
 
 ## functions
 
-`{ expr }` defines a function. `x` = first argument, `y` = second.
+`{ expr }` defines a lambda function. `x` = first argument, `y` = second.
+These can be assigned to single or multi-letter variables.
 
 ```
-F: { x+1 }      / define
-F 3              / call: x=3 → 4
+addOne: { x+1 }      / define
+addOne 3             / call: x=3 → 4
 
-G: { x+y }
-2 G 3            / call: x=2, y=3 → 5
+addMix: { x+y }
+2 addMix 3           / dyadic call: x=2, y=3 → 5
 ```
 
 The phase accumulator as a reusable function:
 
 ```
-C: p2%p0
-X: { +\(x#(y*C)) }   / x=length, y=freq
-P: N X 440
-Q: N X 660
+inc: p2%p0
+osc: { +\(x#(y*inc)) }   / x=length, y=freq
+P: N osc 440
+Q: N osc 660
 W: w (s P)+(s Q)
+```
+
+### built-in aliases
+
+For manual testing and better readability, ksynth automatically populates the dictionary with full-word aliases for all single-character operators.
+
+**Math**: `sin`, `cos`, `tan`, `tanh`, `abs`, `sqrt`, `log`, `exp`, `floor`, `rand`, `pi`, `rev`
+**Generation**: `idx` (`!`), `phase` (`~`)
+**Reductions**: `sum` (`+`), `peak` (`>`), `norm` (`w`)
+**Synthesis**: `quantize` (`v`), `left` (`j`), `right` (`k`), `saw` (`o`)
+
+```
+W: norm(sin(P))  / Identical to W: w(s P)
 ```
 
 ---

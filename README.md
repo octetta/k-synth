@@ -13,9 +13,9 @@ This isn't a DAW; it's a vector-processing engine designed for "Base Camp"
 signal processing.
 
 It uses:
-* **One-Letter Variables**: A-Z globals only.
+* **Custom Variables & Functions**: Define descriptive multi-letter variables and lambda functions (e.g., `freq: 440`, `saw: {w P $ A}`).
 * **Right-Associativity**: Expressions evaluate from right to left.
-* **Vectorized Verbs**: Math applied to entire buffers at once.
+* **Vectorized Verbs**: Math applied to entire buffers at once (using single-character verbs like `s`, `+`, `w` or full word aliases like `sin`, `sum`, `norm`).
 
 Sound is a vector. A kick drum is a vector. A two-second bell tone is a
 vector. You do math on vectors and the result is audio. There are no tracks,
@@ -358,20 +358,23 @@ python3 -m http.server 8080
 
 | Concept | Example | Notes |
 |---------|---------|-------|
-| Index vector | `!N` | `[0, 1, …, N-1]` |
+| Variables | `freq: 440` | Assign to descriptive variable names |
+| Functions | `f: {x * y}` | Define lambdas (`x` and `y` are implicit args) |
+| Built-in Aliases | `sin(P)` / `norm(W)` | `sin`, `cos`, `tan`, `tanh`, `abs`, `sqrt`, `log`, `exp`, `floor`, `rand`, `pi`, `rev`, `idx`, `phase`, `sum`, `peak`, `norm`, `left`, `right`, `quantize`, `saw` |
+| Index vector | `!N` or `idx(N)` | `[0, 1, …, N-1]` |
 | Phase accumulator | `+\(N#F)` | Oscillator at frequency F |
 | Sine / cosine | `s P` / `c P` | Elementwise |
 | Exponential decay | `e(T*(0-k%N))` | Decay from 1 to e^-k over N |
-| White noise | `r T` | One sample per element of T |
+| White noise | `r T` / `rand(T)` | One sample per element of T |
 | 1-bit noise | `m T` | `±0.7`, metallic timbre |
 | Lowpass filter | `ct f sig` | Two-pole, ct=0..1 |
-| Additive equal | `P o H` | Sum harmonics in H |
+| Additive equal | `P o H` / `saw(P; H)` | Sum harmonics in H |
 | Additive weighted | `P $ A` | Weighted harmonic series |
 | FM synthesis | `s P+(I*s Q)` | Right-assoc gives FM naturally |
 | Concatenate | `A,B,C` | Build patterns |
 | Tile | `N#V` | Repeat V to length N |
 | Soft clip | `d x` | `tanh(3x)` |
-| Normalize | `w x` | Scale to peak ±1 |
+| Normalize | `w x` / `norm(x)`| Scale to peak ±1 |
 | Feedback delay | `[d g] y sig` | Comb / echo |
 | Convolution | `A z B` | FIR / impulse response |
 

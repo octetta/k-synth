@@ -73,11 +73,14 @@ void p_view(K x, int opts);
 void handle_play(char *ptr) {
 }
 
-char get_var(char *ptr) {
+char* get_var(char *ptr, char *out_name) {
   while (*ptr == ' ') ptr++;
-  char v_name = *ptr;
-  if (v_name >= 'A' && v_name <= 'Z') return v_name;
-  return '\0';
+  int i = 0;
+  while ((*ptr >= 'A' && *ptr <= 'Z') || (*ptr >= 'a' && *ptr <= 'z') || (*ptr >= '0' && *ptr <= '9') || *ptr == '_') {
+      out_name[i++] = *ptr++;
+  }
+  out_name[i] = '\0';
+  return (i > 0) ? out_name : NULL;
 }
 
 int show = 0;
@@ -134,9 +137,9 @@ static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
         arg++;
       }
       
-      char v_name = get_var(arg);
-      if (v_name) {
-        K v = ctx->vars[v_name - 'A'];
+      char v_name[256];
+      if (get_var(arg, v_name)) {
+        K v = k_get_var_str(ctx, v_name);
         if (v) {
           // Find empty voice slot
           int slot = -1;
@@ -164,7 +167,7 @@ static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
           voices[slot].stereo = is_stereo;
           voices[slot].active = 1;
           
-          printf("playing %c in slot %d (%s)\n", v_name, slot, is_stereo ? "stereo" : "mono");
+          printf("playing %s in slot %d (%s)\n", v_name, slot, is_stereo ? "stereo" : "mono");
         }
       }
       
@@ -196,9 +199,9 @@ static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
         arg++;
       }
       
-      char v_name = get_var(arg);
-      if (v_name) {
-        K v = ctx->vars[v_name - 'A'];
+      char v_name[256];
+      if (get_var(arg, v_name)) {
+        K v = k_get_var_str(ctx, v_name);
         if (v) {
           char name[1024];
           struct timeval tv;
@@ -208,8 +211,8 @@ static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
           ma_uint32 channels = is_stereo ? 2 : 1;
           ma_uint64 frames = is_stereo ? (v->n / 2) : v->n;
           
-          snprintf(name, sizeof(name), "%c-%f.wav", v_name, ts);
-          printf("write %c to %s (%s, %lld frames)\n", 
+          snprintf(name, sizeof(name), "%s-%f.wav", v_name, ts);
+          printf("write %s to %s (%s, %lld frames)\n", 
                  v_name, name, is_stereo ? "stereo" : "mono", frames);
           write_wav_from_k(name, v->f, frames, channels, 44100);
         }
@@ -218,9 +221,9 @@ static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
     } else if (line[1] == 'c') {
       char *arg = line + 2;
       while (*arg == ' ') arg++;
-      char v_name = get_var(arg);
-      if (v_name) {
-        K v = ctx->vars[v_name - 'A'];
+      char v_name[256];
+      if (get_var(arg, v_name)) {
+        K v = k_get_var_str(ctx, v_name);
         if (v) {
           char name[1024];
           struct timeval tv;
@@ -229,13 +232,13 @@ static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
           
           ma_uint64 frames = v->n;
           
-          snprintf(name, sizeof(name), "%c-%f.h", v_name, ts);
-          printf("write %c to %s (%lld frames)\n", 
-                 v_name, name, frames);
+          snprintf(name, sizeof(name), "%s-%f.h", v_name, ts);
+          printf("write %s to %s (%lld frames)\n", 
+                 v_name, name, (long long)frames);
           FILE *out = fopen(name, "w+");
           if (out) {
             int c = 0;
-            fprintf(out, "float %c[%d] = {\n", v_name, frames);
+            fprintf(out, "float %s[%llu] = {\n", v_name, (unsigned long long)frames);
             for (int i=0; i<frames; i++) {
               fprintf(out, "%g, ", v->f[i]);
               c++;
@@ -246,16 +249,17 @@ static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
             fclose(out);
           }
         } else {
-          printf("nothing in %c\n", v_name);
+          printf("nothing in %s\n", v_name);
         }
       }
 
     } else if (line[1] == 'v') {
       if (line[2] == '\0') {
-        for (int v_name='A'; v_name<='Z'; v_name++) {
-          K v = ctx->vars[v_name - 'A'];
+        for (int v_loop='A'; v_loop<='Z'; v_loop++) {
+          char _tmp_name[2] = {(char)(v_loop), 0};
+        K v = k_get_var_str(ctx, _tmp_name);
           if (v) {
-            printf("%c ", v_name);
+            printf("%c ", v_loop);
             //p_view(v, opts);
             printf("[%d] ", v->n);
             printf("/ %gms ", (double)v->n / 44100.0 * 1000.0);
@@ -263,9 +267,10 @@ static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
           }
         }
       } else {
-        char v_name = get_var(line + 2);
-        if (v_name) {
-          K v = ctx->vars[v_name - 'A'];
+        char v_name[256];
+
+      if (get_var(line + 2, v_name)) {
+        K v = k_get_var_str(ctx, v_name);
           if (v) {
             printf("%c ", v_name);
             p_view(v, opts);
@@ -301,16 +306,17 @@ static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
       printf("Stopped all voices\n");
     } else if (line[1] == 'g') {
 
-        char v_name = get_var(line + 2);
-        if (v_name) {
-          K v = ctx->vars[v_name - 'A'];
+        char v_name[256];
+
+      if (get_var(line + 2, v_name)) {
+        K v = k_get_var_str(ctx, v_name);
           if (v) {
             char s[2];
-            sprintf(s, "%c", v_name);
+            sprintf(s, "%s", v_name);
             char n[16];
-            sprintf(n, "%c.gnuplot", v_name);
+            sprintf(n, "%s.gnuplot", v_name);
             k_gnuplot(v, s, n);
-            printf("/ %c.gnuplot\n", v_name);
+            printf("/ %s.gnuplot\n", v_name);
           }
         }
     }
@@ -581,7 +587,8 @@ int main(int argc, char *argv[]) {
         }
       } else {
         doit(ctx, argv[i]);
-        K v = ctx->vars['W' - 'A'];
+        char _tmp_name[2] = {(char)('W'), 0};
+        K v = k_get_var_str(ctx, _tmp_name);
         if (v) {
           if (graph) k_gnuplot(v, "W", gs);
           if (i16) {

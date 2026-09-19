@@ -1,6 +1,6 @@
 # ksynth verb reference
 
-All verbs operate on vectors of doubles. Every variable is a single uppercase letter `A`–`Z`. Right-associativity applies throughout — use parentheses to control evaluation order. Constants `p0`=44100 (sample rate), `pN`=N×π for N≥1.
+All verbs operate on vectors of doubles. Variables can be single uppercase letters `A`–`Z` or multi-letter descriptive names (e.g. `freq`, `saw`). Right-associativity applies throughout — use parentheses to control evaluation order. Constants `p0`=44100 (sample rate), `pN`=N×π for N≥1.
 
 ---
 
@@ -8,17 +8,26 @@ All verbs operate on vectors of doubles. Every variable is a single uppercase le
 
 | Syntax | Meaning |
 |--------|---------|
-| `A: expr` | Assign result of `expr` to variable `A` |
-| `F: { expr }` | Define function `F`; `x` = first arg, `y` = second arg |
-| `F arg` | Call `F` with one argument (`x`=arg) |
-| `a F b` | Call `F` with two arguments (`x`=a, `y`=b) |
+| `my_var: expr` | Assign result of `expr` to variable `my_var` |
+| `func: { expr }` | Define function `func`; `x` = first arg, `y` = second arg |
+| `func arg` | Call `func` with one argument (`x`=arg) |
+| `a func b` | Call `func` with two arguments (`x`=a, `y`=b) |
 
 ```
 / phase accumulator as reusable function
 C: p2%p0
 X: { +\(x#(y*C)) }   / x=length, y=freq_hz
 P: N X 440            / phase ramp for 440 Hz over N samples
+Q: N X 660            / phase ramp for 660 Hz over N samples
+W: w (s P) + (s Q)
 ```
+
+### built-in aliases
+ksynth automatically populates the dictionary with full-word aliases for single-character verbs:
+- **Math**: `sin`, `cos`, `tan`, `tanh`, `abs`, `sqrt`, `log`, `exp`, `floor`, `rand`, `pi`, `rev`
+- **Generators**: `idx` (`!`), `phase` (`~`)
+- **Reductions**: `sum` (`+`), `peak` (`>`), `norm` (`w`)
+- **Synthesis**: `quantize` (`v`), `left` (`j`), `right` (`k`), `saw` (`o`)
 
 ---
 

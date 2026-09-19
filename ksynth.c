@@ -47,6 +47,46 @@ static inline double safe_val(double v) {
 
 /* --- Context Lifecycle --- */
 
+
+static void bind_alias(ks_ctx *ctx, const char *name, const char *code) {
+    char *dup = strdup(code);
+    K f = k_func(ctx, dup);
+    free(dup);
+    if (!f) return;
+    int len = strlen((char*)f->f) + 1;
+    int ndoubles = (len + sizeof(double) - 1) / sizeof(double);
+    K perm = k_new_perm(ctx, ndoubles);
+    if (perm) {
+        perm->n = -1;
+        memcpy(perm->f, f->f, len);
+        k_set_var_str(ctx, name, perm);
+    }
+}
+
+static void ks_init_aliases(ks_ctx *ctx) {
+    bind_alias(ctx, "sin", "s x");
+    bind_alias(ctx, "cos", "c x");
+    bind_alias(ctx, "tan", "t x");
+    bind_alias(ctx, "tanh", "h x");
+    bind_alias(ctx, "abs", "a x");
+    bind_alias(ctx, "sqrt", "q x");
+    bind_alias(ctx, "log", "l x");
+    bind_alias(ctx, "exp", "e x");
+    bind_alias(ctx, "floor", "_ x");
+    bind_alias(ctx, "rand", "r x");
+    bind_alias(ctx, "pi", "p x");
+    bind_alias(ctx, "rev", "i x");
+    bind_alias(ctx, "idx", "! x");
+    bind_alias(ctx, "phase", "~ x");
+    bind_alias(ctx, "sum", "+ x");
+    bind_alias(ctx, "peak", "> x");
+    bind_alias(ctx, "norm", "w x");
+    bind_alias(ctx, "left", "j x");
+    bind_alias(ctx, "right", "k x");
+    bind_alias(ctx, "quantize", "v x");
+    bind_alias(ctx, "saw", "o x");
+}
+
 ks_ctx* ks_create(size_t mem_limit, long long gas_limit, double sample_rate) {
     ks_ctx *ctx = calloc(1, sizeof(ks_ctx));
     if (!ctx) return NULL;
@@ -63,6 +103,7 @@ ks_ctx* ks_create(size_t mem_limit, long long gas_limit, double sample_rate) {
     ctx->gas_limit = gas_limit;
     ctx->sample_rate = sample_rate;
     ctx->dict = NULL;
+    ks_init_aliases(ctx);
     
     return ctx;
 }
@@ -104,6 +145,7 @@ void ks_clear_vars(ks_ctx *ctx) {
         curr = next;
     }
     ctx->dict = NULL;
+    ks_init_aliases(ctx);
     ctx->args[0] = NULL;
     ctx->args[1] = NULL;
 }
@@ -771,8 +813,7 @@ int ks_lex(ks_ctx *ctx, const char *code, Token *tokens, int max_tokens) {
             }
         }
 
-        if ((*p >= '0' && *p <= '9') || (*p == '.' && p[1] >= '0' && p[1] <= '9') ||
-            (*p == '-' && ((p[1] >= '0' && p[1] <= '9') || p[1] == '.'))) {
+        if ((*p >= '0' && *p <= '9') || (*p == '.' && p[1] >= '0' && p[1] <= '9')) {
             double buf[1024]; int n = 0;
             char *ptr = (char*)p;
             while (n < 1024) {
@@ -939,6 +980,16 @@ K atom_tok(ks_ctx *ctx, Token **t) {
     if (strcmp(word, "y") == 0) return ctx->args[1] ? ctx->args[1] : k_new(ctx, 0);
     
     // Monadic/Adverb evaluation
+    // Unary minus
+    if (strcmp(word, "-") == 0) {
+        K arg = expr_tok(ctx, t);
+        if (!arg) return NULL;
+        K x = k_new(ctx, arg->n);
+        for(int i=0; i<arg->n; i++) x->f[i] = -arg->f[i];
+        k_free(ctx, arg);
+        return x;
+    }
+
     int is_scan = 0;
     if ((*t)->type == TOK_SYM && (*t)->c_val == '\\') {
         is_scan = 1;
@@ -996,6 +1047,85 @@ K e_tok(ks_ctx *ctx, Token **t) {
 }
 
 
+
+/* --- Missing Helpers --- */
+
+
+K k_from_f64(ks_ctx *ctx, int n, const double *ptr) {
+    K x = k_new(ctx, n);
+    if (x && ptr) {
+        GAS_CHECK(ctx, n);
+        memcpy(x->f, ptr, n * sizeof(double));
+    }
+    return x;
+}
+
+K k_from_f32(ks_ctx *ctx, int n, const float *ptr) {
+    K x = k_new(ctx, n);
+    if (x && ptr) {
+        GAS_CHECK(ctx, n);
+        for (int i = 0; i < n; i++) x->f[i] = (double)ptr[i];
+    }
+    return x;
+}
+
+K k_from_i32(ks_ctx *ctx, int n, const int *ptr) {
+    K x = k_new(ctx, n);
+    if (x && ptr) {
+        GAS_CHECK(ctx, n);
+        for (int i = 0; i < n; i++) x->f[i] = (double)ptr[i];
+    }
+    return x;
+}
+
+int k_copy_to_f64(K x, double *out, int max_n) {
+    if (!x || !out || max_n <= 0 || x->n <= 0) return 0;
+    int n = x->n < max_n ? x->n : max_n;
+    memcpy(out, x->f, (size_t)n * sizeof(double));
+    return n;
+}
+
+int k_copy_to_f32(K x, float *out, int max_n) {
+    if (!x || !out || max_n <= 0 || x->n <= 0) return 0;
+    int n = x->n < max_n ? x->n : max_n;
+    for (int i = 0; i < n; i++) out[i] = (float)x->f[i];
+    return n;
+}
+
+int k_copy_to_i32(K x, int *out, int max_n) {
+    if (!x || !out || max_n <= 0 || x->n <= 0) return 0;
+    int n = x->n < max_n ? x->n : max_n;
+    for (int i = 0; i < n; i++) out[i] = (int)x->f[i];
+    return n;
+}
+
+void bind_array_f64(ks_ctx *ctx, char name, int n, const double *ptr) {
+    ks_bind_vector(ctx, name, ptr, n);
+}
+
+void bind_array_f32(ks_ctx *ctx, char name, int n, const float *ptr) {
+    K x = k_from_f32(ctx, n, ptr);
+    char vn[2] = {name, 0};
+    if (x) {
+        K perm = k_new_perm(ctx, x->n);
+        if (perm) {
+            memcpy(perm->f, x->f, x->n * sizeof(double));
+            k_set_var_str(ctx, vn, perm);
+        }
+    }
+}
+
+void bind_array_i32(ks_ctx *ctx, char name, int n, const int *ptr) {
+    K x = k_from_i32(ctx, n, ptr);
+    char vn[2] = {name, 0};
+    if (x) {
+        K perm = k_new_perm(ctx, x->n);
+        if (perm) {
+            memcpy(perm->f, x->f, x->n * sizeof(double));
+            k_set_var_str(ctx, vn, perm);
+        }
+    }
+}
 
 /* --- Public API --- */
 
