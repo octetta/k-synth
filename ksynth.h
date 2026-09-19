@@ -120,12 +120,22 @@ float *ks_get_buffer(void);
 int ks_get_length(void);
 const char *ks_get_error(void);
 
-#endif
 
-/*
-Copyright (c) 2026 octetta / Joseph Stewart
-MIT LICENSE AT https://github.com/octetta/k-synth
-*/
 
+/* Extended Types and API */
 K k_get_var_str(ks_ctx *ctx, const char *name);
 void k_set_var_str(ks_ctx *ctx, const char *name, K x);
+ks_status ks_bind_vector_str(ks_ctx *ctx, const char *name, const double *values, size_t length);
+
+K k_from_f64(ks_ctx *ctx, int n, const double *ptr);
+K k_from_f32(ks_ctx *ctx, int n, const float *ptr);
+K k_from_i32(ks_ctx *ctx, int n, const int *ptr);
+int k_copy_to_f64(K x, double *out, int max_n);
+int k_copy_to_f32(K x, float *out, int max_n);
+int k_copy_to_i32(K x, int *out, int max_n);
+void bind_array_f64(ks_ctx *ctx, char name, int n, const double *ptr);
+void bind_array_f32(ks_ctx *ctx, char name, int n, const float *ptr);
+void bind_array_i32(ks_ctx *ctx, char name, int n, const int *ptr);
+
+#endif
+
