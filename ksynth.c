@@ -735,13 +735,13 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
     }
 
     if (c == 'D') {
-        int dd   = (int)a->f[0];
-        double g = (a->n > 1) ? a->f[1] : 0.4;
-        GAS_CHECK(ctx, b->n);
-        x = k_new(ctx, b->n);
-        for (int i = 0; i < b->n; i++) {
+        int dd   = (int)b->f[0];
+        double g = (b->n > 1) ? b->f[1] : 0.4;
+        GAS_CHECK(ctx, a->n);
+        x = k_new(ctx, a->n);
+        for (int i = 0; i < a->n; i++) {
             double delayed = (i >= dd) ? x->f[i-dd] : 0;
-            x->f[i] = safe_val(b->f[i] + (g * delayed));
+            x->f[i] = safe_val(a->f[i] + (g * delayed));
         }
         k_free(ctx, a); k_free(ctx, b); return x;
     }
@@ -1074,6 +1074,13 @@ K expr_tok(ks_ctx *ctx, Token **t) {
     
     // Dyadic operator
     if ((*t)->type == TOK_ID) {
+        K op_func = k_get_var_str(ctx, (*t)->str_val);
+        if (k_is_func(op_func)) {
+            (*t)++;
+            K b = expr_tok(ctx, t);
+            K call_args[2] = {x, b};
+            return k_call(ctx, op_func, call_args, 2);
+        }
         char op = (*t)->str_val[0];
         (*t)++;
         return dy(ctx, op, x, expr_tok(ctx, t));
