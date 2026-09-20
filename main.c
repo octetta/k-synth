@@ -65,6 +65,14 @@ void cb(ma_device* d, void* o, const void* i, ma_uint32 n) {
     
     voices[v].idx = idx;
   }
+  
+  // Apply -12dB headroom and hard clip to prevent digital crackle
+  float master_linear = 0.25f; // ~ -12dB headroom
+  for (ma_uint32 j = 0; j < n * 2; j++) {
+    out[j] *= master_linear;
+    if (out[j] > 1.0f) out[j] = 1.0f;
+    else if (out[j] < -1.0f) out[j] = -1.0f;
+  }
 }
 
 int write_wav_from_k(char* name, double* ptr, ma_uint64 frames, ma_uint32 chans, ma_uint32 sample_rate);
