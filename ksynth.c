@@ -338,7 +338,14 @@ K k_call(ks_ctx *ctx, K fn, K *call_args, int nargs) {
     if (nargs > 0 && call_args[0]) ctx->args[0] = call_args[0];
     if (nargs > 1 && call_args[1]) ctx->args[1] = call_args[1];
 
-    Token tokens[4096];
+    int tok_sz = 4096 * sizeof(Token);
+    if (ctx->arena_ptr + tok_sz > ctx->arena_end) {
+        ctx->last_status = KS_ERR_OOM;
+        longjmp(ctx->recover, 1);
+    }
+    Token *tokens = (Token*)ctx->arena_ptr;
+    ctx->arena_ptr += tok_sz;
+
     ks_lex(ctx, body, tokens, 4096);
     Token *t = tokens;
     K result = e_tok(ctx, &t);
