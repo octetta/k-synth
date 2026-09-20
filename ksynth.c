@@ -913,24 +913,10 @@ int ks_lex(ks_ctx *ctx, const char *code, Token *tokens, int max_tokens) {
             }
             buf[wl] = 0;
 
-            if (wl > 1) {
-                // Check if the whole word is a registered variable
-                if (k_get_var_str(ctx, buf)) {
-                    tokens[count].type = TOK_ID;
-                    strcpy(tokens[count].str_val, buf);
-                    count++;
-                    p = ptr;
-                    continue;
-                }
-                // (Future: check multi-letter verbs here. For now, fall through).
-            }
-
-            // Fallback: emit only the first character!
             tokens[count].type = TOK_ID;
-            tokens[count].str_val[0] = *p;
-            tokens[count].str_val[1] = '\0';
+            strcpy(tokens[count].str_val, buf);
             count++;
-            p++;
+            p = ptr;
             continue;
         }
 

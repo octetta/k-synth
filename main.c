@@ -311,7 +311,7 @@ static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
       if (get_var(line + 2, v_name)) {
         K v = k_get_var_str(ctx, v_name);
           if (v) {
-            printf("%c ", v_name);
+            printf("%s ", v_name);
             p_view(v, opts);
           }
         }

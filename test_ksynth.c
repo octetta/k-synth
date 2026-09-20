@@ -212,7 +212,7 @@ static void test_normalize(void) {
     printf("\n-- w normalize --\n");
     reset_vars();
     run("A: -3 1 2");
-    K x = run("wA");
+    K x = run("w A");
     if (!x) { printf("FAIL [w NULL]\n"); fail++; return; }
     double peak = 0.0;
     for (int i = 0; i < x->n; i++) if (fabs(x->f[i]) > peak) peak = fabs(x->f[i]);
@@ -225,7 +225,7 @@ static void test_normalize(void) {
     /* normalizing zero vector should not crash */
     reset_vars();
     run("Z: 0 0 0");
-    K z = run("wZ");
+    K z = run("w Z");
     if (z) { k_free(z); printf("pass [w zero no crash]\n"); pass++; }
     else   { printf("FAIL [w zero returned NULL]\n"); fail++; }
 }
@@ -257,9 +257,9 @@ static void test_reverse(void) {
     printf("\n-- i reverse --\n");
     reset_vars();
     run("A: !4");
-    check_elem("iA [0]=3", "iA", 0, 3.0, 1e-9);
-    check_elem("iA [3]=0", "iA", 3, 0.0, 1e-9);
-    check_len ("iA len=4", "iA", 4);
+    check_elem("i A [0]=3", "i A", 0, 3.0, 1e-9);
+    check_elem("i A [3]=0", "i A", 3, 0.0, 1e-9);
+    check_len ("i A len=4", "i A", 4);
 }
 
 static void test_scan(void) {
@@ -361,15 +361,15 @@ static void test_normalize_wavetable(void) {
     run("H: H+1");
     run("A: 1%H");
     run("W: P o (H*A)");
-    K n = run("wW");
-    if (!n) { printf("FAIL [wW NULL]\n"); fail++; return; }
+    K n = run("w W");
+    if (!n) { printf("FAIL [w W NULL]\n"); fail++; return; }
     double peak = 0.0;
     for (int i = 0; i < n->n; i++) if (fabs(n->f[i]) > peak) peak = fabs(n->f[i]);
     k_free(n);
     if (fabs(peak - 1.0) < 1e-6) {
-        printf("pass [wW peak=1.0]\n"); pass++;
+        printf("pass [w W peak=1.0]\n"); pass++;
     } else {
-        printf("FAIL [wW peak=%.6f]\n", peak); fail++;
+        printf("FAIL [w W peak=%.6f]\n", peak); fail++;
     }
 }
 
@@ -403,15 +403,15 @@ static void test_quantize(void) {
     reset_vars();
     run("A: 0.9 0.5 0.1");
     /* monadic: 4 levels */
-    check_elem("v mono [0]",  "vA",    0, 0.75, 1e-9);
-    check_elem("v mono [2]",  "vA",    2, 0.0,  1e-9);
+    check_elem("v mono [0]",  "v A",    0, 0.75, 1e-9);
+    check_elem("v mono [2]",  "v A",    2, 0.0,  1e-9);
     /* dyadic: 2 levels */
-    check_elem("2vA [0]",     "2 v A", 0, 0.5,  1e-9);
+    check_elem("2v A [0]",     "2 v A", 0, 0.5,  1e-9);
     /* dyadic: 16 levels */
-    check_elem("16vA [0]",    "16 v A", 0, 0.875, 1e-9);
+    check_elem("16v A [0]",    "16 v A", 0, 0.875, 1e-9);
     /* dyadic: 256 levels (8-bit) */
     run("B: 0.5");
-    check_elem("256vB",       "256 v B", 0, 0.5, 1e-9);
+    check_elem("256v B",       "256 v B", 0, 0.5, 1e-9);
 }
 
 static void test_delay(void) {
@@ -497,8 +497,8 @@ static void test_stereo(void) {
     check_elem("S[1]=5",    "S",  1, 5.0, 1e-9);
     check_elem("S[6]=4",    "S",  6, 4.0, 1e-9);
     check_elem("S[7]=8",    "S",  7, 8.0, 1e-9);
-    check_elem("jS[0]=1",   "jS", 0, 1.0, 1e-9);
-    check_elem("kS[0]=5",   "kS", 0, 5.0, 1e-9);
+    check_elem("j S[0]=1",   "j S", 0, 1.0, 1e-9);
+    check_elem("k S[0]=5",   "k S", 0, 5.0, 1e-9);
 }
 
 static void test_safe_val(void) {
