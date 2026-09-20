@@ -265,7 +265,8 @@ The `analyze` verb (operator `F`) computes a Discrete Fourier Transform (DFT) sp
 
 ```
 / Load a single-cycle piano waveform using the host REPL command
-\ra wave piano_cycle.wav
+
+\ra wave piano_cycle.wav
 
 / Analyze the wave and extract the first 64 harmonic amplitudes
 amps: wave analyze 64
@@ -282,6 +283,24 @@ reconstruction: P $ amps
 `e(T*(0-k%N))` gives a pure exponential decay from 1 to `e^-k` over N
 samples. Adjust `k` to control the decay time. For a percussive rise-and-fall
 shape, `T*e(T*(0-k%N))` peaks at sample `N/k` then decays naturally.
+
+#### Envelope Extraction (Envelope Following)
+
+You can extract the amplitude contour (ADSR envelope) from any loaded sample natively using K-Synth's primitives. By taking the absolute value (`a`) to rectify the signal, and passing it through a heavy low-pass filter (`f`), you create a classic envelope follower.
+
+```
+/ Load a drum sample (e.g. a TR-808 snare)
+\ra snare tr808_snare.wav
+
+/ Extract the envelope (lower filter cutoff = smoother envelope)
+env: 0.005 f a snare
+
+/ Apply the snare's organic envelope to a synthesized oscillator
+N: 44100
+P: +\(N#(110*6.28318%N))
+bass: w P o 1 3 5
+result: bass * env
+```
 
 Soft clipping with `d` (`tanh(3x)`) adds saturation and tames peaks without
 hard discontinuities. Hard clipping uses min/max: `x & -limit | limit`.
