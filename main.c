@@ -12,7 +12,7 @@
 #include "bestline.h"
 #endif
 
-#define MAX_VOICES 8  // Maximum simultaneous playback voices
+int max_voices = 8;
 
 typedef struct {
   K buffer;           // Audio buffer
@@ -21,7 +21,7 @@ typedef struct {
   int active;         // 1 = playing, 0 = empty slot
 } Voice;
 
-volatile Voice voices[MAX_VOICES] = {0};
+volatile Voice* voices = NULL;
 
 void cb(ma_device* d, void* o, const void* i, ma_uint32 n) {
   float* out = (float*)o;
@@ -32,7 +32,7 @@ void cb(ma_device* d, void* o, const void* i, ma_uint32 n) {
   }
   
   // Mix all active voices
-  for (int v = 0; v < MAX_VOICES; v++) {
+  for (int v = 0; v < max_voices; v++) {
     if (!voices[v].active) continue;
     
     K buf = voices[v].buffer;
@@ -182,7 +182,7 @@ static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
         if (v) {
           // Find empty voice slot
           int slot = -1;
-          for (int i = 0; i < MAX_VOICES; i++) {
+          for (int i = 0; i < max_voices; i++) {
             if (!voices[i].active) {
               slot = i;
               break;
@@ -190,7 +190,7 @@ static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
           }
           
           if (slot == -1) {
-            printf("No free voice slots (max %d)\n", MAX_VOICES);
+            printf("No free voice slots (max %d)\n", max_voices);
             return;
           }
           
@@ -320,7 +320,7 @@ static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
     } else if (line[1] == 'x') {
       // \x - show playing voices
       printf("Active voices:\n");
-      for (int i = 0; i < MAX_VOICES; i++) {
+      for (int i = 0; i < max_voices; i++) {
         if (voices[i].active && voices[i].buffer) {
           K buf = voices[i].buffer;
           int pct = (voices[i].idx * 100) / buf->n;
@@ -335,7 +335,7 @@ static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
       
     } else if (line[1] == 'q') {
       // \q - stop all playback
-      for (int i = 0; i < MAX_VOICES; i++) {
+      for (int i = 0; i < max_voices; i++) {
         if (voices[i].buffer) {
           k_free(ctx, (K)voices[i].buffer);
           voices[i].buffer = NULL;
@@ -537,7 +537,7 @@ void usage(int f) {
   if (f) {
     printf("exit \\l load | \\p[s] play | \\w wait | \\s[s] save | \\v view | \\t toggle\n");
     printf("\\g[s] gnuplot | \\i[s] s.i16 | \\f[s] s.f32\n");
-    printf("\\x status | \\q stop all | up to %d simultaneous voices\n", MAX_VOICES);
+    printf("\\x status | \\q stop all | up to %d simultaneous voices\n", max_voices);
   }
 }
 
@@ -594,7 +594,7 @@ int audio_start(void) {
 
 int audio_end(ks_ctx *ctx) {
   // Cleanup voices
-  for (int i = 0; i < MAX_VOICES; i++) {
+  for (int i = 0; i < max_voices; i++) {
     if (voices[i].buffer) {
       k_free(ctx, (K)voices[i].buffer);
     }
@@ -610,6 +610,7 @@ int main(int argc, char *argv[]) {
   int f32 = 0;
   //                      mem           gas
   ks_ctx *ctx = ks_create(16*1024*1024, 1000000, 44100.0); // guessing at limits???
+  voices = calloc(max_voices, sizeof(Voice));
   audio_start();
   if (argc > 1) {
     char gs[] = "W.gnuplot";
@@ -623,6 +624,7 @@ int main(int argc, char *argv[]) {
           case 'i': i16 = (i16 == 0) ? 1 : 0; break;
           case 'f': f32 = (f32 == 0) ? 1 : 0; break;
           case 't': show = (show == 0) ? 1 : 0; break;
+          case 'v': max_voices = atoi(&argv[i][2]); break;
         }
       } else {
         doit(ctx, argv[i]);
