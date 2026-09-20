@@ -460,12 +460,20 @@ static void test_comments(void) {
 static void test_function_literal(void) {
     printf("\n-- function literals --\n");
     reset_vars();
-    /* F: {x+1} ; F 3 -> 4 */
+        /* F: {x+1} ; F 3 -> 4 */
     run("F: {x+1}");
     check_scalar("fn x+1",    "F 3",   4.0, 1e-9);
     check_scalar("fn x*2",    "F 9",   10.0, 1e-9);
+    
     /* two-arg function */
-    run("G: {x+y}");
+    run("add: {x+y}");
+    check_scalar("dyadic add", "5 add 3", 8.0, 1e-9);
+    
+    /* variable clash with implicit args */
+    run("x: 99");
+    run("y: 100");
+    run("sqr: {x*x}");
+    check_scalar("implicit x prioritized over global x", "sqr 5", 25.0, 1e-9);
     reset_vars();
     run("G: {x+y}");
     /* direct call via expression — dyadic application */

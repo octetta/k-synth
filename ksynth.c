@@ -973,6 +973,14 @@ K atom_tok(ks_ctx *ctx, Token **t) {
         return x;
     }
     
+    // Implicit args (prioritize over globals)
+    if (strcmp(word, "x") == 0) {
+        if (ctx->args[0]) return ctx->args[0];
+    }
+    if (strcmp(word, "y") == 0) {
+        if (ctx->args[1]) return ctx->args[1];
+    }
+
     // Is it a variable lookup?
     K first = k_get_var_str(ctx, word);
     if (first) {
@@ -1008,9 +1016,7 @@ K atom_tok(ks_ctx *ctx, Token **t) {
         return x;
     }
     
-    // Implicit args
-    if (strcmp(word, "x") == 0) return ctx->args[0] ? ctx->args[0] : k_new(ctx, 0);
-    if (strcmp(word, "y") == 0) return ctx->args[1] ? ctx->args[1] : k_new(ctx, 0);
+
     
     // Monadic/Adverb evaluation
     // Unary minus
