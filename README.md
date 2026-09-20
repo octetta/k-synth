@@ -259,6 +259,24 @@ A: 1 0.6 0.4 0.25 0.15 0.08
 W: w P $ A
 ```
 
+#### Additive Analysis and Reconstruction
+
+The `analyze` verb (operator `F`) computes a Discrete Fourier Transform (DFT) specifically formatted to extract peak harmonic amplitudes from an array. It creates perfect symmetry with the `$` synthesis verb, allowing you to sample, analyze, and instantly reconstruct any waveform.
+
+```
+/ Load a single-cycle piano waveform using the host REPL command
+\ra wave piano_cycle.wav
+
+/ Analyze the wave and extract the first 64 harmonic amplitudes
+amps: wave analyze 64
+
+/ Synthesize a new pitch using those extracted harmonics!
+N: 44100
+F: 110*(6.28318%44100)
+P: +\(N#F)
+reconstruction: P $ amps
+```
+
 #### Envelopes and Dynamics
 
 `e(T*(0-k%N))` gives a pure exponential decay from 1 to `e^-k` over N
@@ -360,7 +378,7 @@ python3 -m http.server 8080
 |---------|---------|-------|
 | Variables | `freq: 440` | Assign to descriptive variable names |
 | Functions | `f: {x * y}` | Define lambdas (`x` and `y` are implicit args) |
-| Built-in Aliases | `sin(P)` / `norm(W)` | `sin`, `cos`, `tan`, `tanh`, `abs`, `sqrt`, `log`, `exp`, `floor`, `rand`, `pi`, `rev`, `idx`, `phase`, `sum`, `peak`, `norm`, `left`, `right`, `quantize`, `saw` |
+| Built-in Aliases | `sin(P)` / `norm(W)` | `sin`, `cos`, `tan`, `tanh`, `abs`, `sqrt`, `log`, `exp`, `floor`, `rand`, `pi`, `rev`, `idx`, `phase`, `sum`, `peak`, `norm`, `left`, `right`, `quantize`, `saw`, `slice`, `speed`, `delay`, `analyze` |
 | Index vector | `!N` or `idx(N)` | `[0, 1, …, N-1]` |
 | Phase accumulator | `+\(N#F)` | Oscillator at frequency F |
 | Sine / cosine | `s P` / `c P` | Elementwise |
@@ -370,6 +388,7 @@ python3 -m http.server 8080
 | Lowpass filter | `ct f sig` | Two-pole, ct=0..1 |
 | Additive equal | `P o H` / `saw(P; H)` | Sum harmonics in H |
 | Additive weighted | `P $ A` | Weighted harmonic series |
+| Analyze / DFT | `wave analyze 64` / `wave F 64` | Extracts harmonic amplitudes |
 | FM synthesis | `s P+(I*s Q)` | Right-assoc gives FM naturally |
 | Concatenate | `A,B,C` | Build patterns |
 | Tile | `N#V` | Repeat V to length N |
