@@ -125,6 +125,45 @@ static void handle_line_single(ks_ctx *ctx, char* line, size_t len) {
       
     } else if (line[1] == '?') {
       usage(1);
+    } else if (line[1] == 'r' && line[2] == 'a') {
+      char *arg = line + 3;
+      while (*arg == ' ') arg++;
+      char v_name[256];
+      if (get_var(arg, v_name)) {
+          char *file_start = arg;
+          while (*file_start && *file_start != ' ') file_start++;
+          while (*file_start == ' ') file_start++;
+          char *file_end = file_start;
+          while (*file_end && *file_end != '\n') file_end++;
+          *file_end = '\0';
+
+          if (*file_start) {
+              ma_decoder decoder;
+              ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 1, 44100);
+              if (ma_decoder_init_file(file_start, &config, &decoder) == MA_SUCCESS) {
+                  ma_uint64 frames;
+                  ma_decoder_get_length_in_pcm_frames(&decoder, &frames);
+                  float* buf = malloc(frames * sizeof(float));
+                  if (buf) {
+                      ma_uint64 framesRead;
+                      ma_decoder_read_pcm_frames(&decoder, buf, frames, &framesRead);
+                      K x = k_from_f32(ctx, (int)framesRead, buf);
+                      if (x) {
+                          K perm = k_new_perm(ctx, x->n);
+                          if (perm) {
+                              memcpy(perm->f, x->f, x->n * sizeof(double));
+                              k_set_var_str(ctx, v_name, perm);
+                              printf("Loaded %llu frames into %s\n", (unsigned long long)framesRead, v_name);
+                          }
+                      }
+                      free(buf);
+                  }
+                  ma_decoder_uninit(&decoder);
+              } else {
+                  printf("Failed to load audio file: %s\n", file_start);
+              }
+          }
+      }
     } else if (line[1] == 'p') {
       // \p X    - play mono (duplicate to both channels)
       // \ps X   - play stereo (interleaved L/R)

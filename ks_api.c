@@ -267,6 +267,24 @@ const char *ks_ctx_repl_str(uintptr_t handle) {
     return st->repl_str;
 }
 
+int ks_ctx_get_var_str(uintptr_t handle, const char *vname) {
+    ks_api_state *st = ks_api_find(handle);
+    if (!st || !st->ctx || !vname) return 0;
+
+    free(st->var_buf);
+    st->var_buf = NULL;
+    st->var_len = 0;
+
+    K v = k_get_var_str(st->ctx, vname);
+    if (!v || v->n <= 0) return 0;
+
+    st->var_buf = (float*)malloc((size_t)v->n * sizeof(float));
+    if (!st->var_buf) return 0;
+    for (int i = 0; i < v->n; i++) st->var_buf[i] = (float)v->f[i];
+    st->var_len = v->n;
+    return v->n;
+}
+
 int ks_ctx_get_var(uintptr_t handle, int letter_upper) {
     ks_api_state *st = ks_api_find(handle);
     if (!st || !st->ctx) return 0;
@@ -395,4 +413,20 @@ const char *ks_get_error(void) {
     if (!st || !st->ctx) return "";
     if (st->ctx->last_status != KS_OK) return ks_strerror(st->ctx->last_status);
     return "";
+}
+
+int ks_ctx_set_var_str_f32(uintptr_t handle, const char *vname, const float *buf, int len) {
+    ks_api_state *st = ks_api_find(handle);
+    if (!st || !st->ctx || !vname || !buf || len < 0) return 0;
+    
+    K x = k_from_f32(st->ctx, len, buf);
+    if (x) {
+        K perm = k_new_perm(st->ctx, x->n);
+        if (perm) {
+            memcpy(perm->f, x->f, x->n * sizeof(double));
+            k_set_var_str(st->ctx, vname, perm);
+            return 1;
+        }
+    }
+    return 0;
 }

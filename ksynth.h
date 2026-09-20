@@ -99,6 +99,7 @@ void ks_ctx_destroy(uintptr_t handle);
 int ks_ctx_run(uintptr_t handle, const char *script);
 int ks_ctx_repl(uintptr_t handle, const char *expr);
 const char *ks_ctx_repl_str(uintptr_t handle);
+int ks_ctx_get_var_str(uintptr_t handle, const char *vname);
 int ks_ctx_get_var(uintptr_t handle, int letter_upper);
 float *ks_ctx_get_var_buf(uintptr_t handle);
 int ks_ctx_repl_length(uintptr_t handle);
@@ -139,3 +140,4 @@ void bind_array_i32(ks_ctx *ctx, char name, int n, const int *ptr);
 
 #endif
 
+int ks_ctx_set_var_str_f32(uintptr_t handle, const char *vname, const float *buf, int len);

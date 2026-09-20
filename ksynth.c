@@ -85,6 +85,9 @@ static void ks_init_aliases(ks_ctx *ctx) {
     bind_alias(ctx, "right", "k x");
     bind_alias(ctx, "quantize", "v x");
     bind_alias(ctx, "saw", "o x");
+    bind_alias(ctx, "slice", "x S y");
+    bind_alias(ctx, "speed", "x Z y");
+    bind_alias(ctx, "delay", "x D y");
 }
 
 ks_ctx* ks_create(size_t mem_limit, long long gas_limit, double sample_rate) {
@@ -731,6 +734,50 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
         k_free(ctx, a); k_free(ctx, b); return x;
     }
 
+    if (c == 'D') {
+        int dd   = (int)a->f[0];
+        double g = (a->n > 1) ? a->f[1] : 0.4;
+        GAS_CHECK(ctx, b->n);
+        x = k_new(ctx, b->n);
+        for (int i = 0; i < b->n; i++) {
+            double delayed = (i >= dd) ? x->f[i-dd] : 0;
+            x->f[i] = safe_val(b->f[i] + (g * delayed));
+        }
+        k_free(ctx, a); k_free(ctx, b); return x;
+    }
+
+    if (c == 'S') {
+        int start = 0;
+        int len = 0;
+        if (b->n >= 1) start = (int)b->f[0];
+        if (b->n >= 2) len = (int)b->f[1];
+        if (len <= 0) { k_free(ctx, a); k_free(ctx, b); return k_new(ctx, 0); }
+        GAS_CHECK(ctx, len);
+        x = k_new(ctx, len);
+        for (int i = 0; i < len; i++) {
+            int idx = start + i;
+            x->f[i] = (idx >= 0 && idx < a->n) ? a->f[idx] : 0.0;
+        }
+        k_free(ctx, a); k_free(ctx, b); return x;
+    }
+
+    if (c == 'Z') {
+        double speed = (b->n > 0) ? b->f[0] : 1.0;
+        if (speed <= 0.0) speed = 1.0;
+        int len = (int)((double)a->n / speed);
+        GAS_CHECK(ctx, len);
+        x = k_new(ctx, len);
+        for(int i=0; i<len; i++) {
+            double pos = i * speed;
+            int idx = (int)pos;
+            double frac = pos - idx;
+            double v1 = (idx >= 0 && idx < a->n) ? a->f[idx] : 0.0;
+            double v2 = (idx+1 >= 0 && idx+1 < a->n) ? a->f[idx+1] : 0.0;
+            x->f[i] = v1 * (1.0 - frac) + v2 * frac;
+        }
+        k_free(ctx, a); k_free(ctx, b); return x;
+    }
+
     if (c == ',') {
         int n = a->n + b->n;
         GAS_CHECK(ctx, n);
@@ -1008,7 +1055,7 @@ K expr_tok(ks_ctx *ctx, Token **t) {
         // Is the next token an operator?
         int is_operator = 0;
         if ((*t)->type == TOK_ID && strlen((*t)->str_val) == 1) {
-            if (strchr("+-*%^&|<>=,#osfzt haqle rpciw dvmbu jkn g", (*t)->str_val[0])) {
+            if (strchr("+-*%^&|<>=,#osfzt haqle rpciw dvmbu jkn gSZD", (*t)->str_val[0])) {
                 is_operator = 1;
             }
         }
