@@ -88,6 +88,7 @@ static void ks_init_aliases(ks_ctx *ctx) {
     bind_alias(ctx, "slice", "x S y");
     bind_alias(ctx, "speed", "x Z y");
     bind_alias(ctx, "delay", "x D y");
+    bind_alias(ctx, "analyze", "x F y");
 }
 
 ks_ctx* ks_create(size_t mem_limit, long long gas_limit, double sample_rate) {
@@ -761,6 +762,27 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
         k_free(ctx, a); k_free(ctx, b); return x;
     }
 
+    if (c == 'F') {
+        if (a->n == 0) { k_free(ctx, a); k_free(ctx, b); return k_new(ctx, 0); }
+        int max_h = (b->n > 0) ? (int)b->f[0] : 128;
+        if (max_h <= 0) max_h = 1;
+        if (max_h > 10000) max_h = 10000;
+        GAS_CHECK(ctx, (long long)a->n * max_h);
+        x = k_new(ctx, max_h);
+        double two_pi_over_N = 2.0 * M_PI / a->n;
+        for (int k = 0; k < max_h; k++) {
+            double h = k + 1;
+            double re = 0.0, im = 0.0;
+            for (int n = 0; n < a->n; n++) {
+                double angle = two_pi_over_N * h * n;
+                re += a->f[n] * cos(angle);
+                im += a->f[n] * sin(angle);
+            }
+            x->f[k] = (2.0 / a->n) * sqrt(re * re + im * im);
+        }
+        k_free(ctx, a); k_free(ctx, b); return x;
+    }
+
     if (c == 'Z') {
         double speed = (b->n > 0) ? b->f[0] : 1.0;
         if (speed <= 0.0) speed = 1.0;
@@ -1047,7 +1069,7 @@ K expr_tok(ks_ctx *ctx, Token **t) {
         // Is the next token an operator?
         int is_operator = 0;
         if ((*t)->type == TOK_ID && strlen((*t)->str_val) == 1) {
-            if (strchr("+-*%^&|<>=,#osfzt haqle rpciw dvmbu jkn gSZD", (*t)->str_val[0])) {
+            if (strchr("+-*%^&|<>=,#osfzt haqle rpciw dvmbu jkn gSZDF", (*t)->str_val[0])) {
                 is_operator = 1;
             }
         }
