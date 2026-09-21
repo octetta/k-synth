@@ -807,6 +807,100 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
         k_free(ctx, a); k_free(ctx, b); return x;
     }
 
+    if (c == 'X') {
+        /* Dyadic X: W X threshold — zero-crossing finder.
+           Returns array of sample indices where W crosses zero.
+           A crossing is detected when adjacent samples change sign,
+           or when |W[i]| <= threshold.
+           Useful for finding click-free cut/splice points for loops.
+           Example: ZC: W X 0.01    / find all zero crossings */
+        double thresh = (b->n > 0) ? fabs(b->f[0]) : 0.001;
+        /* First pass: count crossings */
+        int cnt = 0;
+        for (int i = 0; i < a->n - 1; i++) {
+            double v0 = a->f[i], v1 = a->f[i + 1];
+            if ((v0 >= 0 && v1 < 0) || (v0 < 0 && v1 >= 0) ||
+                fabs(v0) <= thresh) {
+                cnt++;
+            }
+        }
+        GAS_CHECK(ctx, cnt > 0 ? cnt : 1);
+        x = k_new(ctx, cnt > 0 ? cnt : 1);
+        if (cnt == 0) { x->f[0] = 0; k_free(ctx, a); k_free(ctx, b); return x; }
+        int xi = 0;
+        for (int i = 0; i < a->n - 1 && xi < cnt; i++) {
+            double v0 = a->f[i], v1 = a->f[i + 1];
+            if ((v0 >= 0 && v1 < 0) || (v0 < 0 && v1 >= 0) ||
+                fabs(v0) <= thresh) {
+                x->f[xi++] = (double)i;
+            }
+        }
+        k_free(ctx, a); k_free(ctx, b); return x;
+    }
+
+    if (c == 'L') {
+        /* Dyadic L: W L (period window) — loop similarity score.
+           For each position i in W, computes the RMS difference between
+           W[i..i+window] and W[i+period..i+period+window].
+           Lower values indicate better loop splice points.
+           Returns array of scores (same length as W).
+           Positions where the comparison window exceeds array bounds
+           are assigned a large penalty value (1e6).
+           Example: SC: W L (88200 512)   / score 2-second loop candidates */
+        int period = (b->n > 0) ? (int)b->f[0] : 44100;
+        int window = (b->n > 1) ? (int)b->f[1] : 512;
+        if (period < 1) period = 1;
+        if (window < 1) window = 1;
+        GAS_CHECK(ctx, (long long)a->n + (long long)a->n * window);
+        x = k_new(ctx, a->n);
+        for (int i = 0; i < a->n; i++) {
+            if (i + window > a->n || i + period + window > a->n) {
+                x->f[i] = 1e6;
+                continue;
+            }
+            double sum = 0.0;
+            for (int j = 0; j < window; j++) {
+                double diff = a->f[i + j] - a->f[i + period + j];
+                sum += diff * diff;
+            }
+            x->f[i] = sqrt(sum / window);
+        }
+        k_free(ctx, a); k_free(ctx, b); return x;
+    }
+
+    if (c == 'J') {
+        /* Dyadic J: W J (start end xfade) — crossfade loop join.
+           Creates a copy of W with a crossfade applied at the loop boundary.
+           The last xfade samples before end are blended with the first
+           xfade samples after start, so that looping from start to end
+           produces a seamless, click-free transition.
+           If xfade is omitted, defaults to 4410 samples (0.1s at 44100).
+           Output has the same length as input W.
+           Example: W2: W J (11025 99225 2205)   / crossfade 50ms at loop seam */
+        int start = (b->n > 0) ? (int)b->f[0] : 0;
+        int end   = (b->n > 1) ? (int)b->f[1] : a->n;
+        int xfade = (b->n > 2) ? (int)b->f[2] : 4410;
+        if (start < 0) start = 0;
+        if (end > a->n) end = a->n;
+        if (xfade > end - start) xfade = end - start;
+        if (xfade < 1) xfade = 1;
+        GAS_CHECK(ctx, a->n);
+        x = k_new(ctx, a->n);
+        memcpy(x->f, a->f, a->n * sizeof(double));
+        /* Crossfade: blend the tail of the loop with the head of the loop.
+           At end-xfade the output is 100% original, at end it is 100% loop-start. */
+        for (int i = 0; i < xfade; i++) {
+            double fade_out = (double)(xfade - i) / (double)xfade;
+            double fade_in  = (double)i / (double)xfade;
+            int ei = end - xfade + i;   /* position in tail */
+            int si = start + i;          /* corresponding position in head */
+            if (ei >= 0 && ei < a->n && si >= 0 && si < a->n) {
+                x->f[ei] = a->f[ei] * fade_out + a->f[si] * fade_in;
+            }
+        }
+        k_free(ctx, a); k_free(ctx, b); return x;
+    }
+
     if (c == ',') {
         int n = a->n + b->n;
         GAS_CHECK(ctx, n);
