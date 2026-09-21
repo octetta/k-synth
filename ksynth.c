@@ -807,13 +807,14 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
         k_free(ctx, a); k_free(ctx, b); return x;
     }
 
-    if (c == 'X') {
-        /* Dyadic X: W X threshold — zero-crossing finder.
+    if (c == 'x') {
+        /* Dyadic x: W x threshold — zero-crossing finder.
            Returns array of sample indices where W crosses zero.
            A crossing is detected when adjacent samples change sign,
            or when |W[i]| <= threshold.
            Useful for finding click-free cut/splice points for loops.
-           Example: ZC: W X 0.01    / find all zero crossings */
+           (Monadic x is exp-decay; dyadic x is zero-crossing.)
+           Example: ZC: W x 0.01    / find all zero crossings */
         double thresh = (b->n > 0) ? fabs(b->f[0]) : 0.001;
         /* First pass: count crossings */
         int cnt = 0;
@@ -838,15 +839,16 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
         k_free(ctx, a); k_free(ctx, b); return x;
     }
 
-    if (c == 'L') {
-        /* Dyadic L: W L (period window) — loop similarity score.
+    if (c == 'l') {
+        /* Dyadic l: W l (period window) — loop similarity score.
            For each position i in W, computes the RMS difference between
            W[i..i+window] and W[i+period..i+period+window].
            Lower values indicate better loop splice points.
            Returns array of scores (same length as W).
            Positions where the comparison window exceeds array bounds
            are assigned a large penalty value (1e6).
-           Example: SC: W L (88200 512)   / score 2-second loop candidates */
+           (Monadic l is log; dyadic l is loop-score.)
+           Example: SC: W l (88200 512)   / score 2-second loop candidates */
         int period = (b->n > 0) ? (int)b->f[0] : 44100;
         int window = (b->n > 1) ? (int)b->f[1] : 512;
         if (period < 1) period = 1;
@@ -868,15 +870,16 @@ K dy(ks_ctx *ctx, char c, K a, K b) {
         k_free(ctx, a); k_free(ctx, b); return x;
     }
 
-    if (c == 'J') {
-        /* Dyadic J: W J (start end xfade) — crossfade loop join.
+    if (c == 'c') {
+        /* Dyadic c: W c (start end xfade) — crossfade loop join.
            Creates a copy of W with a crossfade applied at the loop boundary.
            The last xfade samples before end are blended with the first
            xfade samples after start, so that looping from start to end
            produces a seamless, click-free transition.
            If xfade is omitted, defaults to 4410 samples (0.1s at 44100).
            Output has the same length as input W.
-           Example: W2: W J (11025 99225 2205)   / crossfade 50ms at loop seam */
+           (Monadic c is cos; dyadic c is crossfade.)
+           Example: W2: W c (11025 99225 2205)   / crossfade 50ms at loop seam */
         int start = (b->n > 0) ? (int)b->f[0] : 0;
         int end   = (b->n > 1) ? (int)b->f[1] : a->n;
         int xfade = (b->n > 2) ? (int)b->f[2] : 4410;
