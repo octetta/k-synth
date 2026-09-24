@@ -86,6 +86,15 @@ After any error, the arena resets and persistent variables written before the fa
 | `v` | quantize to N levels: `N v signal` |
 | `n` | (absorbed into monadic — no dyadic form) |
 
+#### multi-character dyadic verbs
+
+| Op | Behavior |
+|----|----------|
+| `dl` | feedback delay/echo: `signal dl (delay gain)` |
+| `sl` | slice/extract sub-array: `signal sl (start length)` |
+| `ft` | Fourier transform (DFT): `signal ft max_harmonics` |
+| `rs` | resample with interpolation: `signal rs speed` |
+
 ### scan adverb
 
 `op\V` — running accumulation, same length as V. Supported ops: `+`, `*`, `-`, `%`, `&`, `|`, `^`.

@@ -261,7 +261,7 @@ W: w P $ A
 
 #### Additive Analysis and Reconstruction
 
-The `analyze` verb (operator `F`) computes a Discrete Fourier Transform (DFT) specifically formatted to extract peak harmonic amplitudes from an array. It creates perfect symmetry with the `$` synthesis verb, allowing you to sample, analyze, and instantly reconstruct any waveform.
+The `analyze` verb (operator `ft`) computes a Discrete Fourier Transform (DFT) specifically formatted to extract peak harmonic amplitudes from an array. It creates perfect symmetry with the `$` synthesis verb, allowing you to sample, analyze, and instantly reconstruct any waveform.
 
 ```
 / Load a single-cycle piano waveform using the host REPL command
