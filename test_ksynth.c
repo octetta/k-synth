@@ -3,6 +3,7 @@
 #include <string.h>
 #include <math.h>
 #include "ksynth.h"
+#include "sk_dsp.h"
 
 /* --- Test harness --- */
 
@@ -1025,6 +1026,36 @@ static void test_crash_v9(void) {
     }
 }
 
+static void test_sk_dsp_primitives(void) {
+    printf("\n-- sk_dsp shared library verification --\n");
+    float a4 = sk_mtof(69.0f);
+    if (fabsf(a4 - 440.0f) < 1e-4f) {
+        printf("pass [sk_mtof(69) == 440]\n");
+        pass++;
+    } else {
+        printf("FAIL [sk_mtof]\n");
+        fail++;
+    }
+
+    float p = sk_fast_pow(2.0f, 3.0f);
+    if (fabsf(p - 8.0f) < 0.2f) {
+        printf("pass [sk_fast_pow(2, 3) ~ 8]\n");
+        pass++;
+    } else {
+        printf("FAIL [sk_fast_pow]\n");
+        fail++;
+    }
+
+    float sat = sk_softclip_cubic(5.0f, 1.0f);
+    if (fabsf(sat - 1.0f) < 1e-4f) {
+        printf("pass [sk_softclip_cubic saturation clamp = 1.0]\n");
+        pass++;
+    } else {
+        printf("FAIL [sk_softclip_cubic]\n");
+        fail++;
+    }
+}
+
 int main(void) {
     printf("ksynth test suite\n");
     printf("=================\n");
@@ -1086,6 +1117,7 @@ int main(void) {
     test_modal_bank();
     test_time_helpers();
     test_crash_v9();
+    test_sk_dsp_primitives();
 
     printf("\n=================\n");
     printf("passed: %d  failed: %d\n", pass, fail);

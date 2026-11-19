@@ -4,6 +4,7 @@
 #include <math.h>
 #include <setjmp.h>
 #include "ksynth.h"
+#include "sk_dsp.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -36,13 +37,10 @@ const char* ks_strerror(ks_status status) {
     } \
 } while(0)
 
-/* --- Safe Value Helper --- */
+/* --- Safe Value Helper (delegates to sk_dsp) --- */
 
 static inline double safe_val(double v) {
-    if (isnan(v) || isinf(v)) return 0.0;
-    if (v > 1e6) return 1e6;
-    if (v < -1e6) return -1e6;
-    return v;
+    return sk_safe_val(v);
 }
 
 /* --- Context Lifecycle --- */
@@ -514,7 +512,7 @@ K mo(ks_ctx *ctx, char c, K b) {
         GAS_CHECK(ctx, b->n);
         x = k_new(ctx, b->n);
         for (int i = 0; i < b->n; i++)
-            x->f[i] = floor(b->f[i] * 4.0) / 4.0;
+            x->f[i] = sk_quantized(b->f[i], 4.0);
         k_free(ctx, b); return x;
     }
 
@@ -542,20 +540,14 @@ K mo(ks_ctx *ctx, char c, K b) {
             case 'x': x->f[i] = exp(-5.0 * v); break;
             case 'd': x->f[i] = tanh(v * 3.0); break;
             case 'm': {
-                unsigned int clock = i;
-                unsigned int hh = (clock * 13) ^ (clock >> 5) ^ (clock * 193);
-                x->f[i] = (hh & 128) ? 0.7 : -0.7;
+                x->f[i] = (double)sk_metallic_noise_step((uint32_t)i);
                 break;
             }
             case 'b': {
                 /* Monadic b: fixed-pitch buzz at 110 Hz (default organ bass).
                    For pitched use, prefer dyadic form: freq b V */
-                double ff[] = {2.43, 3.01, 3.52, 4.11, 5.23, 6.78};
-                double phase_inc = 110.0 * (2.0 * M_PI / ctx->sample_rate);
-                double ss = 0;
-                for (int j = 0; j < 6; j++)
-                    ss += (sin(i * phase_inc * ff[j]) > 0) ? 1.0 : -1.0;
-                x->f[i] = ss / 6.0;
+                double phase_inc = sk_hz_to_phase_inc(110.0, ctx->sample_rate);
+                x->f[i] = sk_metallic_cluster_sample(phase_inc, i);
                 break;
             }
             case 'u': {
@@ -564,7 +556,7 @@ K mo(ks_ctx *ctx, char c, K b) {
                 x->f[i] = (i < 10) ? (double)i / 10.0 : 1.0;
                 break;
             }
-            case 'n': x->f[i] = 440.0 * pow(2.0, (v - 69.0) / 12.0); break;
+            case 'n': x->f[i] = (double)sk_mtof((float)v); break;
             default: x->f[i] = v; break;
         }
     }
@@ -594,29 +586,14 @@ K dy(ks_ctx *ctx, const char *op, K a, K b) {
            M: flat list of triples (freq_Hz, amplitude, T60_seconds), one per mode.
               Mode i contributes amp * 10^(-3*t/T60) * sin(2*pi*freq*t); T60 <= 0 means no decay.
            Modes at or above Nyquist are skipped.
-           Each mode is a recursive complex rotator: a few multiplies per sample, no sin/exp per sample.
+           Delegates to sk_modal_bank_render in sk_dsp.h.
            Example: M: 818 .02 1.2  1206 .04 1.2  2455 .2 1.2
                     W: w T mb M */
         int n = a->n, m = b->n / 3;
         if (n <= 0 || m <= 0) { k_free(ctx, a); k_free(ctx, b); return k_new(ctx, 0); }
         GAS_CHECK(ctx, (long long)n * m / 8 + n);
         x = k_new(ctx, n);
-        for (int i = 0; i < n; i++) x->f[i] = 0.0;
-        double sr = ctx->sample_rate;
-        for (int j = 0; j < m; j++) {
-            double f = b->f[3*j], amp = b->f[3*j+1], t60 = b->f[3*j+2];
-            if (f <= 0.0 || f >= 0.5 * sr) continue;
-            double w = 2.0 * M_PI * f / sr;
-            double c = cos(w), sn = sin(w);
-            double g = (t60 > 0.0) ? pow(10.0, -3.0 / (t60 * sr)) : 1.0;
-            double re = 1.0, im = 0.0;
-            for (int i = 0; i < n; i++) {
-                x->f[i] += amp * im;
-                double nre = g * (re * c - im * sn);
-                double nim = g * (re * sn + im * c);
-                re = nre; im = nim;
-            }
-        }
+        sk_modal_bank_render(b->f, m, x->f, n, ctx->sample_rate);
         k_free(ctx, a); k_free(ctx, b); return x;
     }
 
@@ -772,7 +749,7 @@ K dy(ks_ctx *ctx, const char *op, K a, K b) {
         GAS_CHECK(ctx, b->n);
         x = k_new(ctx, b->n);
         for (int i = 0; i < b->n; i++)
-            x->f[i] = floor(b->f[i] * levels) / levels;
+            x->f[i] = sk_quantized(b->f[i], levels);
         k_free(ctx, a); k_free(ctx, b); return x;
     }
 
@@ -782,15 +759,11 @@ K dy(ks_ctx *ctx, const char *op, K a, K b) {
            Output length = b->n (the signal vector). */
         double freq = (a->n > 0) ? a->f[0] : 110.0;
         if (freq < 1.0) freq = 1.0;
-        double phase_inc = freq * (2.0 * M_PI / ctx->sample_rate);
-        double ff[] = {2.43, 3.01, 3.52, 4.11, 5.23, 6.78};
+        double phase_inc = sk_hz_to_phase_inc(freq, ctx->sample_rate);
         GAS_CHECK(ctx, b->n);
         x = k_new(ctx, b->n);
         for (int i = 0; i < b->n; i++) {
-            double ss = 0;
-            for (int j = 0; j < 6; j++)
-                ss += (sin(i * phase_inc * ff[j]) > 0) ? 1.0 : -1.0;
-            x->f[i] = ss / 6.0;
+            x->f[i] = sk_metallic_cluster_sample(phase_inc, i);
         }
         k_free(ctx, a); k_free(ctx, b); return x;
     }
@@ -809,16 +782,16 @@ K dy(ks_ctx *ctx, const char *op, K a, K b) {
 
     if (c == 'f') {
         GAS_CHECK(ctx, b->n);
-        x = k_new(ctx, b->n); double b0 = 0, b1 = 0;
+        x = k_new(ctx, b->n);
+        double ct = (a->n > 0) ? a->f[0] : 0.5;
+        double rs = (a->n >= 2) ? a->f[1] : 0.0;
+        sk_resonant2p_t rf;
+        sk_resonant2p_init(&rf, ct, rs);
         for (int i = 0; i < b->n; i++) {
-            double ct = (a->n > i) ? a->f[i] : a->f[0];
-            double rs = (a->n >= 2) ? a->f[1] : 0.0;
-            if (ct > 0.95) ct = 0.95;
-            if (rs > 3.98) rs = 3.98;
-            double in = b->f[i] - (rs * b1);
-            b0 += ct * (in - b0); b1 += ct * (b0 - b1);
-            b0 = safe_val(b0); b1 = safe_val(b1);
-            x->f[i] = b1;
+            if (a->n > i) {
+                rf.ct = (a->f[i] > 0.95) ? 0.95 : (a->f[i] < 0.0 ? 0.0 : a->f[i]);
+            }
+            x->f[i] = sk_resonant2p_step(&rf, b->f[i]);
         }
         k_free(ctx, a); k_free(ctx, b); return x;
     }
@@ -826,18 +799,16 @@ K dy(ks_ctx *ctx, const char *op, K a, K b) {
     if (c == 'g') {
         GAS_CHECK(ctx, b->n);
         x = k_new(ctx, b->n);
-        double s0 = 0.0, s1 = 0.0;
         double static_f = a->f[0];
         double q_val    = (a->n >= 2) ? a->f[1] : 0.5;
-        double damp     = 1.0 / (q_val < 0.01 ? 0.01 : q_val);
+        sk_svf_t svf;
+        sk_svf_init(&svf, static_f, q_val, ctx->sample_rate);
         for (int i = 0; i < b->n; i++) {
-            double f_hz    = (a->n == b->n) ? a->f[i] : static_f;
-            double f_coeff = 2.0 * sin(M_PI * f_hz / ctx->sample_rate);
-            if (f_coeff > 1.99) f_coeff = 1.99;
-            double hp = b->f[i] - s0 - damp * s1;
-            s1 += f_coeff * hp; s0 += f_coeff * s1;
-            s0 = safe_val(s0); s1 = safe_val(s1);
-            x->f[i] = s1;
+            if (a->n == b->n) {
+                /* Per-sample modulated cutoff */
+                sk_svf_init(&svf, a->f[i], q_val, ctx->sample_rate);
+            }
+            x->f[i] = sk_svf_step_bp(&svf, b->f[i]);
         }
         k_free(ctx, a); k_free(ctx, b); return x;
     }
@@ -932,6 +903,7 @@ K dy(ks_ctx *ctx, const char *op, K a, K b) {
            The last xfade samples before end are blended with the first
            xfade samples after start, so that looping from start to end
            produces a seamless, click-free transition.
+           Delegates to sk_crossfade_seam in sk_dsp.h.
            If xfade is omitted, defaults to 4410 samples (0.1s at 44100).
            Output has the same length as input W.
            (Monadic c is cos; dyadic c is crossfade.)
@@ -939,24 +911,10 @@ K dy(ks_ctx *ctx, const char *op, K a, K b) {
         int start = (b->n > 0) ? (int)b->f[0] : 0;
         int end   = (b->n > 1) ? (int)b->f[1] : a->n;
         int xfade = (b->n > 2) ? (int)b->f[2] : 4410;
-        if (start < 0) start = 0;
-        if (end > a->n) end = a->n;
-        if (xfade > end - start) xfade = end - start;
-        if (xfade < 1) xfade = 1;
         GAS_CHECK(ctx, a->n);
         x = k_new(ctx, a->n);
         memcpy(x->f, a->f, a->n * sizeof(double));
-        /* Crossfade: blend the tail of the loop with the head of the loop.
-           At end-xfade the output is 100% original, at end it is 100% loop-start. */
-        for (int i = 0; i < xfade; i++) {
-            double fade_out = (double)(xfade - i) / (double)xfade;
-            double fade_in  = (double)i / (double)xfade;
-            int ei = end - xfade + i;   /* position in tail */
-            int si = start + i;          /* corresponding position in head */
-            if (ei >= 0 && ei < a->n && si >= 0 && si < a->n) {
-                x->f[ei] = a->f[ei] * fade_out + a->f[si] * fade_in;
-            }
-        }
+        sk_crossfade_seam(x->f, a->n, start, end, xfade);
         k_free(ctx, a); k_free(ctx, b); return x;
     }
 
