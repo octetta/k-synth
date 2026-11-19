@@ -1054,6 +1054,45 @@ static void test_sk_dsp_primitives(void) {
         printf("FAIL [sk_softclip_cubic]\n");
         fail++;
     }
+
+    float db_lin = sk_db_to_linear(0.0f);
+    if (fabsf(db_lin - 1.0f) < 1e-4f) {
+        printf("pass [sk_db_to_linear(0) == 1.0]\n");
+        pass++;
+    } else {
+        printf("FAIL [sk_db_to_linear]\n");
+        fail++;
+    }
+
+    float pan_l, pan_r;
+    sk_pan_equal_power(0.0f, &pan_l, &pan_r);
+    if (fabsf(pan_l * pan_l + pan_r * pan_r - 1.0f) < 1e-4f) {
+        printf("pass [sk_pan_equal_power center unity power]\n");
+        pass++;
+    } else {
+        printf("FAIL [sk_pan_equal_power]\n");
+        fail++;
+    }
+
+    sk_lfsr_noise_t sid;
+    sk_lfsr_noise_init(&sid, 0);
+    float sid_s = sk_lfsr_noise_step(&sid);
+    if (sid_s >= -1.0f && sid_s <= 1.0f) {
+        printf("pass [sk_lfsr_noise_step SID sample in bounds]\n");
+        pass++;
+    } else {
+        printf("FAIL [sk_lfsr_noise_step]\n");
+        fail++;
+    }
+
+    float comp = sk_quantize_bits_curve(0.4f, 4, 1, NULL);
+    if (comp >= 0.0f && comp <= 1.0f) {
+        printf("pass [sk_quantize_bits_curve companded in bounds]\n");
+        pass++;
+    } else {
+        printf("FAIL [sk_quantize_bits_curve]\n");
+        fail++;
+    }
 }
 
 int main(void) {

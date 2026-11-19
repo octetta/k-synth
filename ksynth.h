@@ -17,10 +17,10 @@
 #ifndef KSYNTH_H
 #define KSYNTH_H
 
-#define KSYNTH_VERSION "1.2.0"
+#define KSYNTH_VERSION "1.2.1"
 #define KSYNTH_VERSION_MAJOR 1
 #define KSYNTH_VERSION_MINOR 2
-#define KSYNTH_VERSION_PATCH 0
+#define KSYNTH_VERSION_PATCH 1
 
 #include <stdlib.h>
 #include <string.h>
