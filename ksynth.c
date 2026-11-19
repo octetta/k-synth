@@ -88,6 +88,7 @@ static void ks_init_aliases(ks_ctx *ctx) {
     bind_alias(ctx, "slice", "x sl y");
     bind_alias(ctx, "speed", "x rs y");
     bind_alias(ctx, "delay", "x dl y");
+    bind_alias(ctx, "modal", "x mb y");
     bind_alias(ctx, "analyze", "x ft y");
 }
 
@@ -583,6 +584,38 @@ K dy(ks_ctx *ctx, const char *op, K a, K b) {
     char c = op[0];
 
     /* --- Multi-character verbs (dispatched first) --- */
+
+    if (strcmp(op, "mb") == 0) {
+        /* Dyadic mb: T mb M -- modal bank (damped sinusoids), for struck metal / bells.
+           T: only its length is used (output length), as with r and m.
+           M: flat list of triples (freq_Hz, amplitude, T60_seconds), one per mode.
+              Mode i contributes amp * 10^(-3*t/T60) * sin(2*pi*freq*t); T60 <= 0 means no decay.
+           Modes at or above Nyquist are skipped.
+           Each mode is a recursive complex rotator: a few multiplies per sample, no sin/exp per sample.
+           Example: M: 818 .02 1.2  1206 .04 1.2  2455 .2 1.2
+                    W: w T mb M */
+        int n = a->n, m = b->n / 3;
+        if (n <= 0 || m <= 0) { k_free(ctx, a); k_free(ctx, b); return k_new(ctx, 0); }
+        GAS_CHECK(ctx, (long long)n * m / 8 + n);
+        x = k_new(ctx, n);
+        for (int i = 0; i < n; i++) x->f[i] = 0.0;
+        double sr = ctx->sample_rate;
+        for (int j = 0; j < m; j++) {
+            double f = b->f[3*j], amp = b->f[3*j+1], t60 = b->f[3*j+2];
+            if (f <= 0.0 || f >= 0.5 * sr) continue;
+            double w = 2.0 * M_PI * f / sr;
+            double c = cos(w), sn = sin(w);
+            double g = (t60 > 0.0) ? pow(10.0, -3.0 / (t60 * sr)) : 1.0;
+            double re = 1.0, im = 0.0;
+            for (int i = 0; i < n; i++) {
+                x->f[i] += amp * im;
+                double nre = g * (re * c - im * sn);
+                double nim = g * (re * sn + im * c);
+                re = nre; im = nim;
+            }
+        }
+        k_free(ctx, a); k_free(ctx, b); return x;
+    }
 
     if (strcmp(op, "dl") == 0) {
         /* Dyadic dl: signal dl (delay gain) — feedback delay / echo.
@@ -1200,7 +1233,7 @@ K expr_tok(ks_ctx *ctx, Token **t) {
         } else if ((*t)->type == TOK_ID) {
             /* Multi-character built-in verb names */
             const char *w = (*t)->str_val;
-            if (strcmp(w,"dl")==0 || strcmp(w,"sl")==0 || strcmp(w,"ft")==0 || strcmp(w,"rs")==0) {
+            if (strcmp(w,"dl")==0 || strcmp(w,"sl")==0 || strcmp(w,"ft")==0 || strcmp(w,"rs")==0 || strcmp(w,"mb")==0) {
                 is_operator = 1;
             }
         }

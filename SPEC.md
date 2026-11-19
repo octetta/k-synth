@@ -94,6 +94,7 @@ After any error, the arena resets and persistent variables written before the fa
 | `sl` | slice/extract sub-array: `signal sl (start length)` |
 | `ft` | Fourier transform (DFT): `signal ft max_harmonics` |
 | `rs` | resample with interpolation: `signal rs speed` |
+| `mb` | modal bank (damped sinusoids): `T mb M` |
 
 ### scan adverb
 
