@@ -353,8 +353,11 @@ W: w (s P) t 440 D
 gcc -O2 test_ksynth.c ksynth.c -lm -o test_ksynth && ./test_ksynth
 ```
 
-165 tests, 0 failures. Coverage: scalars, vectors, arithmetic, scan, normalize, sine/cosine, exp/log, filter cutoff, highpass, delay/comb, additive synthesis `o` and `$`, wavetable `t`, dot literals, right-assoc correctness, envelope decay, noise length, pitch sweep, rise-decay envelope, 1-bit noise, host array helpers, modal bank `mb`, and crash synthesis.
+172 tests, 0 failures. Coverage: scalars, vectors, arithmetic, scan, normalize, sine/cosine, exp/log, filter cutoff, highpass, delay/comb, additive synthesis `o` and `$`, wavetable `t`, dot literals, right-assoc correctness, envelope decay, noise length, pitch sweep, rise-decay envelope, 1-bit noise, host array helpers, modal bank `mb`, frequency helper `hz`, time helpers `ms` and `sec`, and crash synthesis.
 
 See `api.md` for the C embedding API.
 
 | `mb` | `T mb M` | modal bank: sum of damped sinusoids. `T` supplies only the output length; `M` is a flat list of triples `(Hz, amplitude, T60_seconds)`, one per mode (T60 <= 0 = no decay; modes at or above Nyquist are skipped). Recursive resonators, so cost is a few multiplies per sample per mode. Example: `M: 818 .02 1.2  1206 .04 1.2`, `W: w T mb M` |
+| `ms` | `ms x` | convert milliseconds to sample count at active sample rate: `x * ((p 0) % 1000)`. Example: `N: ms 300`, `T: !N` |
+| `sec` | `sec x` | convert seconds to sample count at active sample rate: `x * (p 0)`. Example: `N: sec 1.5`, `T: !N` |
+| `hz` | `hz x` | convert frequency in Hz to phase increment (radians/sample): `x * ((p 2) % (p 0))`. Example: `F: hz 440`, `P: +\(N#F)` |

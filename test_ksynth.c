@@ -955,6 +955,47 @@ static void test_modal_bank(void) {
     k_free(x);
 }
 
+static void test_time_helpers(void) {
+    printf("\n-- ms and sec time helpers --\n");
+    reset_vars();
+    check_scalar("ms 300 at 44.1k", "ms 300", 13230.0, 1e-6);
+
+    run("N: ms 300");
+    check_len("!N from ms 300 length", "!N", 13230);
+
+    check_scalar("sec 1.5 at 44.1k", "sec 1.5", 66150.0, 1e-6);
+
+    double expected_hz_440 = 440.0 * (2.0 * M_PI / 44100.0);
+    check_scalar("hz 440 at 44.1k", "hz 440", expected_hz_440, 1e-9);
+
+    /* Test at 48 kHz context */
+    ks_ctx *ctx48 = ks_create(16 * 1024 * 1024, 100000000LL, 48000.0);
+    if (ctx48) {
+        K k48_ms = ks_eval(ctx48, "ms 300", 6);
+        if (k48_ms && k48_ms->n == 1 && fabs(k48_ms->f[0] - 14400.0) < 1e-6) {
+            printf("pass [ms 300 at 48k = 14400]\n"); pass++;
+        } else {
+            printf("FAIL [ms 300 at 48k]: expected 14400 got %f\n", k48_ms ? k48_ms->f[0] : -1.0); fail++;
+        }
+
+        K k48_sec = ks_eval(ctx48, "sec 1.5", 7);
+        if (k48_sec && k48_sec->n == 1 && fabs(k48_sec->f[0] - 72000.0) < 1e-6) {
+            printf("pass [sec 1.5 at 48k = 72000]\n"); pass++;
+        } else {
+            printf("FAIL [sec 1.5 at 48k]: expected 72000 got %f\n", k48_sec ? k48_sec->f[0] : -1.0); fail++;
+        }
+
+        double expected_hz48_440 = 440.0 * (2.0 * M_PI / 48000.0);
+        K k48_hz = ks_eval(ctx48, "hz 440", 6);
+        if (k48_hz && k48_hz->n == 1 && fabs(k48_hz->f[0] - expected_hz48_440) < 1e-9) {
+            printf("pass [hz 440 at 48k]\n"); pass++;
+        } else {
+            printf("FAIL [hz 440 at 48k]: expected %f got %f\n", expected_hz48_440, k48_hz ? k48_hz->f[0] : -1.0); fail++;
+        }
+        ks_destroy(ctx48);
+    }
+}
+
 static void test_crash_v9(void) {
     printf("\n-- crash v9 full synthesis --\n");
     reset_vars();
@@ -1043,6 +1084,7 @@ int main(void) {
     test_1bit_noise();
     test_host_array_helpers();
     test_modal_bank();
+    test_time_helpers();
     test_crash_v9();
 
     printf("\n=================\n");

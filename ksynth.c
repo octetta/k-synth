@@ -90,6 +90,9 @@ static void ks_init_aliases(ks_ctx *ctx) {
     bind_alias(ctx, "delay", "x dl y");
     bind_alias(ctx, "modal", "x mb y");
     bind_alias(ctx, "analyze", "x ft y");
+    bind_alias(ctx, "ms", "x * ((p 0) % 1000)");
+    bind_alias(ctx, "sec", "x * (p 0)");
+    bind_alias(ctx, "hz", "x * ((p 2) % (p 0))");
 }
 
 ks_ctx* ks_create(size_t mem_limit, long long gas_limit, double sample_rate) {
